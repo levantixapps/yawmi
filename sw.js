@@ -1,8 +1,8 @@
 // Offline support: the app shell is served network-first (so updates arrive),
-// fonts and the PeerJS library cache-first. Personal data never passes through here;
+// fonts and the Supabase library cache-first. Personal data never passes through here;
 // it lives in the browser's localStorage.
-var CACHE = "dftr-yawmi-v1";
-var CORE = ["./", "index.html", "manifest.webmanifest", "icon.svg", "icon-192.png", "icon-512.png"];
+var CACHE = "dftr-yawmi-v3";
+var CORE = ["./", "index.html", "config.js", "manifest.webmanifest", "icon.svg", "icon-192.png", "icon-512.png"];
 
 self.addEventListener("install", function (e) {
   e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(CORE); }).then(function () { return self.skipWaiting(); }));
@@ -38,7 +38,7 @@ self.addEventListener("fetch", function (e) {
     return;
   }
 
-  if (/(^|\.)fonts\.(googleapis|gstatic)\.com$|(^|\.)unpkg\.com$/.test(url.hostname)) {
+  if (/(^|\.)fonts\.(googleapis|gstatic)\.com$|^cdn\.jsdelivr\.net$|^cdnjs\.cloudflare\.com$/.test(url.hostname)) {
     e.respondWith(
       caches.match(req).then(function (r) {
         return r || fetch(req).then(function (res) { return store(req, res); });
