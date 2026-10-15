@@ -207,6 +207,33 @@ textarea { width: 100%; min-height: 90px; resize: vertical; padding: 10px 12px; 
 .stat span { font-size: .78rem; color: var(--muted); }
 .left { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .left .t { flex: 1 1 140px; min-width: 0; overflow-wrap: anywhere; }
+.rangeseg { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--surface); }
+.rangeseg button { border: 0; background: none; padding: 8px 4px; font-size: .9rem; color: var(--muted); }
+.rangeseg button + button { border-inline-start: 1px solid var(--line); }
+.rangeseg button[aria-pressed="true"] { background: var(--accent); color: var(--surface); font-weight: 600; }
+/* Daily bars: planned as a faint track, done in green on top */
+.chartwrap { display: flex; flex-direction: column; gap: 6px; }
+.legend { display: flex; gap: 14px; font-size: .78rem; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 10px; height: 10px; border-radius: 3px; }
+.chart { position: relative; display: flex; align-items: flex-end; gap: 2px; height: 140px; padding-top: 20px; border-bottom: 1px solid var(--line); }
+.chart::before { content: ""; position: absolute; top: 20px; inset-inline: 0; border-top: 1px dashed var(--line); }
+.chart .max { position: absolute; top: 0; inset-inline-end: 0; font-size: .72rem; color: var(--muted); font-family: var(--font-mono); }
+.chart .b { position: relative; flex: 1; min-width: 0; height: 100%; border: 0; padding: 0; background: none; cursor: pointer; }
+.chart .b .p, .chart .b .d { position: absolute; bottom: 0; inset-inline: 0; border-radius: 4px 4px 0 0; }
+.chart .b .p { background: var(--line); }
+.chart .b .d { background: var(--done); }
+.chart .b.sel .p { background: var(--muted); opacity: .35; }
+.chart .b.sel .d { box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px var(--ink); }
+.xlabels { display: flex; gap: 2px; }
+.xlabels span { flex: 1; min-width: 0; text-align: center; font-size: .68rem; color: var(--muted); font-family: var(--font-mono); overflow: hidden; white-space: nowrap; }
+.barinfo { font-size: .85rem; min-height: 1.4em; }
+.toplist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.toplist li { display: flex; justify-content: space-between; gap: 10px; align-items: center; padding-block: 8px; border-bottom: 1px dashed var(--line); font-size: .9rem; }
+.toplist li:last-child { border-bottom: 0; }
+.toplist b { font-family: var(--font-mono); font-weight: 600; font-size: .82rem; white-space: nowrap; }
+.daybar .title { cursor: pointer; border-radius: 10px; }
+.jump { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 
 /* Settings */
 .wds { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -237,7 +264,8 @@ details.box textarea { font-size: .78rem; direction: ltr; }
 <div class="wrap">
   <header class="daybar">
     <button class="iconbtn" id="prev" aria-label="اليوم السابق">→</button>
-    <div class="title">
+    <div class="title" id="titleBtn" role="button" tabindex="0" aria-label="اختر تاريخًا">
+      <input type="date" class="jump" id="jump" tabindex="-1" aria-hidden="true">
       <h1 id="dayName">اليوم</h1>
       <div class="sub" id="dayDate"></div>
     </div>
@@ -393,9 +421,13 @@ details.box textarea { font-size: .78rem; direction: ltr; }
     persist();
     scheduleUpload();
   }
+  // The cloud keeps 7 days; this device keeps an archive of past days (up to a year)
+  var ARCHIVE = 365;
+  function inArchive(k) { var o = offsetOf(k); return o >= -ARCHIVE && o <= SPAN; }
   function pruneLocal() {
     Object.keys(state.days).forEach(function (k) {
-      if (!inWindow(k)) { delete state.days[k]; delete state.dirtyDays[k]; delete snap[k]; }
+      var d = state.days[k];
+      if (!inArchive(k) || (!inWindow(k) && isEmptyDay(d))) { delete state.days[k]; delete state.dirtyDays[k]; delete snap[k]; }
     });
   }
 
@@ -498,7 +530,7 @@ details.box textarea { font-size: .78rem; direction: ltr; }
     $("dayName").textContent = (diff >= -1 && diff <= 1 && wd) ? label + "، " + wd : label;
     $("dayDate").textContent = dateLine(current);
     $("goToday").hidden = diff === 0;
-    $("prev").disabled = diff <= -SPAN;
+    $("prev").disabled = diff <= -ARCHIVE;
     $("next").disabled = diff >= SPAN;
     document.querySelectorAll(".tab").forEach(function (b) { b.setAttribute("aria-current", b.dataset.tab === ui.tab ? "true" : "false"); });
     var dot = $("cloudDot");
@@ -517,6 +549,9 @@ details.box textarea { font-size: .78rem; direction: ltr; }
     if (!ui.tab) ui.tab = defaultTab();
     renderHeader();
     var html = "";
+    if (offsetOf(dk()) < -SPAN && ui.tab !== "settings") {
+      html += '<div class="banner"><span>هذا يوم من الأرشيف، محفوظ على هذا الجهاز فقط ولا يُرفع إلى السحابة.</span><button class="linkbtn" data-act="goToday">ارجع إلى اليوم</button></div>';
+    }
     if (state.sample === dk() && ui.tab !== "settings") {
       html += '<div class="banner"><span>هذا يوم مثال يوضّح طريقة الاستخدام.</span><button class="linkbtn" data-act="clearSample">احذف المثال وابدأ</button></div>';
     }
@@ -733,7 +768,96 @@ details.box textarea { font-size: .78rem; direction: ltr; }
     }).join("") + '</div></section>';
     return h;
   }
+  function periodStats(endKey, n) {
+    var out = { days: [], planned: 0, done: 0, by: {}, titles: {}, planned_days: 0 };
+    for (var i = n - 1; i >= 0; i--) {
+      var k = keyOf(addDays(parseKey(endKey), -i)), d = state.days[k];
+      var st = d ? dayStats(d) : { planned: 0, done: 0, by: {} };
+      out.days.push({ k: k, planned: st.planned, done: st.done });
+      out.planned += st.planned; out.done += st.done;
+      if (st.planned) out.planned_days++;
+      Object.keys(st.by).forEach(function (c) {
+        var b = out.by[c] || (out.by[c] = { planned: 0, done: 0 });
+        b.planned += st.by[c].planned; b.done += st.by[c].done;
+      });
+      if (d) active(d).forEach(function (it) {
+        if (!it.done) return;
+        var t = out.titles[it.title] || (out.titles[it.title] = { n: 0, m: 0, cat: it.cat });
+        t.n++; t.m += it.spent != null ? it.spent : (it.dur || 0);
+      });
+    }
+    out.rate = out.planned ? out.done / out.planned : 0;
+    return out;
+  }
+  function shortDate(k) { var d = parseKey(k); return d.getDate() + "/" + (d.getMonth() + 1); }
+  function periodHtml(n) {
+    var endKey = offsetOf(dk()) > 0 ? keyOf(today()) : dk();
+    var t = periodStats(endKey, n), prev = periodStats(keyOf(addDays(parseKey(endKey), -n)), n);
+    var label = n === 7 ? "آخر ٧ أيام" : "آخر ٣٠ يومًا", prevLabel = n === 7 ? "الأسبوع الذي قبله" : "الشهر الذي قبله";
+    if (!t.planned) return '<div class="verdict"><span class="big">لا توجد بيانات بعد</span><p class="small muted">سجّل أيامك واضغط ✓ على ما تنجزه، وسيظهر هنا تقرير ' + (n === 7 ? "الأسبوع" : "الشهر") + '.</p></div>';
+    var pct = Math.round(t.rate * 100), cls = "", big, msg = "أنجزت " + fmtH(t.done) + " من " + fmtH(t.planned) + " خطّطت لها (" + pct + "٪) خلال " + label + ".";
+    if (prev.planned) {
+      var diff = t.rate - prev.rate;
+      if (diff >= 0.1 || (diff > -0.1 && t.done > prev.done * 1.2)) { cls = "up"; big = "متقدّم ↑"; }
+      else if (diff <= -0.1) { cls = "down"; big = "متراجع ↓"; }
+      else big = "ثابت على مستواك";
+      msg += " وفي " + prevLabel + ": " + fmtH(prev.done) + " (" + Math.round(prev.rate * 100) + "٪).";
+    } else {
+      big = pct >= 80 ? "فترة ممتازة" : pct >= 50 ? "فترة جيدة" : "بداية الطريق";
+      cls = pct >= 80 ? "up" : "";
+      msg += " ستظهر المقارنة بـ" + prevLabel + " عندما تتوفر بياناته.";
+    }
+    var h = '<div class="verdict ' + cls + '"><span class="big">' + big + '</span><p class="small">' + msg + '</p></div>';
+    h += '<div class="stats"><div class="stat"><b>' + fmtH(t.done) + '</b><span>ساعات الإنجاز</span></div>' +
+      '<div class="stat"><b>' + pct + '٪</b><span>نسبة الإنجاز</span></div>' +
+      '<div class="stat"><b>' + t.planned_days + '/' + n + '</b><span>أيام مخطّطة</span></div></div>';
+
+    // daily bars
+    var max = Math.max.apply(null, t.days.map(function (x) { return Math.max(x.planned, x.done); }).concat([60]));
+    max = Math.ceil(max / 60) * 60;
+    var sel = t.days.filter(function (x) { return x.k === ui.barSel; })[0];
+    h += '<section class="chartwrap"><div class="sechead"><h2>كل يوم</h2><div class="legend"><span><i style="background:var(--done)"></i>منجز</span><span><i style="background:var(--line)"></i>مخطّط</span></div></div>' +
+      '<div class="chart" role="img" aria-label="ساعات الإنجاز لكل يوم خلال ' + label + '"><span class="max">' + fmtH(max) + '</span>' +
+      t.days.map(function (x) {
+        var tip = (dayFmt ? dayFmt.format(parseKey(x.k)) + " " : "") + shortDate(x.k) + ": " + fmtH(x.done) + " من " + fmtH(x.planned);
+        return '<button class="b' + (x.k === ui.barSel ? " sel" : "") + '" data-act="bar" data-k="' + x.k + '" title="' + esc(tip) + '" aria-label="' + esc(tip) + '">' +
+          '<span class="p" style="height:' + (x.planned / max * 100) + '%"></span><span class="d" style="height:' + (x.done / max * 100) + '%"></span></button>';
+      }).join("") + '</div><div class="xlabels">' +
+      t.days.map(function (x, i) {
+        var d = parseKey(x.k), lbl = n === 7 ? WD_SHORT[d.getDay()] : (i % 5 === 0 || i === n - 1 ? String(d.getDate()) : "");
+        return '<span>' + lbl + '</span>';
+      }).join("") + '</div>' +
+      '<p class="barinfo">' + (sel ? (dayFmt ? dayFmt.format(parseKey(sel.k)) + " " : "") + shortDate(sel.k) + ": أنجزت <b>" + fmtH(sel.done) + "</b> من " + fmtH(sel.planned) + ' <button class="linkbtn" data-act="openDay" data-k="' + sel.k + '">افتح اليوم</button>' : '<span class="muted">اضغط على أي يوم لترى تفاصيله.</span>') + '</p></section>';
+
+    // per category, compared with the previous period
+    var ids = Object.keys(t.by).filter(function (c) { return t.by[c].planned || t.by[c].done; });
+    ids.sort(function (a, b) { return t.by[b].done - t.by[a].done; });
+    h += '<section><h2>حسب التقسيم</h2><div class="catrows">' + ids.map(function (c) {
+      var o = catOf(c), td = t.by[c], pv = prev.by[c];
+      var w = td.planned ? Math.min(100, Math.round(td.done / td.planned * 100)) : 0;
+      return '<div class="catrow" style="--cc:var(--c' + o.color + ')"><div class="hd">' + catChip(c) + '<b>' + fmtH(td.done) + ' من ' + fmtH(td.planned) + '</b></div>' +
+        '<div class="bar"><i style="width:' + w + '%"></i></div>' + (prev.planned ? trend(td.done, pv ? pv.done : 0).replace("معدّلك", prevLabel) : "") + '</div>';
+    }).join("") + '</div></section>';
+
+    // most accomplished
+    var names = Object.keys(t.titles).sort(function (a, b) { return t.titles[b].n - t.titles[a].n || t.titles[b].m - t.titles[a].m; }).slice(0, 6);
+    if (names.length) {
+      h += '<section><h2>أكثر ما أنجزت</h2><ul class="toplist">' + names.map(function (nm) {
+        var x = t.titles[nm];
+        return '<li><span>' + esc(nm) + ' ' + catChip(x.cat) + '</span><b>' + x.n + ' مرة · ' + fmtH(x.m) + '</b></li>';
+      }).join("") + '</ul></section>';
+    }
+    return h;
+  }
   function reviewView() {
+    var seg = '<div class="rangeseg">' + [["day", "اليوم"], ["week", "الأسبوع"], ["month", "الشهر"]].map(function (r) {
+      return '<button data-act="range" data-r="' + r[0] + '" aria-pressed="' + ((ui.range || "day") === r[0]) + '">' + r[1] + '</button>';
+    }).join("") + '</div>';
+    if (ui.range === "week") return seg + periodHtml(7);
+    if (ui.range === "month") return seg + periodHtml(30);
+    return seg + dayReviewView();
+  }
+  function dayReviewView() {
     var d = day(), items = active(d);
     var left = items.filter(function (i) { return !i.done; });
     var top = items.filter(function (i) { return i.top; }), topDone = top.filter(function (i) { return i.done; }).length;
@@ -827,6 +951,8 @@ details.box textarea { font-size: .78rem; direction: ltr; }
         (c.id === "other" ? "" : '<button class="del" data-act="delCat" data-id="' + esc(c.id) + '" aria-label="حذف">×</button>') + '</li>';
     }).join("") + '</ul><form class="addform" data-form="cat"><input class="field grow" id="catInput" type="text" placeholder="تقسيم جديد، مثل: القراءة" autocomplete="off"><button class="btn" type="submit">أضف</button></form></section>';
 
+    var archived = Object.keys(state.days).filter(function (k) { return offsetOf(k) < -SPAN; }).length;
+    h += '<section><h2>الأرشيف</h2><p class="small muted">السحابة تحفظ ٧ أيام فقط، وهذا الجهاز يحتفظ بالأيام السابقة لمدة سنة. المحفوظ الآن: <b>' + archived + '</b> يومًا قديمًا. لتصفّحها اضغط على التاريخ في الأعلى. الأرشيف لا يُرفع إلى السحابة، فخذ منه نسخة احتياطية بين حين وآخر.</p></section>';
     h += '<details class="box"' + (ui.backupOpen ? " open" : "") + '><summary>نسخة احتياطية</summary><div class="inner">' +
       '<span>انسخ النص أدناه واحفظه في مكان آمن، أو الصق نسخة سابقة لاستعادتها.</span><textarea id="backupText" aria-label="نص النسخة الاحتياطية"></textarea>' +
       '<div class="row-wrap"><button class="ghost" data-act="copy">نسخ البيانات</button><button class="ghost" data-act="restore">استعادة من النص</button><button class="ghost danger" data-act="wipe">مسح بيانات هذا الجهاز</button></div>' +
@@ -891,6 +1017,10 @@ details.box textarea { font-size: .78rem; direction: ltr; }
         catch (err) { toast("انسخ الكود يدويًا"); }
         break;
       case "syncNow": syncNow(); break;
+      case "range": ui.range = b.dataset.r; ui.barSel = null; render(); break;
+      case "bar": ui.barSel = ui.barSel === b.dataset.k ? null : b.dataset.k; render(); break;
+      case "openDay": ui.range = "day"; goTo(parseKey(b.dataset.k)); ui.tab = "review"; render(); break;
+      case "goToday": goTo(today()); break;
       case "pairStart": pairStart(); break;
       case "pairCancel": pairStop(); render(); break;
       case "showQr": ui.showQr = !ui.showQr; render(); break;
@@ -979,11 +1109,20 @@ details.box textarea { font-size: .78rem; direction: ltr; }
     b.addEventListener("click", function () { ui.tab = b.dataset.tab; ui.open = null; render(); window.scrollTo(0, 0); });
   });
   $("setBtn").addEventListener("click", function () { ui.tab = "settings"; ui.open = null; render(); window.scrollTo(0, 0); });
-  function shift(n) {
-    var nd = addDays(current, n), o = offsetOf(keyOf(nd));
-    if (o < -SPAN || o > SPAN) return;
-    save(); current = nd; ui.tab = null; ui.step = 1; ui.open = null; render();
+  function goTo(nd) {
+    var o = offsetOf(keyOf(nd));
+    if (o < -ARCHIVE || o > SPAN) { toast(o > SPAN ? "يمكنك التخطيط حتى ٣ أيام قادمة" : "الأرشيف يحفظ سنة واحدة"); return; }
+    save(); pruneLocal(); current = nd; ui.tab = null; ui.step = 1; ui.open = null; ui.barSel = null; render();
   }
+  function shift(n) { goTo(addDays(current, n)); }
+  function openJump() {
+    var j = $("jump");
+    j.min = keyOf(addDays(today(), -ARCHIVE)); j.max = keyOf(addDays(today(), SPAN)); j.value = dk();
+    try { j.showPicker(); } catch (e) { j.focus(); j.click(); }
+  }
+  $("titleBtn").addEventListener("click", openJump);
+  $("titleBtn").addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openJump(); } });
+  $("jump").addEventListener("change", function (e) { if (e.target.value) goTo(parseKey(e.target.value)); });
   $("prev").addEventListener("click", function () { shift(-1); });
   $("next").addEventListener("click", function () { shift(1); });
   $("goToday").addEventListener("click", function () { save(); current = today(); ui.tab = null; ui.step = 1; render(); });
@@ -1205,7 +1344,7 @@ details.box textarea { font-size: .78rem; direction: ltr; }
     if (document.hidden) return;
     pruneLocal(); // the 7-day window moves at midnight
     var o = offsetOf(dk());
-    if (o < -SPAN || o > SPAN) current = today();
+    if (o < -ARCHIVE || o > SPAN) current = today();
     persist();
     syncNow();
     softRender();
