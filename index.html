@@ -16,7 +16,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <style>
-/* Layout: mobile app — sticky day bar on top, one view at a time (خطّط / يومي / راجع / إعدادات), fixed tab bar at bottom */
+/* Layout: mobile app — sticky day bar on top, one view at a time (خطّط / جدولي / راجع / إعدادات), fixed tab bar at bottom */
 :root {
   --bg: #F4F6F8;
   --surface: #FFFFFF;
@@ -251,7 +251,7 @@ details.box textarea { font-size: .78rem; direction: ltr; }
 <nav class="tabbar" aria-label="الأقسام">
   <div class="in">
     <button class="tab" data-tab="plan"><b>خطّط</b><span>صباحًا</span></button>
-    <button class="tab" data-tab="day"><b>يومي</b><span>تابع</span></button>
+    <button class="tab" data-tab="day"><b>جدولي</b><span>تابع</span></button>
     <button class="tab" data-tab="review"><b>راجع</b><span>التقرير</span></button>
   </div>
 </nav>
@@ -826,7 +826,7 @@ details.box textarea { font-size: .78rem; direction: ltr; }
       '<div class="row-wrap"><button class="ghost" data-act="copy">نسخ البيانات</button><button class="ghost" data-act="restore">استعادة من النص</button><button class="ghost danger" data-act="wipe">مسح بيانات هذا الجهاز</button></div>' +
       (ui.confirmWipe ? '<div class="row-wrap"><span>سيُحذف ما على هذا الجهاز. ' + (code ? "ما في السحابة يبقى ويعود عند المزامنة." : "لا يمكن التراجع.") + '</span><button class="ghost danger" data-act="wipeYes">نعم، امسح</button><button class="ghost" data-act="wipeNo">إلغاء</button></div>' : "") +
       '</div></details>';
-    h += '<div class="navrow"><span></span><button class="ghost" data-act="tab" data-tab="day">رجوع إلى يومي</button></div>';
+    h += '<div class="navrow"><span></span><button class="ghost" data-act="tab" data-tab="day">رجوع إلى جدولي</button></div>';
     return h;
   }
   function removeRoutineItems(rid) {
