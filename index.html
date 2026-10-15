@@ -12,6 +12,9 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=swap">
+<script>
+try { var t0 = localStorage.getItem("yawmi-theme"); if (t0 === "light" || t0 === "dark") document.documentElement.setAttribute("data-theme", t0); } catch (e) {}
+</script>
 <script src="config.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
@@ -898,8 +901,22 @@ details.box textarea { font-size: .78rem; direction: ltr; }
   }
   function led(kind, text) { return '<div class="line"><span class="led' + (kind ? " " + kind : "") + '"></span><span>' + text + '</span></div>'; }
   function stamp(ms) { var d = new Date(ms); return fmt12(pad(d.getHours()) + ":" + pad(d.getMinutes())); }
+  function themeNow() { try { return localStorage.getItem("yawmi-theme") || "auto"; } catch (e) { return "auto"; } }
+  function applyTheme(t) {
+    var root = document.documentElement;
+    if (t === "light" || t === "dark") root.setAttribute("data-theme", t); else root.removeAttribute("data-theme");
+    try { if (t === "auto") localStorage.removeItem("yawmi-theme"); else localStorage.setItem("yawmi-theme", t); } catch (e) {}
+    var dark = t === "dark" || (t === "auto" && window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches);
+    var meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute("content", dark ? "#0F141B" : "#1F5FBF");
+  }
+  applyTheme(themeNow());
   function settingsView() {
-    var h = '<section><h2>الحفظ السحابي</h2><div class="status">';
+    var th = themeNow();
+    var h = '<section><h2>المظهر</h2><div class="rangeseg">' + [["auto", "تلقائي"], ["light", "☀️ فاتح"], ["dark", "🌙 غامق"]].map(function (o) {
+      return '<button data-act="theme" data-t="' + o[0] + '" aria-pressed="' + (th === o[0]) + '">' + o[1] + '</button>';
+    }).join("") + '</div><p class="small muted">«تلقائي» يتبع إعداد جهازك.</p></section>';
+    h += '<section><h2>الحفظ السحابي</h2><div class="status">';
     if (cloud.status === "off") {
       h += led("", "الحفظ السحابي غير مفعّل بعد، والبيانات محفوظة على هذا الجهاز فقط.") +
         '<p class="small muted">لتفعيله ضع رابط مشروع Supabase ومفتاحه في ملف config.js (التفاصيل في SUPABASE_SETUP.md).</p>';
@@ -1017,6 +1034,7 @@ details.box textarea { font-size: .78rem; direction: ltr; }
         catch (err) { toast("انسخ الكود يدويًا"); }
         break;
       case "syncNow": syncNow(); break;
+      case "theme": applyTheme(b.dataset.t); render(); break;
       case "range": ui.range = b.dataset.r; ui.barSel = null; render(); break;
       case "bar": ui.barSel = ui.barSel === b.dataset.k ? null : b.dataset.k; render(); break;
       case "openDay": ui.range = "day"; goTo(parseKey(b.dataset.k)); ui.tab = "review"; render(); break;
