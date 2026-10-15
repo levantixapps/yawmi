@@ -363,24 +363,30 @@ details.box textarea { font-size: .78rem; direction: ltr; }
     catch (e) { if (storageOk) toast("تعذّر الحفظ على هذا الجهاز"); storageOk = false; }
   }
 
-  // Change tracking: a day whose content changed gets a fresh updatedAt and is queued for upload
+  // Change tracking per item, so two devices editing the same day merge instead of overwriting:
+  // a changed item gets a fresh `u`, a deleted one leaves a tombstone in d.del, notes get d.tu.
   var snap = {};
-  function dayJson(d) { return JSON.stringify([d.items, d.good, d.improve, d.notes, d.startAt, d.applied]); }
+  function itemJson(i) { var o = {}; Object.keys(i).forEach(function (k) { if (k !== "u") o[k] = i[k]; }); return JSON.stringify(o); }
+  function itemsMap(d) { var m = {}; d.items.forEach(function (i) { m[i.id] = itemJson(i); }); return m; }
+  function textJson(d) { return JSON.stringify([d.good, d.improve, d.notes, d.startAt]); }
+  function daySnap(d) { return { m: itemsMap(d), t: textJson(d), a: JSON.stringify(d.applied) }; }
   function setJson() { return JSON.stringify([state.settings.categories, state.settings.routines]); }
   function isEmptyDay(d) { return !d.items.length && !d.good && !d.improve && !d.notes; }
   function takeSnap() {
     snap = { _s: setJson() };
-    Object.keys(state.days).forEach(function (k) { snap[k] = dayJson(state.days[k]); });
+    Object.keys(state.days).forEach(function (k) { snap[k] = daySnap(state.days[k]); });
   }
   function save() {
     var now = Date.now();
     Object.keys(state.days).forEach(function (k) {
-      var d = state.days[k], j = dayJson(d);
-      if (snap[k] === j) return;
-      var fresh = snap[k] === undefined;
-      snap[k] = j;
-      if (fresh && isEmptyDay(d)) return;
-      d.updatedAt = now;
+      var d = state.days[k], cur = daySnap(d), old = snap[k], any = false;
+      snap[k] = cur;
+      if (!old) { if (isEmptyDay(d)) return; old = { m: {}, t: textJson(blankDay()), a: "[]" }; }
+      d.items.forEach(function (i) { if (old.m[i.id] !== cur.m[i.id]) { i.u = now; any = true; } });
+      Object.keys(old.m).forEach(function (id) { if (!(id in cur.m)) { d.del = d.del || {}; d.del[id] = now; any = true; } });
+      if (old.t !== cur.t) { d.tu = now; any = true; }
+      if (old.a !== cur.a) any = true;
+      if (any) d.updatedAt = now;
     });
     var s = setJson();
     if (snap._s !== s) { snap._s = s; state.settings.updatedAt = now; }
@@ -427,7 +433,7 @@ details.box textarea { font-size: .78rem; direction: ltr; }
     var d = day(k), wd = parseKey(k).getDay(), changed = false;
     state.settings.routines.forEach(function (r) {
       if (arr(r.days).indexOf(wd) < 0 || d.applied.indexOf(r.id) >= 0) return;
-      d.items.push({ id: uid(), title: r.title, cat: r.cat, dur: r.dur || 60, time: r.time || "", important: true, urgent: false, top: false, done: false, spent: null, note: "", rid: r.id });
+      d.items.push({ id: "r-" + r.id + "-" + k, title: r.title, cat: r.cat, dur: r.dur || 60, time: r.time || "", important: true, urgent: false, top: false, done: false, spent: null, note: "", rid: r.id });
       d.applied.push(r.id);
       changed = true;
     });
@@ -879,7 +885,7 @@ details.box textarea { font-size: .78rem; direction: ltr; }
         commit(); toast("حُذف التقسيم، وبنوده صارت ضمن «أخرى»"); break;
       case "newCode": createCode(); break;
       case "useCode": useCode($("codeInput").value); break;
-      case "forget": code = ""; saveCode(); cloud.status = "nocode"; cloud.msg = ""; render(); toast("فُصل الجهاز، وبياناتك باقية عليه وفي السحابة"); break;
+      case "forget": code = ""; saveCode(); liveInit(); cloud.status = "nocode"; cloud.msg = ""; render(); toast("فُصل الجهاز، وبياناتك باقية عليه وفي السحابة"); break;
       case "copyCode":
         try { navigator.clipboard.writeText(prettyCode(code)).then(function () { toast("تم نسخ الكود"); }, function () { toast("انسخ الكود يدويًا"); }); }
         catch (err) { toast("انسخ الكود يدويًا"); }
@@ -994,8 +1000,8 @@ details.box textarea { font-size: .78rem; direction: ltr; }
 
   /* ---------- cloud (Supabase): one row per person, opened by a code ---------- */
   // The row has seven day fields: day_m3 … day_0 … day_p3 (3 days before today, today, 3 after).
-  // Local-first: every change is saved on the device, then the row is merged and written back;
-  // for each day the copy with the newer updatedAt wins.
+  // Local-first: every change is saved on the device, then the row is merged item by item and
+  // written back. Devices nudge each other over a Realtime channel so the other side pulls at once.
   var CODE_KEY = "daily-planner-code";
   var COLS = ["day_m3", "day_m2", "day_m1", "day_0", "day_p1", "day_p2", "day_p3"];
   var sb = null, code = "", cloud = { status: "off", msg: "", last: 0 };
@@ -1011,12 +1017,23 @@ details.box textarea { font-size: .78rem; direction: ltr; }
     clearTimeout(uploadTimer);
     uploadTimer = setTimeout(syncNow, 1500);
   }
+  // A content-free "changed" ping on a channel named after the code; the other device then pulls
+  var chan = null;
+  function liveInit() {
+    if (chan) { try { sb.removeChannel(chan); } catch (e) {} chan = null; }
+    if (!sb || !code) return;
+    try {
+      chan = sb.channel("yawmi-" + code, { config: { broadcast: { self: false } } });
+      chan.on("broadcast", { event: "changed" }, function () { syncNow(); }).subscribe();
+    } catch (e) { chan = null; }
+  }
+  function nudge() { try { if (chan) chan.send({ type: "broadcast", event: "changed", payload: {} }); } catch (e) {} }
   function cloudInit() {
     if (!CFG.supabaseUrl || !CFG.supabaseAnonKey || !window.supabase) { cloud.status = "off"; return; }
     try { sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseAnonKey, { auth: { persistSession: false } }); }
     catch (e) { cloud.status = "off"; cloud.msg = "إعدادات Supabase في config.js غير صحيحة."; return; }
     cloud.status = code ? "ok" : "nocode";
-    if (code) syncNow();
+    if (code) { liveInit(); syncNow(); }
   }
   function netError(e) { return (e && e.message) || "تعذّر الاتصال بالخادم. تأكد من الإنترنت."; }
 
@@ -1026,7 +1043,7 @@ details.box textarea { font-size: .78rem; direction: ltr; }
       if (r.error || !r.data) { cloud.msg = "تعذّر إنشاء الكود: " + netError(r.error); refreshCloud(); return; }
       code = r.data; saveCode(); cloud.status = "ok";
       state.settings.updatedAt = state.settings.updatedAt || Date.now(); // upload this device's setup
-      render(); toast("أُنشئ كودك، احتفظ به"); syncNow();
+      liveInit(); render(); toast("أُنشئ كودك، احتفظ به"); syncNow();
     }, function (e) { cloud.msg = netError(e); refreshCloud(); });
   }
   function useCode(raw) {
@@ -1036,20 +1053,51 @@ details.box textarea { font-size: .78rem; direction: ltr; }
     sb.rpc("planner_get", { p_code: c }).then(function (r) {
       if (r.error) { cloud.msg = netError(r.error); refreshCloud(); return; }
       if (!r.data) { cloud.msg = "هذا الكود غير موجود. تأكد منه وأعد المحاولة."; refreshCloud(); return; }
-      code = c; saveCode(); cloud.status = "ok"; render(); toast("تم الربط، جارٍ جلب بياناتك"); syncNow();
+      code = c; saveCode(); cloud.status = "ok"; liveInit(); render(); toast("تم الربط، جارٍ جلب بياناتك"); syncNow();
     }, function (e) { cloud.msg = netError(e); refreshCloud(); });
   }
 
   function toRemote(k, d) {
-    return { date: k, items: d.items, good: d.good, improve: d.improve, notes: d.notes, startAt: d.startAt, applied: d.applied, updatedAt: d.updatedAt || 0 };
+    return { date: k, items: d.items, good: d.good, improve: d.improve, notes: d.notes, startAt: d.startAt, applied: d.applied, del: d.del || {}, tu: d.tu || 0, updatedAt: d.updatedAt || 0 };
   }
-  function toLocal(v) {
-    return { items: arr(v.items), good: v.good || "", improve: v.improve || "", notes: v.notes || "", startAt: v.startAt || "08:00", applied: arr(v.applied), updatedAt: v.updatedAt || 0 };
+  function normDay(v) {
+    var items = arr(v.items).slice().sort(function (a, b) { return a.id < b.id ? -1 : a.id > b.id ? 1 : 0; });
+    return { items: items, good: v.good || "", improve: v.improve || "", notes: v.notes || "", startAt: v.startAt || "08:00",
+      applied: arr(v.applied).slice().sort(), del: v.del || {}, tu: v.tu || 0, updatedAt: v.updatedAt || 0 };
   }
-  function localStamp(k) {
+  function canon(v) {
+    if (!v) return "";
+    var del = Object.keys(v.del || {}).sort().map(function (id) { return id + ":" + v.del[id]; });
+    return JSON.stringify([v.items, v.good, v.improve, v.notes, v.startAt, v.applied, del, v.tu || 0]);
+  }
+  function localDay(k) {
     var d = state.days[k];
-    if (!d || k === state.sample || (isEmptyDay(d) && !d.updatedAt)) return -1;
-    return d.updatedAt || 0;
+    if (!d || k === state.sample || (isEmptyDay(d) && !d.updatedAt && !d.del)) return null;
+    return d;
+  }
+  // Union of both copies: the newer version of each item wins, tombstones remove deleted items,
+  // the newer notes win, and one item per standing task is kept.
+  function mergeDay(L, R) {
+    if (!L && !R) return null;
+    if (!L || !R) return normDay(L || R);
+    var del = {}, by = {}, byRoutine = {};
+    [L.del || {}, R.del || {}].forEach(function (o) { Object.keys(o).forEach(function (id) { del[id] = Math.max(del[id] || 0, o[id]); }); });
+    arr(L.items).concat(arr(R.items)).forEach(function (i) {
+      var c = by[i.id], iu = i.u || 0, cu = c ? c.u || 0 : -1;
+      if (!c || iu > cu || (iu === cu && itemJson(i) > itemJson(c))) by[i.id] = i; // ties resolve the same way on every device
+    });
+    var items = Object.keys(by).map(function (id) { return by[id]; }).filter(function (i) { return !(del[i.id] >= (i.u || 0)); });
+    items = items.filter(function (i) {
+      if (!i.rid) return true;
+      if (byRoutine[i.rid]) return false;
+      byRoutine[i.rid] = true;
+      return true;
+    });
+    var lt = L.tu || 0, rt = R.tu || 0;
+    var src = rt > lt || (rt === lt && textJson(R) > textJson(L)) ? R : L, applied = arr(L.applied).slice();
+    arr(R.applied).forEach(function (a) { if (applied.indexOf(a) < 0) applied.push(a); });
+    return normDay({ items: items, good: src.good, improve: src.improve, notes: src.notes, startAt: src.startAt, applied: applied,
+      del: del, tu: Math.max(L.tu || 0, R.tu || 0), updatedAt: Math.max(L.updatedAt || 0, R.updatedAt || 0) });
   }
 
   function syncNow() {
@@ -1067,10 +1115,13 @@ details.box textarea { font-size: .78rem; direction: ltr; }
       });
       var changed = false, upload = base !== todayKey; // the seven fields slide when the day changes
       if (state.sample && (Object.keys(remote).length || row.settings)) { dropSample(); changed = true; }
+      var merged = {};
       windowKeys().forEach(function (k) {
-        var rv = remote[k], rt = rv ? (rv.updatedAt || 0) : -1, lt = localStamp(k);
-        if (rt > lt) { state.days[k] = toLocal(rv); snap[k] = dayJson(state.days[k]); changed = true; }
-        else if (lt > rt) upload = true;
+        var L = localDay(k), R = remote[k] ? normDay(remote[k]) : null, M = mergeDay(L, R);
+        merged[k] = M;
+        if (!M) return;
+        if (canon(M) !== canon(L ? normDay(L) : null)) { state.days[k] = M; snap[k] = daySnap(M); changed = true; }
+        if (canon(M) !== canon(R)) upload = true;
       });
       var rs = row.settings, rst = rs ? (rs.updatedAt || 0) : -1, lst = state.settings.updatedAt || 0;
       if (rs && rst > lst) {
@@ -1081,10 +1132,11 @@ details.box textarea { font-size: .78rem; direction: ltr; }
       if (changed) softRender();
       if (!upload) return;
       var data = { base_date: todayKey, settings: { categories: state.settings.categories, routines: state.settings.routines, updatedAt: state.settings.updatedAt || 0 } };
-      windowKeys().forEach(function (k, i) { data[COLS[i]] = localStamp(k) >= 0 ? toRemote(k, state.days[k]) : (remote[k] || null); });
+      windowKeys().forEach(function (k, i) { data[COLS[i]] = merged[k] ? toRemote(k, merged[k]) : null; });
       return sb.rpc("planner_save", { p_code: code, p_data: data }).then(function (r2) {
         if (r2.error) throw r2.error;
         if (r2.data === false) throw new Error("لم يُعثر على صفك في السحابة. تأكد من الكود.");
+        nudge();
       });
     }).then(function () {
       cloud.status = "ok"; cloud.msg = ""; cloud.last = Date.now();
@@ -1120,7 +1172,7 @@ details.box textarea { font-size: .78rem; direction: ltr; }
       if (!ui.pair) return;
       sb.rpc("planner_pair_take", { p_token: ui.pair.token }).then(function (r) {
         if (!r.error && r.data) {
-          pairStop(); code = r.data; saveCode(); cloud.status = "ok";
+          pairStop(); code = r.data; saveCode(); cloud.status = "ok"; liveInit();
           render(); toast("تم الربط ✓ جارٍ جلب بياناتك"); syncNow();
         } else pairPoll();
       }, pairPoll);
@@ -1158,7 +1210,7 @@ details.box textarea { font-size: .78rem; direction: ltr; }
     syncNow();
     softRender();
   });
-  setInterval(function () { if (!document.hidden) syncNow(); }, 180000);
+  setInterval(function () { if (!document.hidden) syncNow(); }, 60000);
 
   // Refresh the "now" highlight each minute, unless the user is typing
   setInterval(function () { if (ui.tab === "day" && !isTyping()) render(); }, 60000);

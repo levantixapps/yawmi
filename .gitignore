@@ -1,2 +1,11 @@
 # Version published on claude.ai (uses claude.ai-only sync)
 main.html
+
+# Local files that must never be uploaded
+*.keystore
+signing-key-info.txt
+*.apk
+*.aab
+*.zip
+يومي - Google Play package/
+help.txt
