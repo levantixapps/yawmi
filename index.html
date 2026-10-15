@@ -1,0 +1,960 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1F6B57">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="دفتر يومي">
+<title>دفتر يومي</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=Reem+Kufi:wght@500;700&display=swap">
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<style>
+html { padding-top: env(safe-area-inset-top, 0px); }
+body { margin: 0; }
+img { max-width: 100%; }
+[hidden] { display: none !important; }
+.code { font-family: ui-monospace, Consolas, monospace; direction: ltr; font-size: 1.5rem; letter-spacing: .08em; text-align: center; padding: 12px; border-radius: 12px; background: var(--bg); border: 1px dashed var(--accent); color: var(--ink); user-select: all; }
+.code-input { direction: ltr; text-align: center; font-family: ui-monospace, Consolas, monospace; letter-spacing: .06em; }
+.err { color: var(--q-now); font-size: .85rem; }
+/* Layout: mobile app — sticky day bar on top, one view at a time (خطّط / يومي / راجع), fixed tab bar at bottom */
+:root {
+  --bg: #F3F5F4;
+  --surface: #FFFFFF;
+  --ink: #17221F;
+  --muted: #5D6B67;
+  --line: #DCE3E0;
+  --accent: #1F6B57;
+  --accent-soft: #E0EEE9;
+  --star: #B5650D;
+  --star-soft: #FBEEDD;
+  --q-now: #B3362B;
+  --q-now-soft: #F8E3E0;
+  --q-short: #8A6A00;
+  --q-short-soft: #F6EFD4;
+  --font-display: "Reem Kufi", "IBM Plex Sans Arabic", Tahoma, sans-serif;
+  --font-body: "IBM Plex Sans Arabic", Tahoma, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #101614; --surface: #18201E; --ink: #E7EEEB; --muted: #95A39F; --line: #2A3532;
+    --accent: #5CC2A3; --accent-soft: #1C3530; --star: #F0A54A; --star-soft: #3A2A16;
+    --q-now: #F07A6E; --q-now-soft: #3A1F1C; --q-short: #E3C35A; --q-short-soft: #35301A;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #101614; --surface: #18201E; --ink: #E7EEEB; --muted: #95A39F; --line: #2A3532;
+  --accent: #5CC2A3; --accent-soft: #1C3530; --star: #F0A54A; --star-soft: #3A2A16;
+  --q-now: #F07A6E; --q-now-soft: #3A1F1C; --q-short: #E3C35A; --q-short-soft: #35301A;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--font-body); font-size: 16px; line-height: 1.6; direction: rtl;
+}
+.wrap { max-width: 560px; margin: 0 auto; padding-inline: 16px; padding-block: 0 110px; display: flex; flex-direction: column; gap: 20px; }
+button, input, textarea, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+h2 { margin: 0; font-family: var(--font-display); font-size: 1.2rem; font-weight: 500; text-wrap: balance; }
+h3 { margin: 0; font-size: 1rem; font-weight: 600; }
+p { margin: 0; }
+.muted { color: var(--muted); }
+.small { font-size: .85rem; }
+section, .stack { display: flex; flex-direction: column; gap: 10px; }
+.sechead { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+
+/* Day bar */
+.daybar {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+  background: var(--bg); padding-block: 14px 10px;
+  display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--line);
+}
+.daybar .title { flex: 1; min-width: 0; }
+.daybar h1 { margin: 0; font-family: var(--font-display); font-size: 1.4rem; font-weight: 700; line-height: 1.2; }
+.daybar .sub { color: var(--muted); font-size: .85rem; }
+.iconbtn { width: 40px; height: 40px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); display: grid; place-items: center; font-size: 1.1rem; flex: none; }
+.todaybtn { height: 40px; padding-inline: 12px; border-radius: 12px; border: 1px solid var(--accent); background: var(--accent-soft); color: var(--accent); font-weight: 600; font-size: .85rem; flex: none; }
+
+/* Tab bar */
+.tabbar {
+  position: fixed; inset-inline: 0; bottom: 0; z-index: 6;
+  background: var(--surface); border-top: 1px solid var(--line);
+  padding: 6px 12px calc(6px + env(safe-area-inset-bottom, 0px));
+  display: flex; justify-content: center;
+}
+.tabbar .in { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; width: 100%; max-width: 560px; }
+.tab { border: 0; background: none; border-radius: 12px; padding: 6px 4px; display: flex; flex-direction: column; align-items: center; gap: 0; color: var(--muted); font-size: .8rem; }
+.tab b { font-family: var(--font-display); font-size: 1.05rem; font-weight: 500; }
+.tab[aria-current="true"] { background: var(--accent-soft); color: var(--accent); }
+
+/* Common controls */
+.field { height: 44px; padding-inline: 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); min-width: 0; }
+.field:focus, textarea:focus { border-color: var(--accent); outline: none; }
+input[type="time"].field { width: 112px; direction: ltr; text-align: center; font-variant-numeric: tabular-nums; padding-inline: 6px; }
+select.field { padding-inline: 8px; }
+.addform { display: flex; gap: 8px; flex-wrap: wrap; }
+.addform .grow { flex: 1 1 170px; }
+.btn { height: 44px; padding-inline: 18px; border-radius: 12px; border: 0; background: var(--accent); color: var(--surface); font-weight: 600; }
+.btn:disabled { opacity: .45; cursor: default; }
+.ghost { height: 40px; padding-inline: 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); font-size: .9rem; }
+.linkbtn { border: 0; background: none; color: var(--accent); font-weight: 600; padding: 4px 0; }
+.del { border: 0; background: none; color: var(--muted); width: 32px; height: 32px; border-radius: 8px; font-size: 1.15rem; line-height: 1; flex: none; }
+.del:hover { color: var(--q-now); background: var(--bg); }
+textarea { width: 100%; min-height: 90px; resize: vertical; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); line-height: 1.8; }
+.empty { color: var(--muted); font-size: .9rem; padding: 16px; border: 1px dashed var(--line); border-radius: 12px; text-align: center; display: flex; flex-direction: column; gap: 10px; align-items: center; }
+.check {
+  appearance: none; -webkit-appearance: none; flex: none; width: 24px; height: 24px; margin: 0;
+  border: 2px solid var(--muted); border-radius: 8px; background: var(--surface); display: grid; place-items: center; cursor: pointer;
+}
+.check:checked { background: var(--accent); border-color: var(--accent); }
+.check:checked::after { content: ""; width: 6px; height: 11px; border: solid var(--surface); border-width: 0 2.5px 2.5px 0; transform: translateY(-1px) rotate(45deg); }
+
+/* Tip card */
+.tip { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; }
+.tip h3 { color: var(--accent); }
+.banner { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 10px 14px; border-radius: 12px; background: var(--star-soft); font-size: .88rem; }
+
+/* Stepper */
+.steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.stepbtn { border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 6px 4px; font-size: .78rem; line-height: 1.3; color: var(--muted); display: flex; flex-direction: column; align-items: center; }
+.stepbtn b { font-family: var(--font-display); font-size: 1rem; }
+.stepbtn.doneStep { color: var(--accent); border-color: var(--accent-soft); background: var(--accent-soft); }
+.stepbtn[aria-current="true"] { color: var(--surface); background: var(--accent); border-color: var(--accent); }
+.navrow { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+
+/* Item list (plan) */
+.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.card .top { display: flex; align-items: flex-start; gap: 10px; }
+.card .ttl { flex: 1; min-width: 0; overflow-wrap: anywhere; font-weight: 500; }
+.qs { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; }
+.q { display: flex; gap: 6px; align-items: center; font-size: .85rem; color: var(--muted); }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.seg button { border: 0; background: var(--surface); padding: 4px 14px; font-size: .85rem; }
+.seg button + button { border-inline-start: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--surface); }
+.qtag { display: inline-flex; align-items: center; gap: 6px; font-size: .78rem; font-weight: 600; border-radius: 99px; padding: 2px 10px; }
+.qtag.now { background: var(--q-now-soft); color: var(--q-now); }
+.qtag.plan { background: var(--accent-soft); color: var(--accent); }
+.qtag.short { background: var(--q-short-soft); color: var(--q-short); }
+.qtag.drop { background: var(--bg); color: var(--muted); }
+.starbtn { border: 1px solid var(--line); background: var(--surface); border-radius: 10px; height: 36px; padding-inline: 10px; font-size: .85rem; color: var(--muted); flex: none; }
+.starbtn[aria-pressed="true"] { background: var(--star-soft); border-color: var(--star); color: var(--star); font-weight: 600; }
+.timerow { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; font-size: .85rem; color: var(--muted); }
+
+/* Matrix legend */
+.matrix { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: .8rem; }
+.matrix div { border-radius: 10px; padding: 8px 10px; line-height: 1.4; }
+.matrix b { display: block; font-size: .85rem; }
+.matrix .now { background: var(--q-now-soft); color: var(--q-now); }
+.matrix .plan { background: var(--accent-soft); color: var(--accent); }
+.matrix .short { background: var(--q-short-soft); color: var(--q-short); }
+.matrix .drop { background: var(--surface); color: var(--muted); border: 1px solid var(--line); }
+
+/* Day view */
+.progress { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: .85rem; }
+.bar { flex: 1; height: 6px; background: var(--line); border-radius: 99px; overflow: hidden; }
+.bar > i { display: block; height: 100%; background: var(--accent); transition: width .3s; }
+.progress b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.top3 { background: var(--star-soft); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+.top3 h2 { color: var(--star); }
+.top3 .row { display: flex; gap: 10px; align-items: center; }
+.top3 .row .t { flex: 1; min-width: 0; overflow-wrap: anywhere; font-weight: 500; }
+.top3 .row.done .t { text-decoration: line-through; color: var(--muted); font-weight: 400; }
+.top3 .check:checked { background: var(--star); border-color: var(--star); }
+
+.timeline { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.slot { border-bottom: 1px dashed var(--line); padding-block: 10px; display: flex; flex-direction: column; gap: 8px; }
+.slot:last-child { border-bottom: 0; }
+.slot .row { display: grid; grid-template-columns: 70px 1fr auto; gap: 10px; align-items: start; }
+.slot .time { font-variant-numeric: tabular-nums; font-weight: 600; font-size: .92rem; line-height: 1.3; padding-top: 2px; }
+.slot .time small { display: block; color: var(--muted); font-weight: 400; font-size: .74rem; }
+.slot .ttlbtn { border: 0; background: none; padding: 0; text-align: start; min-width: 0; overflow-wrap: anywhere; display: flex; flex-direction: column; gap: 2px; align-items: flex-start; }
+.slot .ttlbtn .meta { display: flex; gap: 6px; flex-wrap: wrap; }
+.slot .note { color: var(--muted); font-size: .85rem; white-space: pre-wrap; }
+.slot.done .ttl { text-decoration: line-through; color: var(--muted); }
+.slot.now { background: var(--accent-soft); border-radius: 12px; padding-inline: 10px; margin-inline: -10px; border-bottom-color: transparent; }
+.nowtag { font-size: .72rem; font-weight: 700; color: var(--accent); border: 1px solid var(--accent); border-radius: 99px; padding: 0 8px; }
+.startag { color: var(--star); font-size: .78rem; font-weight: 600; }
+.editor { display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: 12px; background: var(--bg); border: 1px solid var(--line); }
+.slot.now .editor { background: var(--surface); }
+
+/* Review */
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 10px; text-align: center; }
+.stat b { display: block; font-family: var(--font-display); font-size: 1.5rem; font-variant-numeric: tabular-nums; line-height: 1.3; }
+.stat span { font-size: .78rem; color: var(--muted); }
+.left { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.left .t { flex: 1 1 140px; min-width: 0; overflow-wrap: anywhere; }
+details.backup { border-top: 1px solid var(--line); padding-top: 14px; color: var(--muted); font-size: .9rem; }
+details.backup summary { cursor: pointer; font-weight: 500; }
+.backup .inner { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+.backup textarea { font-size: .78rem; direction: ltr; }
+.row-wrap { display: flex; gap: 8px; flex-wrap: wrap; }
+.danger { color: var(--q-now); border-color: var(--q-now); }
+
+/* Device link */
+.iconbtn { position: relative; }
+.dot { position: absolute; top: 5px; inset-inline-end: 5px; width: 9px; height: 9px; border-radius: 50%; background: var(--accent); border: 2px solid var(--surface); }
+.syncbar { display: flex; gap: 8px; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 8px 12px; border-radius: 12px; font-size: .85rem; background: var(--accent-soft); color: var(--accent); }
+.syncbar.off { background: var(--q-short-soft); color: var(--q-short); }
+.rolepick { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.rolebtn { border: 1px solid var(--line); background: var(--surface); border-radius: 14px; padding: 12px; text-align: start; display: flex; flex-direction: column; gap: 4px; font-size: .82rem; color: var(--muted); }
+.rolebtn b { font-size: 1rem; color: var(--ink); }
+.rolebtn[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.status { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); }
+.status .line { display: flex; gap: 10px; align-items: center; }
+.led { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); flex: none; }
+.led.on { background: var(--accent); }
+button:disabled, input:disabled, select:disabled, textarea:disabled { opacity: .55; cursor: default; }
+
+.toast { position: fixed; bottom: calc(84px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 8px 16px; border-radius: 99px; font-size: .85rem; z-index: 10; max-width: calc(100% - 32px); text-align: center; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="daybar">
+    <button class="iconbtn" id="prev" aria-label="اليوم السابق">→</button>
+    <div class="title">
+      <h1 id="dayName">اليوم</h1>
+      <div class="sub" id="dayDate"></div>
+    </div>
+    <button class="todaybtn" id="goToday" hidden>اليوم</button>
+    <button class="iconbtn" id="syncBtn" aria-label="ربط الجوال بالحاسوب">⇄<span class="dot" id="syncDot" hidden></span></button>
+    <button class="iconbtn" id="next" aria-label="اليوم التالي">←</button>
+  </header>
+  <div id="view"></div>
+</div>
+
+<nav class="tabbar" aria-label="الأقسام">
+  <div class="in">
+    <button class="tab" data-tab="plan"><b>خطّط</b><span>صباحًا</span></button>
+    <button class="tab" data-tab="day"><b>يومي</b><span>تابع</span></button>
+    <button class="tab" data-tab="review"><b>راجع</b><span>مساءً</span></button>
+  </div>
+</nav>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(function () {
+  var KEY = "daily-planner-v2";
+  var $ = function (id) { return document.getElementById(id); };
+  var view = $("view");
+
+  /* ---------- helpers ---------- */
+  function pad(n) { return (n < 10 ? "0" : "") + n; }
+  function keyOf(d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
+  function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+  function toMin(t) { if (!t) return null; var p = t.split(":"); return +p[0] * 60 + +p[1]; }
+  function fromMin(m) { m = Math.max(0, Math.min(m, 23 * 60 + 59)); return pad(Math.floor(m / 60)) + ":" + pad(m % 60); }
+  function fmt12(t) {
+    if (!t) return "";
+    var p = t.split(":"), h = +p[0], m = p[1];
+    var suf = h < 12 ? "ص" : "م";
+    h = h % 12; if (h === 0) h = 12;
+    return h + ":" + m + " " + suf;
+  }
+  function esc(s) { var d = document.createElement("div"); d.textContent = s == null ? "" : s; return d.innerHTML; }
+  function durLabel(m) {
+    if (m < 60) return m + " دقيقة";
+    var h = m / 60;
+    return h === 1 ? "ساعة" : h === 2 ? "ساعتان" : (h % 1 ? h.toFixed(1) : h) + " ساعات";
+  }
+
+  // Eisenhower quadrant
+  var QUAD = {
+    now:   { label: "افعلها أولًا", hint: "مهمة وعاجلة" },
+    plan:  { label: "خصّص لها وقتًا", hint: "مهمة وغير عاجلة" },
+    short: { label: "اختصرها أو فوّضها", hint: "عاجلة وغير مهمة" },
+    drop:  { label: "اتركها اليوم", hint: "لا مهمة ولا عاجلة" }
+  };
+  function quad(it) {
+    if (it.important == null || it.urgent == null) return null;
+    if (it.important && it.urgent) return "now";
+    if (it.important) return "plan";
+    if (it.urgent) return "short";
+    return "drop";
+  }
+  function qtag(it) { var q = quad(it); return q ? '<span class="qtag ' + q + '">' + QUAD[q].label + '</span>' : ""; }
+
+  /* ---------- state ---------- */
+  // role: "source" = the phone that owns the data; "viewer" = a computer that mirrors it
+  var ROLE_KEY = "daily-planner-role", MIRROR_KEY = "daily-planner-mirror", SYNCED_KEY = "daily-planner-lastsync";
+  var role = "source", lastSync = 0;
+  try {
+    role = localStorage.getItem(ROLE_KEY) === "viewer" ? "viewer" : "source";
+    lastSync = +localStorage.getItem(SYNCED_KEY) || 0;
+  } catch (e) {}
+  function dataKey() { return role === "viewer" ? MIRROR_KEY : KEY; }
+
+  var state = { days: {} };
+  var storageOk = true;
+  function load() {
+    state = { days: {} };
+    try {
+      var raw = localStorage.getItem(dataKey());
+      if (raw) { state = JSON.parse(raw); if (!state.days) state.days = {}; return true; }
+    } catch (e) { storageOk = false; }
+    return false;
+  }
+  function persistLocal() {
+    try { localStorage.setItem(dataKey(), JSON.stringify(state)); }
+    catch (e) { if (storageOk) toast("تعذّر الحفظ على هذا الجهاز"); storageOk = false; }
+  }
+  function save() { persistLocal(); afterLocalChange(); }
+  function blankDay() { return { items: [], good: "", improve: "", notes: "", startAt: "08:00" }; }
+
+  var current = new Date(); current.setHours(0, 0, 0, 0);
+  function dk() { return keyOf(current); }
+  function day(k) {
+    k = k || dk();
+    if (!state.days[k]) state.days[k] = blankDay();
+    return state.days[k];
+  }
+  function find(id) { return day().items.filter(function (x) { return x.id === id; })[0]; }
+  function pruneEmpty() {
+    Object.keys(state.days).forEach(function (k) {
+      var d = state.days[k];
+      if (!d.items.length && !d.good && !d.improve && !d.notes) delete state.days[k];
+    });
+  }
+  function active(d) { return d.items.filter(function (i) { return !i.moved && quad(i) !== "drop"; }); }
+
+  var ui = { tab: null, step: 1, open: null, confirmWipe: false };
+
+  // First run: marked example day
+  if (!load() && role === "source") {
+    var k0 = keyOf(current);
+    state.sample = k0;
+    var ex = function (title, imp, urg, top, time, dur, done, note) {
+      return { id: uid(), title: title, important: imp, urgent: urg, top: top, time: time, dur: dur, done: done, note: note || "" };
+    };
+    state.days[k0] = {
+      items: [
+        ex("صلاة الفجر وأذكار الصباح", true, true, false, "05:30", 30, true),
+        ex("إنهاء التقرير الشهري", true, true, true, "08:00", 120, false, "التسليم قبل الساعة 3 عصرًا"),
+        ex("الرد على رسائل البريد", false, true, false, "10:10", 30, false, "الرسائل المهمة فقط، والباقي بعد العصر"),
+        ex("التخطيط لمشروع الشهر القادم", true, false, true, "10:50", 60, false),
+        ex("اجتماع مع الفريق", true, true, false, "13:00", 60, false, "تجهيز أرقام المبيعات"),
+        ex("رياضة / مشي", true, false, true, "17:00", 45, false),
+        ex("تصفّح وسائل التواصل", false, false, false, "", 30, false)
+      ],
+      good: "", improve: "", notes: "", startAt: "08:00"
+    };
+  }
+
+  var dayFmt, dateFmt;
+  try {
+    dayFmt = new Intl.DateTimeFormat("ar", { weekday: "long" });
+    dateFmt = new Intl.DateTimeFormat("ar-u-nu-latn", { day: "numeric", month: "long", year: "numeric" });
+  } catch (e) {}
+
+  /* ---------- header + tabs ---------- */
+  function renderHeader() {
+    var y = new Date(); y.setHours(0, 0, 0, 0);
+    var diff = Math.round((current - y) / 86400000);
+    var wd = dayFmt ? dayFmt.format(current) : "";
+    var label = diff === 0 ? "اليوم" : diff === 1 ? "غدًا" : diff === -1 ? "أمس" : wd;
+    $("dayName").textContent = (diff >= -1 && diff <= 1 && wd) ? label + "، " + wd : label;
+    $("dayDate").textContent = dateFmt ? dateFmt.format(current) : dk();
+    $("goToday").hidden = diff === 0;
+    document.querySelectorAll(".tab").forEach(function (b) { b.setAttribute("aria-current", b.dataset.tab === ui.tab ? "true" : "false"); });
+    $("syncDot").hidden = !((role === "source" && sync.viewers > 0) || (role === "viewer" && sync.sourceOnline));
+  }
+
+  function defaultTab() {
+    if (role === "viewer" && !lastSync) return "sync";
+    var d = day();
+    if (!d.items.length) return "plan";
+    var h = new Date().getHours();
+    return (keyOf(new Date()) === dk() && h >= 20) ? "review" : "day";
+  }
+
+  function render() {
+    if (!ui.tab) ui.tab = defaultTab();
+    renderHeader();
+    var html = "";
+    if (role === "viewer" && ui.tab !== "sync") {
+      html += locked()
+        ? '<div class="syncbar off"><span>الجوال غير متصل' + (lastSync ? '، وهذه آخر نسخة جُلبت (' + fmtStamp(lastSync) + ')' : '') + '. التعديل متوقف حتى يتصل.</span><button class="linkbtn" data-act="tab" data-tab="sync">الربط</button></div>'
+        : '<div class="syncbar"><span>متصل بالجوال، وتعديلاتك تُحفظ فيه</span></div>';
+    }
+    if (state.sample === dk() && ui.tab !== "sync") {
+      html += '<div class="banner"><span>هذا يوم مثال يوضّح طريقة الاستخدام.</span><button class="linkbtn" data-act="clearSample">احذف المثال وابدأ</button></div>';
+    }
+    html += ui.tab === "sync" ? syncView() : ui.tab === "plan" ? planView() : ui.tab === "day" ? dayView() : reviewView();
+    view.innerHTML = '<div class="stack" style="gap:20px;padding-top:16px">' + html + '</div>';
+    // A computer without its phone shows the last copy read-only
+    if (locked() && ui.tab !== "sync") {
+      var keep = { step: 1, tab: 1, open: 1, gostep4: 1, copy: 1 };
+      view.querySelectorAll("input, textarea, select, button").forEach(function (el) { if (!keep[el.dataset.act]) el.disabled = true; });
+    }
+  }
+
+  /* ---------- LINK ---------- */
+  function fmtStamp(ms) {
+    var d = new Date(ms);
+    var t = fmt12(pad(d.getHours()) + ":" + pad(d.getMinutes()));
+    return keyOf(d) === keyOf(new Date()) ? "اليوم " + t : (dateFmt ? dateFmt.format(d) : keyOf(d)) + "، " + t;
+  }
+  function led(on, text) { return '<div class="line"><span class="led' + (on ? " on" : "") + '"></span><span>' + text + '</span></div>'; }
+  function syncView() {
+    var h = '<section><h2>ربط الجوال بالحاسوب</h2>' +
+      '<p class="muted small">الجوال هو مصدر بياناتك ويحفظها عنده. اربط الحاسوب مرة واحدة برمز يظهر على الجوال، وبعدها كلما فتحت المنصة على الجهازين معًا تُجلب بياناتك من الجوال مباشرة، وأي تعديل على الحاسوب يُرسل إلى الجوال ويُحفظ فيه.</p></section>';
+    h += '<section><h3>هذا الجهاز هو:</h3><div class="rolepick">' +
+      '<button class="rolebtn" data-act="role" data-v="source" aria-pressed="' + (role === "source") + '"><b>الجوال</b>المصدر، والبيانات محفوظة فيه</button>' +
+      '<button class="rolebtn" data-act="role" data-v="viewer" aria-pressed="' + (role === "viewer") + '"><b>الحاسوب</b>يجلب البيانات من الجوال</button></div></section>';
+    var st;
+    if (sync.unavailable) st = led(false, "الربط يحتاج إلى إنترنت. المنصة تعمل بشكل طبيعي وتحفظ على هذا الجهاز، وسيعود الربط عند الاتصال.");
+    else if (role === "source") {
+      st = (sync.ready ? led(sync.viewers > 0, sync.viewers > 0 ? "الحاسوب متصل الآن ويعرض بياناتك" : "جاهز، ولا يوجد حاسوب متصل الآن") : led(false, "جارٍ تجهيز الاتصال…")) +
+        '<p class="small muted">رمز الربط، اكتبه على الحاسوب مرة واحدة فقط:</p>' +
+        '<div class="code">' + prettyCode(pair) + '</div>' +
+        '<div class="row-wrap"><button class="ghost" data-act="copyCode">نسخ الرمز</button><button class="ghost" data-act="newCode">رمز جديد</button></div>' +
+        '<p class="small muted">«رمز جديد» يفصل كل الأجهزة المربوطة سابقًا. اترك المنصة مفتوحة على الجوال أثناء استخدام الحاسوب.</p>';
+    } else if (cleanCode(pair).length !== 12) {
+      st = '<p class="small">اكتب رمز الربط الظاهر على الجوال (في الجوال: زر ⇄ ثم «الجوال»):</p>' +
+        '<div class="addform"><input class="field grow code-input" id="pairInput" type="text" placeholder="xxxx-xxxx-xxxx" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="btn" data-act="setCode">اربط</button></div>';
+    } else {
+      st = led(sync.sourceOnline, sync.sourceOnline ? "متصل بالجوال" : sync.ready ? "الجوال غير متصل. افتح المنصة على جوالك واتركها مفتوحة." : "جارٍ تجهيز الاتصال…") +
+        (lastSync ? '<p class="small muted">آخر جلب: ' + fmtStamp(lastSync) + '</p>' : "") +
+        '<div class="row-wrap"><button class="btn" data-act="pullNow"' + (sync.sourceOnline ? "" : " disabled") + '>اجلب البيانات الآن</button><button class="ghost" data-act="clearCode">تغيير الرمز</button></div>';
+    }
+    if (sync.error) st += '<p class="err">' + esc(sync.error) + '</p>';
+    h += '<div class="status">' + st + '</div>';
+    h += '<div class="tip"><h3>أين تذهب بياناتك؟</h3><p class="small">تبقى محفوظة على الجوال. عند الربط تنتقل باتصال مباشر ومشفّر من الجوال إلى الحاسوب، ولا تُخزَّن في أي خادم، ويحتفظ الحاسوب بآخر نسخة ليعرضها. يُستخدم خادم PeerJS المجاني فقط ليتعرّف الجهازان على بعضهما.</p></div>';
+    h += '<div class="navrow"><span></span><button class="ghost" data-act="tab" data-tab="day">رجوع إلى يومي</button></div>';
+    return h;
+  }
+
+  /* ---------- PLAN ---------- */
+  var STEPS = [
+    { n: 1, short: "أفرغ ذهنك" },
+    { n: 2, short: "ميّز المهم" },
+    { n: 3, short: "اختر ٣" },
+    { n: 4, short: "حدّد الوقت" }
+  ];
+  function planView() {
+    var d = day();
+    var h = '<div class="steps">' + STEPS.map(function (s) {
+      var cls = s.n < ui.step ? " doneStep" : "";
+      return '<button class="stepbtn' + cls + '" data-act="step" data-n="' + s.n + '" aria-current="' + (s.n === ui.step) + '"><b>' + s.n + '</b>' + s.short + '</button>';
+    }).join("") + '</div>';
+    h += [null, step1, step2, step3, step4][ui.step](d);
+    return h;
+  }
+
+  function step1(d) {
+    var h = '<section><h2>اكتب كل ما في رأسك</h2>' +
+      '<p class="muted small">كل شيء تريد أو تحتاج أن تعمله اليوم، كبيرًا أو صغيرًا: عمل، بيت، عائلة، مكالمات، مشتريات. لا ترتّب ولا تفكّر الآن، فقط اكتب.</p>' +
+      '<form class="addform" data-form="dump"><input class="field grow" id="dumpInput" type="text" placeholder="مثال: الاتصال بأخي" autocomplete="off"><button class="btn" type="submit">أضف</button></form>';
+    if (!d.items.length) h += '<div class="empty">ابدأ بأول شيء يخطر ببالك.</div>';
+    else h += '<ul class="list">' + d.items.map(function (it) {
+      return '<li class="card"><div class="top"><span class="ttl">' + esc(it.title) + '</span><button class="del" data-act="del" data-id="' + it.id + '" aria-label="حذف">×</button></div></li>';
+    }).join("") + '</ul>';
+    h += '</section>';
+    h += '<div class="navrow"><span class="muted small">' + d.items.length + ' بنود</span><button class="btn" data-act="step" data-n="2"' + (d.items.length ? "" : " disabled") + '>التالي: ميّز المهم ←</button></div>';
+    return h;
+  }
+
+  function seg(it, field) {
+    var v = it[field];
+    return '<span class="seg"><button data-act="set" data-f="' + field + '" data-v="1" data-id="' + it.id + '" aria-pressed="' + (v === true) + '">نعم</button>' +
+      '<button data-act="set" data-f="' + field + '" data-v="0" data-id="' + it.id + '" aria-pressed="' + (v === false) + '">لا</button></span>';
+  }
+  function step2(d) {
+    var h = '<section><h2>ما المهم وما العاجل؟</h2>' +
+      '<p class="muted small"><b>مهم</b>: يقرّبك من أهدافك أو له أثر كبير على عملك وأسرتك وصحتك. <b>عاجل</b>: له موعد اليوم أو يسبّب مشكلة إن تأخّر.</p>' +
+      '<div class="matrix">' +
+      '<div class="now"><b>مهم + عاجل</b>افعلها أولًا</div>' +
+      '<div class="plan"><b>مهم + غير عاجل</b>خصّص لها وقتًا، هنا يكون التقدّم الحقيقي</div>' +
+      '<div class="short"><b>عاجل + غير مهم</b>اختصرها أو اطلب من غيرك</div>' +
+      '<div class="drop"><b>لا مهم ولا عاجل</b>اتركها اليوم</div></div>';
+    h += '<ul class="list">' + d.items.map(function (it) {
+      return '<li class="card"><div class="top"><span class="ttl">' + esc(it.title) + '</span>' + qtag(it) + '</div>' +
+        '<div class="qs"><span class="q">مهم؟ ' + seg(it, "important") + '</span><span class="q">عاجل؟ ' + seg(it, "urgent") + '</span></div></li>';
+    }).join("") + '</ul></section>';
+    var left = d.items.filter(function (i) { return quad(i) == null; }).length;
+    h += '<div class="navrow"><button class="ghost" data-act="step" data-n="1">→ رجوع</button>' +
+      '<span class="muted small">' + (left ? "بقي " + left : "تم التصنيف") + '</span>' +
+      '<button class="btn" data-act="step" data-n="3">التالي ←</button></div>';
+    return h;
+  }
+
+  function step3(d) {
+    var cands = d.items.filter(function (i) { var q = quad(i); return q === "now" || q === "plan"; });
+    var count = d.items.filter(function (i) { return i.top; }).length;
+    var h = '<section><h2>اختر أهم ٣ أشياء لليوم</h2>' +
+      '<p class="muted small">لو لم تُنجز اليوم إلا ثلاثة أشياء، فما هي؟ ركّز عليها وأعطها أفضل أوقات يومك. اجعل واحدة منها على الأقل «مهمة وغير عاجلة» لأنها التي تبني مستقبلك.</p>';
+    if (!cands.length) h += '<div class="empty">لا توجد بنود مهمة بعد. ارجع للخطوة ٢ وحدّد المهم.</div>';
+    else h += '<ul class="list">' + cands.map(function (it) {
+      return '<li class="card"><div class="top"><span class="ttl">' + esc(it.title) + '<br>' + qtag(it) + '</span>' +
+        '<button class="starbtn" data-act="top" data-id="' + it.id + '" aria-pressed="' + !!it.top + '">' + (it.top ? "★ من أهم ٣" : "☆ اختر") + '</button></div></li>';
+    }).join("") + '</ul>';
+    h += '</section><div class="navrow"><button class="ghost" data-act="step" data-n="2">→ رجوع</button>' +
+      '<span class="muted small">' + count + ' من ٣</span>' +
+      '<button class="btn" data-act="step" data-n="4">التالي ←</button></div>';
+    return h;
+  }
+
+  var DURS = [15, 30, 45, 60, 90, 120, 180];
+  function durSelect(it) {
+    return '<select class="field" data-act="dur" data-id="' + it.id + '" aria-label="المدة">' + DURS.map(function (m) {
+      return '<option value="' + m + '"' + ((it.dur || 60) === m ? " selected" : "") + '>' + durLabel(m) + '</option>';
+    }).join("") + '</select>';
+  }
+  function step4(d) {
+    var list = d.items.filter(function (i) { return quad(i) !== "drop" && !i.moved; });
+    var dropped = d.items.filter(function (i) { return quad(i) === "drop"; });
+    var h = '<section><h2>ضع لكل شيء وقتًا</h2>' +
+      '<p class="muted small">المهمة بلا وقت تبقى أمنية. ضع أهم ٣ في وقت نشاطك (غالبًا الصباح)، واترك وقتًا للراحة بين المهام.</p>' +
+      '<div class="tip"><h3>رتّبها لي تلقائيًا</h3><p class="small muted">أبدأ يومي الساعة:</p>' +
+      '<div class="addform"><input class="field" type="time" id="startAt" value="' + (d.startAt || "08:00") + '" aria-label="وقت البداية"><button class="btn" data-act="auto">رتّب</button></div>' +
+      '<p class="small muted">الترتيب: العاجل المهم أولًا، ثم أهم ٣، ثم الباقي، مع ١٠ دقائق راحة بين المهام. يمكنك تعديل أي وقت بعدها.</p></div>';
+    if (!list.length) h += '<div class="empty">لا توجد بنود. ارجع للخطوة ١.</div>';
+    else h += '<ul class="list">' + list.map(function (it) {
+      return '<li class="card"><div class="top"><span class="ttl">' + (it.top ? '<span class="startag">★ </span>' : "") + esc(it.title) + '</span>' + qtag(it) + '</div>' +
+        '<div class="timerow">الساعة <input class="field" type="time" value="' + (it.time || "") + '" data-act="time" data-id="' + it.id + '" aria-label="الوقت"> لمدة ' + durSelect(it) + '</div></li>';
+    }).join("") + '</ul>';
+    if (dropped.length) h += '<p class="muted small">تركتَ اليوم: ' + dropped.map(function (i) { return esc(i.title); }).join("، ") + '</p>';
+    h += '</section><div class="navrow"><button class="ghost" data-act="step" data-n="3">→ رجوع</button><button class="btn" data-act="startDay">ابدأ يومي ✓</button></div>';
+    return h;
+  }
+
+  function autoArrange() {
+    var d = day();
+    var st = $("startAt") ? $("startAt").value : d.startAt;
+    if (!st) { toast("اختر وقت البداية أولًا"); return; }
+    d.startAt = st;
+    var rank = function (i) { var q = quad(i); return q === "now" ? 0 : i.top ? 1 : q === "plan" ? 2 : q === "short" ? 3 : 4; };
+    var list = d.items.filter(function (i) { return quad(i) !== "drop" && !i.moved && !i.done; });
+    list.sort(function (a, b) { return rank(a) - rank(b); });
+    var cur = toMin(st);
+    list.forEach(function (i) {
+      if (!i.dur) i.dur = quad(i) === "short" ? 30 : 60;
+      i.time = fromMin(cur);
+      cur += i.dur + 10;
+    });
+    commit(); toast("تم الترتيب، عدّل ما تشاء");
+  }
+
+  /* ---------- DAY ---------- */
+  function dayView() {
+    var d = day();
+    var items = active(d);
+    if (!d.items.length) {
+      return '<div class="empty"><p>لم تخطّط لهذا اليوم بعد.</p><button class="btn" data-act="tab" data-tab="plan">خطّط ليومك في ٤ خطوات</button></div>';
+    }
+    var done = items.filter(function (i) { return i.done; }).length;
+    var pct = items.length ? Math.round(done / items.length * 100) : 0;
+    var h = '<div class="progress"><span>إنجاز اليوم</span><div class="bar"><i style="width:' + pct + '%"></i></div><b>' + pct + '%</b></div>';
+
+    var top = items.filter(function (i) { return i.top; });
+    if (top.length) {
+      h += '<div class="top3"><h2>★ أهم ما في يومك</h2>' + top.map(function (it) {
+        return '<label class="row' + (it.done ? " done" : "") + '"><input type="checkbox" class="check" data-act="done" data-id="' + it.id + '"' + (it.done ? " checked" : "") + '><span class="t">' + esc(it.title) + '</span>' +
+          (it.time ? '<span class="muted small">' + fmt12(it.time) + '</span>' : "") + '</label>';
+      }).join("") + '</div>';
+    }
+
+    var timed = items.filter(function (i) { return i.time; }).sort(function (a, b) { return toMin(a.time) - toMin(b.time); });
+    var untimed = items.filter(function (i) { return !i.time; });
+    var nowId = null;
+    if (keyOf(new Date()) === dk()) {
+      var n = new Date(), nm = n.getHours() * 60 + n.getMinutes();
+      timed.forEach(function (i) { var s = toMin(i.time); if (nm >= s && nm < s + (i.dur || 60)) nowId = i.id; });
+    }
+
+    h += '<section><div class="sechead"><h2>جدول اليوم</h2><span class="muted small">اضغط على أي بند لإضافة ملاحظة أو تعديله</span></div>';
+    if (!timed.length) h += '<div class="empty">لا توجد أوقات محددة. <button class="linkbtn" data-act="gostep4">حدّد الأوقات</button></div>';
+    else h += '<ul class="timeline">' + timed.map(function (it) { return slot(it, nowId); }).join("") + '</ul>';
+    h += '</section>';
+
+    if (untimed.length) {
+      h += '<section><h2>بدون وقت</h2><ul class="timeline">' + untimed.map(function (it) { return slot(it, null); }).join("") + '</ul></section>';
+    }
+
+    h += '<section><h2>أضف شيئًا طرأ</h2><form class="addform" data-form="quick">' +
+      '<input class="field grow" id="quickTitle" type="text" placeholder="ماذا طرأ؟" autocomplete="off">' +
+      '<input class="field" id="quickTime" type="time" aria-label="الوقت (اختياري)"><button class="btn" type="submit">أضف</button></form></section>';
+    return h;
+  }
+
+  function slot(it, nowId) {
+    var open = ui.open === it.id;
+    var end = it.time ? fromMin(toMin(it.time) + (it.dur || 60)) : "";
+    var h = '<li class="slot' + (it.done ? " done" : "") + (it.id === nowId ? " now" : "") + '"><div class="row">' +
+      '<div class="time">' + (it.time ? fmt12(it.time) + '<small>إلى ' + fmt12(end) + '</small>' : '<small>—</small>') + '</div>' +
+      '<button class="ttlbtn" data-act="open" data-id="' + it.id + '" aria-expanded="' + open + '">' +
+      '<span class="ttl">' + esc(it.title) + '</span>' +
+      '<span class="meta">' + (it.id === nowId ? '<span class="nowtag">الآن</span>' : "") + (it.top ? '<span class="startag">★ من أهم ٣</span>' : "") + qtag(it) + '</span>' +
+      (it.note && !open ? '<span class="note">' + esc(it.note) + '</span>' : "") + '</button>' +
+      '<input type="checkbox" class="check" data-act="done" data-id="' + it.id + '"' + (it.done ? " checked" : "") + ' aria-label="تم"></div>';
+    if (open) {
+      h += '<div class="editor"><textarea data-act="note" data-id="' + it.id + '" placeholder="ملاحظة لهذا البند…" style="min-height:70px">' + esc(it.note) + '</textarea>' +
+        '<div class="timerow">الساعة <input class="field" type="time" value="' + (it.time || "") + '" data-act="time" data-id="' + it.id + '" aria-label="الوقت"> لمدة ' + durSelect(it) + '</div>' +
+        '<div class="row-wrap"><button class="ghost" data-act="top" data-id="' + it.id + '">' + (it.top ? "إزالة من أهم ٣" : "☆ اجعلها من أهم ٣") + '</button>' +
+        '<button class="ghost danger" data-act="del" data-id="' + it.id + '">حذف</button>' +
+        '<button class="ghost" data-act="open" data-id="' + it.id + '">إغلاق</button></div></div>';
+    }
+    return h + '</li>';
+  }
+
+  /* ---------- REVIEW ---------- */
+  function reviewView() {
+    var d = day();
+    var items = active(d);
+    var done = items.filter(function (i) { return i.done; });
+    var top = items.filter(function (i) { return i.top; });
+    var topDone = top.filter(function (i) { return i.done; }).length;
+    var left = items.filter(function (i) { return !i.done; });
+
+    var h = '<section><h2>كيف كان يومك؟</h2><div class="stats">' +
+      '<div class="stat"><b>' + done.length + '/' + items.length + '</b><span>بنود أُنجزت</span></div>' +
+      '<div class="stat"><b>' + topDone + '/' + top.length + '</b><span>من أهم ٣</span></div>' +
+      '<div class="stat"><b>' + left.length + '</b><span>متبقٍّ</span></div></div>';
+    if (top.length && topDone === top.length) h += '<p class="small" style="color:var(--accent)">أحسنت! أنجزت أهم ما في يومك، وهذا هو المقياس الحقيقي.</p>';
+    else if (top.length) h += '<p class="small muted">لا بأس، المهم أن تعرف ما الذي أخّرك وتعطي أهم المهام وقتًا أبكر غدًا.</p>';
+    h += '</section>';
+
+    h += '<section><div class="sechead"><h2>ما لم يُنجز</h2>' + (left.length ? '<button class="linkbtn" data-act="moveAll">انقل الكل للغد</button>' : "") + '</div>';
+    if (!left.length) h += '<div class="empty">لا شيء متبقٍّ.</div>';
+    else h += '<ul class="list">' + left.map(function (it) {
+      return '<li class="card"><div class="left"><span class="t">' + (it.top ? '<span class="startag">★ </span>' : "") + esc(it.title) + '</span>' +
+        '<button class="ghost" data-act="move" data-id="' + it.id + '">انقلها للغد</button><button class="del" data-act="del" data-id="' + it.id + '" aria-label="حذف">×</button></div></li>';
+    }).join("") + '</ul>';
+    var moved = d.items.filter(function (i) { return i.moved; });
+    if (moved.length) h += '<p class="muted small">نُقل للغد: ' + moved.map(function (i) { return esc(i.title); }).join("، ") + '</p>';
+    h += '</section>';
+
+    h += '<section><h2>دقيقتان للتأمل</h2>' +
+      '<label class="small muted" for="rvGood">ما الذي نجح اليوم؟</label><textarea id="rvGood" data-act="rv" data-f="good" placeholder="مثال: بدأت بالتقرير قبل فتح الجوال">' + esc(d.good) + '</textarea>' +
+      '<label class="small muted" for="rvImprove">ما الذي سأفعله بشكل أفضل غدًا؟</label><textarea id="rvImprove" data-act="rv" data-f="improve" placeholder="مثال: أضع الجوال بعيدًا وقت العمل المهم">' + esc(d.improve) + '</textarea>' +
+      '<label class="small muted" for="rvNotes">ملاحظات عامة</label><textarea id="rvNotes" data-act="rv" data-f="notes" placeholder="أي شيء تريد تذكّره">' + esc(d.notes) + '</textarea></section>';
+
+    h += '<div class="tip"><h3>نصيحة</h3><p class="small">خطّط لغدك الليلة في ٥ دقائق: اضغط ← في الأعلى لتنتقل للغد، ثم «خطّط». ستستيقظ وأنت تعرف من أين تبدأ.</p></div>';
+
+    h += '<details class="backup"' + (ui.backupOpen ? " open" : "") + '><summary>نسخة احتياطية</summary><div class="inner">' +
+      '<span>بياناتك محفوظة على هذا الجهاز فقط. انسخ النص أدناه واحفظه في مكان آمن، أو الصق نسخة سابقة لاستعادتها.</span>' +
+      '<textarea id="backupText" aria-label="نص النسخة الاحتياطية"></textarea>' +
+      '<div class="row-wrap"><button class="ghost" data-act="copy">نسخ البيانات</button><button class="ghost" data-act="restore">استعادة من النص</button><button class="ghost danger" data-act="wipe">مسح كل البيانات</button></div>' +
+      (ui.confirmWipe ? '<div class="row-wrap" style="align-items:center"><span>سيُحذف كل شيء نهائيًا. متأكد؟</span><button class="ghost danger" data-act="wipeYes">نعم، احذف</button><button class="ghost" data-act="wipeNo">إلغاء</button></div>' : "") +
+      '</div></details>';
+    return h;
+  }
+
+  function moveToTomorrow(it) {
+    var t = new Date(current); t.setDate(t.getDate() + 1);
+    var nd = day(keyOf(t));
+    nd.items.push({ id: uid(), title: it.title, important: it.important, urgent: it.urgent, top: it.top, time: "", dur: it.dur, done: false, note: it.note });
+    it.moved = true;
+  }
+
+  /* ---------- events ---------- */
+  function commit() { save(); render(); }
+
+  view.addEventListener("click", function (e) {
+    var b = e.target.closest("[data-act]");
+    if (!b || b.tagName === "INPUT" || b.tagName === "SELECT" || b.tagName === "TEXTAREA") return;
+    var act = b.dataset.act, id = b.dataset.id, it = id ? find(id) : null, d = day();
+    switch (act) {
+      case "step": ui.step = +b.dataset.n; render(); window.scrollTo(0, 0); break;
+      case "gostep4": ui.tab = "plan"; ui.step = 4; render(); break;
+      case "tab": ui.tab = b.dataset.tab; ui.step = 1; render(); break;
+      case "del": d.items = d.items.filter(function (x) { return x.id !== id; }); if (ui.open === id) ui.open = null; commit(); break;
+      case "set": it[b.dataset.f] = b.dataset.v === "1"; if (quad(it) === "drop" || quad(it) === "short") it.top = false; commit(); break;
+      case "top":
+        if (!it.top && d.items.filter(function (i) { return i.top && !i.moved; }).length >= 3) { toast("اخترت ٣ بالفعل، أزل واحدة أولًا"); return; }
+        it.top = !it.top; commit(); break;
+      case "auto": autoArrange(); break;
+      case "startDay": ui.tab = "day"; ui.step = 1; commit(); window.scrollTo(0, 0); break;
+      case "open": ui.open = ui.open === id ? null : id; render(); break;
+      case "move": moveToTomorrow(it); commit(); toast("نُقلت إلى الغد"); break;
+      case "moveAll": active(d).filter(function (i) { return !i.done; }).forEach(moveToTomorrow); commit(); toast("نُقل المتبقي إلى الغد"); break;
+      case "clearSample": state.days[state.sample] = blankDay(); delete state.sample; ui.tab = "plan"; ui.step = 1; commit(); break;
+      case "copy":
+        var ta = $("backupText"); ta.value = JSON.stringify(state);
+        var fb = function () { ta.focus(); ta.select(); toast("تم تحديد النص، انسخه يدويًا"); };
+        try { navigator.clipboard.writeText(ta.value).then(function () { toast("تم نسخ البيانات"); }, fb); } catch (err) { fb(); }
+        break;
+      case "restore":
+        try {
+          var obj = JSON.parse($("backupText").value);
+          if (!obj || typeof obj.days !== "object") throw 0;
+          state = obj; ui.tab = null; commit(); toast("تمت الاستعادة");
+        } catch (err) { toast("النص غير صالح، الصق نسخة احتياطية كاملة"); }
+        break;
+      case "wipe": ui.confirmWipe = true; ui.backupOpen = true; render(); break;
+      case "wipeNo": ui.confirmWipe = false; render(); break;
+      case "wipeYes":
+        state = { days: {} }; ui.confirmWipe = false; ui.tab = "plan"; ui.step = 1;
+        // On the computer, only clear the local copy, never the phone
+        if (role === "viewer") { persistLocal(); render(); toast("مُسحت النسخة من هذا الجهاز فقط"); }
+        else { commit(); toast("تم مسح كل البيانات"); }
+        break;
+      case "role":
+        if (b.dataset.v === role) return;
+        role = b.dataset.v;
+        try { localStorage.setItem(ROLE_KEY, role); } catch (err) {}
+        load(); loadPair(); restartLink();
+        render(); toast(role === "viewer" ? "هذا الجهاز يجلب الآن من الجوال" : "هذا الجهاز هو المصدر الآن");
+        break;
+      case "pullNow": pull(); toast("جارٍ الجلب من الجوال…"); break;
+      case "setCode":
+        var code = cleanCode($("pairInput").value);
+        if (code.length !== 12) { toast("الرمز ١٢ حرفًا ورقمًا، انسخه كما يظهر على الجوال"); return; }
+        pair = code; savePair(); restartLink(); render(); toast("جارٍ الاتصال بالجوال…");
+        break;
+      case "clearCode": pair = ""; savePair(); stopLink(); render(); break;
+      case "newCode": pair = newCode(); savePair(); restartLink(); render(); toast("أُنشئ رمز جديد"); break;
+      case "copyCode":
+        try { navigator.clipboard.writeText(prettyCode(pair)).then(function () { toast("تم نسخ الرمز"); }, function () { toast("انسخ الرمز يدويًا"); }); }
+        catch (err) { toast("انسخ الرمز يدويًا"); }
+        break;
+    }
+  });
+
+  view.addEventListener("change", function (e) {
+    var t = e.target, act = t.dataset.act, it = t.dataset.id ? find(t.dataset.id) : null;
+    if (act === "done") { it.done = t.checked; commit(); }
+    else if (act === "time") { it.time = t.value; commit(); }
+    else if (act === "dur") { it.dur = +t.value; commit(); }
+    else if (t.id === "startAt") { day().startAt = t.value; save(); }
+  });
+
+  var typingTimer;
+  view.addEventListener("input", function (e) {
+    var t = e.target, act = t.dataset.act;
+    if (act === "note") find(t.dataset.id).note = t.value;
+    else if (act === "rv") day()[t.dataset.f] = t.value;
+    else return;
+    clearTimeout(typingTimer); typingTimer = setTimeout(save, 400);
+  });
+
+  view.addEventListener("toggle", function (e) {
+    if (e.target.classList && e.target.classList.contains("backup")) {
+      ui.backupOpen = e.target.open;
+      if (e.target.open) { pruneEmpty(); $("backupText").value = JSON.stringify(state); }
+    }
+  }, true);
+
+  view.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var f = e.target.dataset.form, d = day();
+    if (f === "dump") {
+      var v = $("dumpInput").value.trim(); if (!v) return;
+      d.items.push({ id: uid(), title: v, important: null, urgent: null, top: false, time: "", dur: 60, done: false, note: "" });
+      save(); render(); $("dumpInput").focus();
+    } else if (f === "quick") {
+      var q = $("quickTitle").value.trim(); if (!q) return;
+      d.items.push({ id: uid(), title: q, important: null, urgent: null, top: false, time: $("quickTime").value, dur: 30, done: false, note: "" });
+      commit(); toast("أُضيف");
+    }
+  });
+
+  document.querySelectorAll(".tab").forEach(function (b) {
+    b.addEventListener("click", function () { ui.tab = b.dataset.tab; ui.open = null; render(); window.scrollTo(0, 0); });
+  });
+  function shift(n) { pruneEmpty(); save(); current.setDate(current.getDate() + n); ui.tab = null; ui.step = 1; ui.open = null; render(); }
+  $("prev").addEventListener("click", function () { shift(-1); });
+  $("next").addEventListener("click", function () { shift(1); });
+  $("goToday").addEventListener("click", function () { pruneEmpty(); save(); current = new Date(); current.setHours(0, 0, 0, 0); ui.tab = null; ui.step = 1; render(); });
+
+  var toastTimer;
+  function toast(msg) {
+    var t = $("toast"); t.textContent = msg; t.hidden = false;
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.hidden = true; }, 2400);
+  }
+
+  /* ---------- device link: direct phone <-> computer over WebRTC (PeerJS) ---------- */
+  // The code is 12 chars: the first 8 name the phone on the PeerJS relay, the last 4 are a secret the phone checks
+  var PAIR_KEY = "daily-planner-pair-", PREFIX = "dftr-yawmi-";
+  var peer = null, conns = [], srcConn = null;
+  var sync = { ready: false, unavailable: false, sourceOnline: false, viewers: 0, error: "", denied: false };
+  var pendingRemote = null, linkTimer = null, retryTimer = null, connTimer = null, myPushes = {};
+  var pair = "";
+
+  function loadPair() { try { pair = localStorage.getItem(PAIR_KEY + role) || ""; } catch (e) { pair = ""; } }
+  function savePair() { try { localStorage.setItem(PAIR_KEY + role, pair); } catch (e) {} }
+  function newCode() {
+    var a = "abcdefghjkmnpqrstuvwxyz23456789", s = "", r = new Uint32Array(12);
+    crypto.getRandomValues(r);
+    for (var i = 0; i < 12; i++) s += a[r[i] % a.length];
+    return s;
+  }
+  function cleanCode(c) { return (c || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }
+  function prettyCode(c) { return c.slice(0, 4) + "-" + c.slice(4, 8) + "-" + c.slice(8, 12); }
+  loadPair();
+
+  function locked() { return role === "viewer" && !sync.sourceOnline; }
+  function isTyping() { var a = document.activeElement; return !!(a && view.contains(a) && /INPUT|TEXTAREA|SELECT/.test(a.tagName)); }
+  function send(c, msg) { try { if (c && c.open) c.send(msg); } catch (e) {} }
+  function parseState(s) {
+    try { var o = JSON.parse(s); if (o && typeof o.days === "object" && !Array.isArray(o.days)) return o; } catch (e) {}
+    return null;
+  }
+  function broadcast(origin) {
+    var s = JSON.stringify(state);
+    conns.forEach(function (c) { send(c, { t: "state", s: s, o: origin }); });
+  }
+  function push() { var id = uid(); myPushes[id] = 1; send(srcConn, { t: "push", s: JSON.stringify(state), id: id }); }
+  function pull() { send(srcConn, { t: "pull" }); }
+
+  function afterLocalChange() {
+    var kind = role === "source" ? (sync.viewers > 0 ? "state" : "") : (sync.sourceOnline ? "push" : "");
+    if (!kind) return;
+    clearTimeout(linkTimer);
+    linkTimer = setTimeout(function () { if (kind === "state") broadcast(""); else push(); }, 600);
+  }
+
+  function applyRemote(obj) {
+    if (isTyping()) { pendingRemote = obj; return; }
+    state = obj; persistLocal(); render();
+  }
+  view.addEventListener("focusout", function () {
+    setTimeout(function () {
+      if (pendingRemote && !isTyping()) { var o = pendingRemote; pendingRemote = null; state = o; persistLocal(); render(); }
+    }, 0);
+  });
+
+  function refreshLink(force) {
+    if ((force || ui.tab === "sync") && !isTyping()) render(); else renderHeader();
+  }
+
+  function wirePeer(p) {
+    p.on("disconnected", function () {
+      if (p !== peer) return;
+      sync.ready = false; refreshLink();
+      setTimeout(function () { if (p === peer && !p.destroyed && p.disconnected) { try { p.reconnect(); } catch (e) {} } }, 3000);
+    });
+    p.on("error", function (e) {
+      if (p !== peer) return;
+      var t = e && e.type;
+      if (t === "peer-unavailable") return; // phone not open yet; the viewer keeps retrying
+      if (t === "unavailable-id") sync.error = "هذا الرمز مفتوح الآن في نافذة أخرى. أغلق النوافذ الأخرى للمنصة على هذا الجهاز.";
+      else if (t === "network" || t === "server-error" || t === "socket-error" || t === "socket-closed") sync.error = "تعذّر الوصول إلى الإنترنت. سأحاول مجددًا.";
+      else sync.error = "انقطع الاتصال. سأحاول مجددًا.";
+      refreshLink(true);
+      clearTimeout(retryTimer); retryTimer = setTimeout(restartLink, 8000);
+    });
+  }
+
+  function startSource() {
+    if (cleanCode(pair).length !== 12) { pair = newCode(); savePair(); }
+    var p = peer = new Peer(PREFIX + pair.slice(0, 8), { debug: 0 });
+    p.on("open", function () { if (p !== peer) return; sync.ready = true; sync.error = ""; refreshLink(); });
+    p.on("connection", function (c) {
+      c.on("data", function (m) {
+        if (!m || typeof m !== "object") return;
+        if (!c._ok) {
+          if (m.t === "hello" && m.k === pair.slice(8)) {
+            c._ok = true; conns.push(c); sync.viewers = conns.length;
+            send(c, { t: "state", s: JSON.stringify(state), o: "" });
+            refreshLink(true);
+          } else { send(c, { t: "denied" }); setTimeout(function () { try { c.close(); } catch (e) {} }, 400); }
+          return;
+        }
+        if (m.t === "pull") send(c, { t: "state", s: JSON.stringify(state), o: "" });
+        else if (m.t === "push" && typeof m.s === "string") {
+          var obj = parseState(m.s);
+          if (obj) { applyRemote(obj); broadcast(typeof m.id === "string" ? m.id : ""); }
+        }
+      });
+      c.on("close", function () {
+        conns = conns.filter(function (x) { return x !== c; });
+        sync.viewers = conns.length; refreshLink(true);
+      });
+      c.on("error", function () {});
+    });
+    wirePeer(p);
+  }
+
+  function startViewer() {
+    if (cleanCode(pair).length !== 12) return; // waiting for the code
+    var p = peer = new Peer({ debug: 0 });
+    p.on("open", function () { if (p !== peer) return; sync.ready = true; sync.error = ""; connectSource(); refreshLink(); });
+    wirePeer(p);
+  }
+
+  function retryConnect() {
+    clearTimeout(connTimer);
+    if (role === "viewer" && !srcConn && !sync.denied && peer && !peer.destroyed) connTimer = setTimeout(connectSource, 5000);
+  }
+
+  function connectSource() {
+    if (!peer || peer.destroyed || peer.disconnected || srcConn || sync.denied) return;
+    var c = peer.connect(PREFIX + pair.slice(0, 8), { reliable: true });
+    var answered = false;
+    c.on("open", function () { send(c, { t: "hello", k: pair.slice(8) }); });
+    c.on("data", function (m) {
+      if (!m || typeof m !== "object") return;
+      answered = true;
+      if (m.t === "denied") {
+        sync.denied = true; sync.error = "الرمز غير صحيح. اضغط «تغيير الرمز» واكتب الرمز الظاهر على الجوال.";
+        refreshLink(true); return;
+      }
+      if (m.t !== "state" || typeof m.s !== "string") return;
+      var wasLocked = locked();
+      if (srcConn !== c) { srcConn = c; sync.sourceOnline = true; sync.error = ""; }
+      lastSync = Date.now();
+      try { localStorage.setItem(SYNCED_KEY, String(lastSync)); } catch (e) {}
+      if (m.o && myPushes[m.o]) { delete myPushes[m.o]; refreshLink(wasLocked !== locked()); return; } // phone echoing our own edit
+      var obj = parseState(m.s);
+      if (obj) applyRemote(obj); else refreshLink(wasLocked !== locked());
+    });
+    c.on("close", function () {
+      if (srcConn === c) { srcConn = null; sync.sourceOnline = false; refreshLink(true); }
+      retryConnect();
+    });
+    c.on("error", function () {});
+    setTimeout(function () { if (!answered) { try { c.close(); } catch (e) {} retryConnect(); } }, 10000);
+  }
+
+  function stopLink() {
+    clearTimeout(retryTimer); clearTimeout(connTimer);
+    conns = []; srcConn = null;
+    sync.sourceOnline = false; sync.viewers = 0; sync.ready = false; sync.error = ""; sync.denied = false;
+    var p = peer; peer = null;
+    if (p) { try { p.destroy(); } catch (e) {} }
+  }
+  function startLink() {
+    if (typeof Peer !== "function") { sync.unavailable = true; return; }
+    sync.unavailable = false;
+    if (role === "source") startSource(); else startViewer();
+  }
+  function restartLink() { stopLink(); startLink(); }
+
+  // Phones suspend background pages: reconnect when the app comes back
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) return;
+    if (!peer || peer.destroyed || peer.disconnected) restartLink();
+    else if (role === "viewer" && !srcConn) connectSource();
+  });
+
+  $("syncBtn").addEventListener("click", function () { ui.tab = "sync"; ui.open = null; render(); window.scrollTo(0, 0); });
+  startLink();
+
+  // Refresh the "now" highlight each minute, unless the user is typing
+  setInterval(function () {
+    var a = document.activeElement;
+    if (ui.tab === "day" && !(a && /INPUT|TEXTAREA|SELECT/.test(a.tagName))) render();
+  }, 60000);
+
+  render();
+})();
+</script>
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js").catch(function () {}); });
+}
+</script>
+</body>
+</html>
