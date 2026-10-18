@@ -922,25 +922,56 @@ details.box textarea { font-size: .78rem; direction: ltr; }
         '<p class="small muted">لتفعيله ضع رابط مشروع Supabase ومفتاحه في ملف config.js (التفاصيل في SUPABASE_SETUP.md).</p>';
     } else if (cloud.status === "nocode") {
       if (ui.pair) {
-        h += '<h3>امسح الرمز بكاميرا جوالك</h3>' +
-          '<p class="small">افتح كاميرا الجوال الذي عليه بياناتك ووجّهها نحو الرمز، ثم افتح الرابط الذي يظهر. سيرتبط هذا الجهاز تلقائيًا.</p>' +
+        h += '<h3>امسح الرمز بكاميرا الجهاز المسؤول</h3>' +
+          '<p class="small">افتح الكاميرا على الجهاز المسؤول الأول ووجّهها نحو الرمز، ثم افتح الرابط الذي يظهر. سيرتبط هذا الجهاز تلقائيًا ويأخذ رقمًا ثانويًا.</p>' +
           '<div class="qrbox" id="qrBox" data-qr="' + esc(appUrl() + "#pair=" + ui.pair.token) + '"></div>' +
           '<p class="small muted">ينتهي الرمز بعد ١٠ دقائق.</p><div><button class="ghost" data-act="pairCancel">إلغاء</button></div>';
       } else {
-        h += '<p class="small">أول مرة؟ أنشئ كودك، وهو مفتاح بياناتك في السحابة. وإن كانت بياناتك على جوال آخر فاربطه برمز QR أو اكتب كوده.</p>' +
-          '<div class="row-wrap"><button class="btn" data-act="newCode">أنشئ كودي</button><button class="ghost" data-act="pairStart">اربط بجوالي عبر QR</button></div>' +
-          '<div class="addform"><input class="field grow ltr" id="codeInput" type="text" placeholder="xxxx-xxxx-xxxx" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="ghost" data-act="useCode">عندي كود</button></div>';
+        h += '<h3>أول مرة؟</h3><p class="small">ابدأ حسابًا جديدًا، فتصبح أنت <b>المسؤول الأول</b>، ثم تربط أجهزتك الأخرى.</p>' +
+          '<div><button class="btn" data-act="newCode">ابدأ حسابًا جديدًا</button></div>' +
+          '<h3 style="margin-top:8px">عندي حساب على جهاز آخر</h3>' +
+          '<p class="small muted">على الجهاز المسؤول: ⚙ ← «ربط جهاز جديد»، ثم اكتب الرمز الذي يظهر هنا، أو امسح رمز QR الظاهر عليه بكاميرا هذا الجهاز.</p>' +
+          '<div class="addform"><input class="field grow ltr" id="joinInput" type="text" placeholder="xxxx-xxxx" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="ghost" data-act="join">اربط</button></div>' +
+          '<div><button class="linkbtn" data-act="pairStart">أو اعرض رمز QR ليمسحه الجهاز المسؤول</button></div>' +
+          '<details class="box"><summary>استعادة حساب المسؤول الأول بالكود الرئيسي</summary><div class="inner">' +
+          '<p>إن ضاع الجهاز المسؤول، اكتب الكود الرئيسي هنا، فيصبح هذا الجهاز هو المسؤول الأول.</p>' +
+          '<div class="addform"><input class="field grow ltr" id="codeInput" type="text" placeholder="xxxx-xxxx-xxxx" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="ghost" data-act="useCode">استعادة</button></div></div></details>';
       }
     } else {
       var map = { ok: ["on", "متزامن"], syncing: ["warn", "جارٍ المزامنة…"], offline: ["warn", "لا يوجد إنترنت، وسيُرفع ما تكتبه عند الاتصال"], error: ["warn", "تعذّرت المزامنة"] };
       var m = map[cloud.status] || map.ok;
       h += led(m[0], m[1]) + (cloud.last ? '<p class="small muted">آخر مزامنة ' + stamp(cloud.last) + '</p>' : "") +
-        '<p class="small muted">كودك، اكتبه على أي جهاز آخر لتظهر عليه بياناتك. احتفظ به ولا تشاركه مع أحد:</p>' +
-        '<div class="tip ltr" style="font-family:var(--font-mono);font-size:1.4rem;text-align:center;user-select:all">' + esc(prettyCode(code)) + '</div>' +
-        '<p class="small muted">يُحفظ في السحابة اليوم الحالي و٣ أيام قبله و٣ بعده، والأقدم يُحذف تلقائيًا.</p>' +
-        '<div class="row-wrap"><button class="btn" data-act="syncNow">مزامنة الآن</button><button class="ghost" data-act="copyCode">نسخ الكود</button><button class="ghost" data-act="showQr">' + (ui.showQr ? "إخفاء رمز QR" : "رمز QR لجهاز جديد") + '</button><button class="ghost" data-act="forget">فصل هذا الجهاز</button></div>' +
-        (ui.showQr ? '<p class="small">امسح هذا الرمز بكاميرا الجهاز الجديد وافتح الرابط، فتظهر عليه بياناتك.</p><div class="qrbox" id="qrBox" data-qr="' + esc(appUrl() + "#code=" + code) + '"></div>' : "") +
-        '<p class="small muted">لربط الحاسوب: افتح المنصة عليه، واضغط ⚙ ثم «اربط بجوالي عبر QR»، وامسح الرمز الظاهر بكاميرا هذا الجوال.</p>';
+        '<p class="small muted">يُحفظ في السحابة اليوم الحالي و٣ أيام قبله و٣ بعده، والأقدم يُحذف تلقائيًا.</p>';
+      if (cloud.role === "secondary") {
+        h += '<p><b>هذا الجهاز: جهاز ثانوي رقم ' + (cloud.num || "") + '</b>، مرتبط بالمسؤول الأول.</p>' +
+          '<div class="row-wrap"><button class="btn" data-act="syncNow">مزامنة الآن</button><button class="ghost" data-act="forget">فصل هذا الجهاز</button></div>';
+      } else {
+        h += '<p><b>هذا الجهاز: المسؤول الأول</b></p>' +
+          '<div class="row-wrap"><button class="btn" data-act="syncNow">مزامنة الآن</button><button class="ghost" data-act="invite">ربط جهاز جديد</button><button class="ghost" data-act="forget">فصل هذا الجهاز</button></div>';
+        if (ui.invite) {
+          h += '<div class="card"><h3>رمز ربط جهاز جديد</h3>' +
+            '<p class="small">على الجهاز الجديد: ⚙ ← اكتب هذا الرمز ← «اربط». أو امسح رمز QR بكاميرته.</p>' +
+            '<div class="tip ltr" style="font-family:var(--font-mono);font-size:1.6rem;text-align:center;user-select:all">' + esc(prettyCode(ui.invite.token)) + '</div>' +
+            '<div class="qrbox" id="qrBox" data-qr="' + esc(appUrl() + "#join=" + ui.invite.token) + '"></div>' +
+            '<p class="small muted">صالح لمرة واحدة ولمدة ١٠ دقائق. سيأخذ الجهاز الجديد رقمًا ثانويًا خاصًا به، ولن يرى الكود الرئيسي.</p>' +
+            '<div><button class="ghost" data-act="inviteCancel">إغلاق</button></div></div>';
+        }
+        var devs = ui.devices || [];
+        h += '<h3 style="margin-top:6px">الأجهزة المرتبطة</h3>';
+        if (!devs.length) h += '<p class="small muted">لا توجد أجهزة ثانوية بعد.</p>';
+        else h += '<ul class="list">' + devs.map(function (dv) {
+          var seen = dv.last_seen ? new Date(dv.last_seen) : null;
+          return '<li class="card"><div class="left"><span class="t"><b>جهاز رقم ' + dv.num + '</b> · ' + esc(dv.label || "جهاز") +
+            (seen ? '<br><span class="small muted">آخر ظهور: ' + (keyOf(seen) === keyOf(new Date()) ? "اليوم " : shortDate(keyOf(seen)) + " ") + stamp(seen.getTime()) + '</span>' : "") + '</span>' +
+            (ui.confirmRevoke === dv.token
+              ? '<button class="ghost danger" data-act="revokeYes" data-tok="' + esc(dv.token) + '">تأكيد الإلغاء</button><button class="ghost" data-act="revokeNo">تراجع</button>'
+              : '<button class="ghost danger" data-act="revoke" data-tok="' + esc(dv.token) + '">إلغاء الربط</button>') + '</div></li>';
+        }).join("") + '</ul>';
+        h += '<details class="box"><summary>الكود الرئيسي (للاستعادة فقط)</summary><div class="inner">' +
+          '<p>احتفظ به في مكان آمن ولا تعطه لأحد. تحتاجه فقط إن ضاع هذا الجهاز. لربط أجهزتك استعمل «ربط جهاز جديد».</p>' +
+          '<div class="tip ltr" style="font-family:var(--font-mono);font-size:1.3rem;text-align:center;user-select:all">' + esc(prettyCode(code)) + '</div>' +
+          '<div><button class="ghost" data-act="copyCode">نسخ الكود الرئيسي</button></div></div></details>';
+      }
     }
     if (cloud.msg) h += '<p class="err">' + esc(cloud.msg) + '</p>';
     h += '</div></section>';
@@ -1028,7 +1059,13 @@ details.box textarea { font-size: .78rem; direction: ltr; }
         commit(); toast("حُذف التقسيم، وبنوده صارت ضمن «أخرى»"); break;
       case "newCode": createCode(); break;
       case "useCode": useCode($("codeInput").value); break;
-      case "forget": code = ""; saveCode(); liveInit(); cloud.status = "nocode"; cloud.msg = ""; render(); toast("فُصل الجهاز، وبياناتك باقية عليه وفي السحابة"); break;
+      case "forget": forgetDevice(""); toast("فُصل الجهاز، وبياناتك باقية عليه وفي السحابة"); break;
+      case "join": joinWith($("joinInput").value); break;
+      case "invite": invite(); break;
+      case "inviteCancel": inviteStop(); render(); break;
+      case "revoke": ui.confirmRevoke = b.dataset.tok; render(); break;
+      case "revokeNo": ui.confirmRevoke = null; render(); break;
+      case "revokeYes": revoke(b.dataset.tok); break;
       case "copyCode":
         try { navigator.clipboard.writeText(prettyCode(code)).then(function () { toast("تم نسخ الكود"); }, function () { toast("انسخ الكود يدويًا"); }); }
         catch (err) { toast("انسخ الكود يدويًا"); }
@@ -1041,7 +1078,6 @@ details.box textarea { font-size: .78rem; direction: ltr; }
       case "goToday": goTo(today()); break;
       case "pairStart": pairStart(); break;
       case "pairCancel": pairStop(); render(); break;
-      case "showQr": ui.showQr = !ui.showQr; render(); break;
       case "copy":
         var ta = $("backupText"); ta.value = JSON.stringify(state);
         var fb = function () { ta.focus(); ta.select(); toast("تم تحديد النص، انسخه يدويًا"); };
@@ -1126,7 +1162,7 @@ details.box textarea { font-size: .78rem; direction: ltr; }
   document.querySelectorAll(".tab").forEach(function (b) {
     b.addEventListener("click", function () { ui.tab = b.dataset.tab; ui.open = null; render(); window.scrollTo(0, 0); });
   });
-  $("setBtn").addEventListener("click", function () { ui.tab = "settings"; ui.open = null; render(); window.scrollTo(0, 0); });
+  $("setBtn").addEventListener("click", function () { ui.tab = "settings"; ui.open = null; render(); window.scrollTo(0, 0); loadDevices(); });
   function goTo(nd) {
     var o = offsetOf(keyOf(nd));
     if (o < -ARCHIVE || o > SPAN) { toast(o > SPAN ? "يمكنك التخطيط حتى ٣ أيام قادمة" : "الأرشيف يحفظ سنة واحدة"); return; }
@@ -1161,11 +1197,41 @@ details.box textarea { font-size: .78rem; direction: ltr; }
   // written back. Devices nudge each other over a Realtime channel so the other side pulls at once.
   var CODE_KEY = "daily-planner-code";
   var COLS = ["day_m3", "day_m2", "day_m1", "day_0", "day_p1", "day_p2", "day_p3"];
-  var sb = null, code = "", cloud = { status: "off", msg: "", last: 0 };
+  // `code` is this device's key: the main code on the first owner's device, a device number elsewhere
+  var META_KEY = "daily-planner-link";
+  var sb = null, code = "", cloud = { status: "off", msg: "", last: 0, role: "", num: 0, chan: "" };
   var syncing = false, again = false, uploadTimer = null;
-  try { code = localStorage.getItem(CODE_KEY) || ""; } catch (e) {}
+  try {
+    code = localStorage.getItem(CODE_KEY) || "";
+    var meta = JSON.parse(localStorage.getItem(META_KEY) || "{}");
+    cloud.role = meta.role || ""; cloud.num = meta.num || 0; cloud.chan = meta.chan || "";
+  } catch (e) {}
 
-  function saveCode() { try { if (code) localStorage.setItem(CODE_KEY, code); else localStorage.removeItem(CODE_KEY); } catch (e) {} }
+  function saveCode() {
+    try {
+      if (code) localStorage.setItem(CODE_KEY, code); else localStorage.removeItem(CODE_KEY);
+      localStorage.setItem(META_KEY, JSON.stringify({ role: cloud.role, num: cloud.num, chan: cloud.chan }));
+    } catch (e) {}
+  }
+  function setLink(key, role, num) {
+    code = key; cloud.role = role; cloud.num = num || (role === "primary" ? 1 : 0); cloud.chan = "";
+    cloud.status = "ok"; cloud.msg = ""; saveCode(); liveInit();
+  }
+  function forgetDevice(msg) {
+    inviteStop(); pairStop();
+    code = ""; cloud.role = ""; cloud.num = 0; cloud.chan = ""; ui.devices = null;
+    saveCode(); liveInit(); cloud.status = "nocode"; cloud.msg = msg; render();
+  }
+  function deviceLabel() {
+    var ua = navigator.userAgent || "";
+    if (/iPhone/i.test(ua)) return "آيفون";
+    if (/iPad/i.test(ua)) return "آيباد";
+    if (/Android/i.test(ua)) return /Mobile/i.test(ua) ? "جوال أندرويد" : "تابلت أندرويد";
+    if (/Windows/i.test(ua)) return "حاسوب ويندوز";
+    if (/Macintosh|Mac OS/i.test(ua)) return "ماك";
+    if (/Linux/i.test(ua)) return "حاسوب لينكس";
+    return "جهاز";
+  }
   function cleanCode(c) { return (c || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }
   function prettyCode(c) { return (c.match(/.{1,4}/g) || []).join("-"); }
   function refreshCloud() { if (ui.tab === "settings") softRender(); else renderHeader(); }
@@ -1174,13 +1240,13 @@ details.box textarea { font-size: .78rem; direction: ltr; }
     clearTimeout(uploadTimer);
     uploadTimer = setTimeout(syncNow, 1500);
   }
-  // A content-free "changed" ping on a channel named after the code; the other device then pulls
+  // A content-free "changed" ping on the row's own random channel; the other devices then pull
   var chan = null;
   function liveInit() {
     if (chan) { try { sb.removeChannel(chan); } catch (e) {} chan = null; }
-    if (!sb || !code) return;
+    if (!sb || !code || !cloud.chan) return;
     try {
-      chan = sb.channel("yawmi-" + code, { config: { broadcast: { self: false } } });
+      chan = sb.channel("yawmi-" + cloud.chan, { config: { broadcast: { self: false } } });
       chan.on("broadcast", { event: "changed" }, function () { syncNow(); }).subscribe();
     } catch (e) { chan = null; }
   }
@@ -1198,9 +1264,9 @@ details.box textarea { font-size: .78rem; direction: ltr; }
     cloud.msg = "";
     sb.rpc("planner_create").then(function (r) {
       if (r.error || !r.data) { cloud.msg = "تعذّر إنشاء الكود: " + netError(r.error); refreshCloud(); return; }
-      code = r.data; saveCode(); cloud.status = "ok";
+      setLink(r.data, "primary", 1);
       state.settings.updatedAt = state.settings.updatedAt || Date.now(); // upload this device's setup
-      liveInit(); render(); toast("أُنشئ كودك، احتفظ به"); syncNow();
+      render(); toast("أصبحت المسؤول الأول ✓"); syncNow();
     }, function (e) { cloud.msg = netError(e); refreshCloud(); });
   }
   function useCode(raw) {
@@ -1209,9 +1275,62 @@ details.box textarea { font-size: .78rem; direction: ltr; }
     cloud.msg = "";
     sb.rpc("planner_get", { p_code: c }).then(function (r) {
       if (r.error) { cloud.msg = netError(r.error); refreshCloud(); return; }
-      if (!r.data) { cloud.msg = "هذا الكود غير موجود. تأكد منه وأعد المحاولة."; refreshCloud(); return; }
-      code = c; saveCode(); cloud.status = "ok"; liveInit(); render(); toast("تم الربط، جارٍ جلب بياناتك"); syncNow();
+      if (!r.data || r.data.role === "secondary") { cloud.msg = "هذا ليس كودًا رئيسيًا صحيحًا. تأكد منه وأعد المحاولة."; refreshCloud(); return; }
+      setLink(c, "primary", 1); render(); toast("استُعيد حساب المسؤول الأول، جارٍ جلب بياناتك"); syncNow();
     }, function (e) { cloud.msg = netError(e); refreshCloud(); });
+  }
+  // A new device joins with the one-time link code the first owner shows
+  function joinWith(raw) {
+    var t = cleanCode(raw);
+    if (t.length !== 8) { toast("رمز الربط ٨ أحرف وأرقام، كما يظهر على الجهاز المسؤول"); return; }
+    cloud.msg = "";
+    sb.rpc("planner_join", { p_token: t, p_label: deviceLabel() }).then(function (r) {
+      if (r.error) { cloud.msg = netError(r.error); refreshCloud(); return; }
+      if (!r.data) { cloud.msg = "رمز الربط غير صحيح أو انتهت صلاحيته. اطلب رمزًا جديدًا من الجهاز المسؤول."; refreshCloud(); return; }
+      setLink(r.data.token, "secondary", r.data.num); render(); toast("تم الربط ✓ هذا الجهاز رقم " + r.data.num); syncNow();
+    }, function (e) { cloud.msg = netError(e); refreshCloud(); });
+  }
+  // First owner: one-time link code, device list, revoke
+  var inviteTimer = null, devCount = -1;
+  function inviteStop() { clearTimeout(inviteTimer); ui.invite = null; }
+  function invite() {
+    cloud.msg = "";
+    sb.rpc("planner_invite", { p_code: code }).then(function (r) {
+      if (r.error || !r.data) { cloud.msg = "تعذّر إنشاء رمز الربط: " + netError(r.error); refreshCloud(); return; }
+      ui.invite = { token: r.data, until: Date.now() + 10 * 60000 };
+      devCount = (ui.devices || []).length;
+      render(); invitePoll();
+    }, function (e) { cloud.msg = netError(e); refreshCloud(); });
+  }
+  function invitePoll() {
+    clearTimeout(inviteTimer);
+    if (!ui.invite) return;
+    if (Date.now() > ui.invite.until) { inviteStop(); refreshCloud(); return; }
+    inviteTimer = setTimeout(function () {
+      loadDevices(function (list) {
+        if (!ui.invite) return;
+        if (list.length > devCount) {
+          var nd = list[list.length - 1];
+          inviteStop(); render(); toast("تم ربط جهاز رقم " + nd.num + " ✓");
+        } else invitePoll();
+      });
+    }, 3000);
+  }
+  function loadDevices(done) {
+    if (!sb || !code || cloud.role === "secondary") return;
+    sb.rpc("planner_devices_list", { p_code: code }).then(function (r) {
+      if (r.error) return;
+      ui.devices = arr(r.data);
+      if (done) done(ui.devices);
+      if (ui.tab === "settings") softRender();
+    }, function () {});
+  }
+  function revoke(tok) {
+    ui.confirmRevoke = null;
+    sb.rpc("planner_device_revoke", { p_code: code, p_token: tok }).then(function (r) {
+      if (r.error) { toast("تعذّر إلغاء الربط: " + netError(r.error)); return; }
+      toast("أُلغي ربط الجهاز"); loadDevices();
+    }, function () { toast("تعذّر الاتصال. تأكد من الإنترنت."); });
   }
 
   function toRemote(k, d) {
@@ -1264,8 +1383,14 @@ details.box textarea { font-size: .78rem; direction: ltr; }
     syncing = true; cloud.status = "syncing"; refreshCloud();
     sb.rpc("planner_get", { p_code: code }).then(function (r) {
       if (r.error) throw r.error;
-      if (!r.data) throw new Error("لم يُعثر على صفك في السحابة. تأكد من الكود.");
+      if (!r.data) { var gone = new Error("gone"); gone.gone = true; throw gone; }
       var row = r.data, base = row.base_date, todayKey = keyOf(today()), remote = {};
+      var role = row.role || "primary", num = row.num || (role === "primary" ? 1 : cloud.num), ch = row.chan || "";
+      if (role !== cloud.role || num !== cloud.num || ch !== cloud.chan) {
+        var chChanged = ch !== cloud.chan;
+        cloud.role = role; cloud.num = num; cloud.chan = ch; saveCode();
+        if (chChanged) liveInit();
+      }
       COLS.forEach(function (c, i) {
         var v = row[c];
         if (v && typeof v === "object") remote[v.date || keyOf(addDays(parseKey(base), i - SPAN))] = v;
@@ -1298,10 +1423,17 @@ details.box textarea { font-size: .78rem; direction: ltr; }
     }).then(function () {
       cloud.status = "ok"; cloud.msg = ""; cloud.last = Date.now();
     }, function (e) {
+      if (e && e.gone) {
+        syncing = false;
+        forgetDevice(cloud.role === "secondary" ? "أُلغي ربط هذا الجهاز من المسؤول الأول. بياناتك باقية عليه، ويمكنك ربطه من جديد." : "لم يُعثر على حسابك في السحابة. تأكد من الكود.");
+        return;
+      }
       cloud.status = navigator.onLine ? "error" : "offline";
       cloud.msg = navigator.onLine ? "تعذّرت المزامنة: " + netError(e) : "";
     }).then(function () {
-      syncing = false; refreshCloud();
+      syncing = false;
+      if (!code) return;
+      refreshCloud();
       if (again) { again = false; syncNow(); }
     });
   }
@@ -1327,32 +1459,33 @@ details.box textarea { font-size: .78rem; direction: ltr; }
     if (Date.now() > ui.pair.until) { pairStop(); cloud.msg = "انتهت صلاحية الرمز. اضغط «اربط بجوالي عبر QR» لرمز جديد."; refreshCloud(); return; }
     pairTimer = setTimeout(function () {
       if (!ui.pair) return;
-      sb.rpc("planner_pair_take", { p_token: ui.pair.token }).then(function (r) {
-        if (!r.error && r.data) {
-          pairStop(); code = r.data; saveCode(); cloud.status = "ok"; liveInit();
-          render(); toast("تم الربط ✓ جارٍ جلب بياناتك"); syncNow();
+      sb.rpc("planner_pair_take", { p_token: ui.pair.token, p_label: deviceLabel() }).then(function (r) {
+        if (!r.error && r.data && r.data.token) {
+          pairStop(); setLink(r.data.token, "secondary", r.data.num);
+          render(); toast("تم الربط ✓ هذا الجهاز رقم " + r.data.num); syncNow();
         } else pairPoll();
       }, pairPoll);
     }, 2000);
   }
-  // Links opened from a scanned QR: #pair=<token> (approve a waiting device) or #code=<code> (join)
+  // Links opened from a scanned QR: #join=<code> (new device joins) or #pair=<token> (first owner approves)
   function handleLink() {
-    var m = /^#(pair|code)=([a-z0-9-]+)$/i.exec(location.hash || "");
+    var m = /^#(pair|join)=([a-z0-9-]+)$/i.exec(location.hash || "");
     if (!m) return;
     try { history.replaceState(null, "", appUrl()); } catch (e) {}
     if (!sb) { toast("الحفظ السحابي غير مفعّل على هذا الجهاز"); return; }
-    if (m[1].toLowerCase() === "code") {
+    if (m[1].toLowerCase() === "join") {
       if (code) { toast("هذا الجهاز مربوط بالفعل"); return; }
-      useCode(m[2]); return;
+      ui.tab = "settings"; render(); joinWith(m[2]); return;
     }
-    if (!code) {
+    if (!code || cloud.role === "secondary") {
       ui.tab = "settings"; render();
-      toast("افتح هذا الرابط على الجوال الذي عليه بياناتك");
+      toast("افتح هذا الرابط على الجهاز المسؤول الأول");
       return;
     }
     sb.rpc("planner_pair_approve", { p_token: cleanCode(m[2]), p_code: code }).then(function (r) {
       if (r.error) { toast("تعذّر الربط: " + netError(r.error)); return; }
       toast(r.data ? "تم ربط الجهاز الآخر ✓" : "انتهت صلاحية الرمز، اطلب رمزًا جديدًا");
+      if (r.data) setTimeout(loadDevices, 2500);
     }, function () { toast("تعذّر الاتصال. تأكد من الإنترنت."); });
   }
 
