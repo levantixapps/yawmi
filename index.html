@@ -76,7 +76,13 @@ section, .stack { display: flex; flex-direction: column; gap: 10px; }
 .sechead { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 
 /* Day bar */
-.daybar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding-block: 14px 10px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--line); }
+/* Brand strip: app logo and name, with the Levantix mark */
+.brandbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-block: 14px 0; }
+.brandbar .app { display: flex; align-items: center; gap: 10px; font-family: var(--font-display); font-weight: 800; font-size: 1.2rem; text-decoration: none; color: var(--ink); }
+.brandbar .app img { width: 32px; height: 32px; border-radius: 9px; }
+.brandbar .by { display: flex; align-items: center; gap: 6px; font-size: .75rem; color: var(--muted); text-decoration: none; direction: ltr; }
+.brandbar .by img { width: 22px; height: 22px; border-radius: 50%; }
+.daybar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding-block: 10px 10px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--line); }
 .daybar .title { flex: 1; min-width: 0; }
 .daybar h1 { margin: 0; font-family: var(--font-display); font-size: 1.35rem; font-weight: 700; line-height: 1.2; }
 .daybar .sub { color: var(--muted); font-size: .82rem; }
@@ -265,6 +271,10 @@ details.box textarea { font-size: .78rem; direction: ltr; }
 </head>
 <body>
 <div class="wrap">
+  <div class="brandbar">
+    <span class="app"><img src="icon.svg" alt="" width="32" height="32">يومي</span>
+    <a class="by" href="https://levantixapps.github.io/" aria-label="Levantix Apps"><img src="../logo.png" alt="" width="22" height="22" onerror="this.remove()">levantixapps</a>
+  </div>
   <header class="daybar">
     <button class="iconbtn" id="prev" aria-label="اليوم السابق">→</button>
     <div class="title" id="titleBtn" role="button" tabindex="0" aria-label="اختر تاريخًا">
