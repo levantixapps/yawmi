@@ -77,6 +77,10 @@ section, .stack { display: flex; flex-direction: column; gap: 10px; }
 
 /* Day bar */
 /* Brand strip: app logo and name, with the Levantix mark */
+.profchip { display: inline-flex; align-items: center; gap: 4px; margin-inline-start: 4px; font-family: var(--font-body); font-size: .8rem; font-weight: 600; color: var(--accent); background: var(--accent-soft); border: 0; border-radius: 99px; padding: 3px 10px; }
+.profrow { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.profrow .field { flex: 1 1 140px; }
+.profrow .now { font-size: .78rem; font-weight: 700; color: var(--done); }
 .brandbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-block: 14px 0; }
 .brandbar .app { display: flex; align-items: center; gap: 10px; font-family: var(--font-display); font-weight: 800; font-size: 1.2rem; text-decoration: none; color: var(--ink); }
 .brandbar .app img { width: 32px; height: 32px; border-radius: 9px; }
@@ -272,7 +276,7 @@ details.box textarea { font-size: .78rem; direction: ltr; }
 <body>
 <div class="wrap">
   <div class="brandbar">
-    <span class="app"><img src="icon.svg" alt="" width="32" height="32">يومي</span>
+    <span class="app"><img src="icon.svg" alt="" width="32" height="32">يومي<button class="profchip" id="profBtn" aria-label="الحسابات"><span id="profName"></span> ▾</button></span>
     <a class="by" href="https://levantixapps.github.io/" aria-label="Levantix Apps"><img src="../logo.png" alt="" width="22" height="22" onerror="this.remove()">levantixapps</a>
   </div>
   <header class="daybar">
@@ -300,7 +304,20 @@ details.box textarea { font-size: .78rem; direction: ltr; }
 
 <script>
 (function () {
-  var KEY = "daily-planner-v3", OLD_KEY = "daily-planner-v2";
+  // Accounts on this device (e.g. personal and work): each keeps its own data and cloud code.
+  // The first account uses the original keys so existing data stays where it is.
+  var PROFILES_KEY = "yawmi-profiles";
+  var profiles = { active: "main", list: [{ id: "main", name: "شخصي" }] };
+  try {
+    var pj = JSON.parse(localStorage.getItem(PROFILES_KEY) || "null");
+    if (pj && Array.isArray(pj.list) && pj.list.length) profiles = pj;
+  } catch (e) {}
+  if (!profiles.list.some(function (x) { return x.id === profiles.active; })) profiles.active = profiles.list[0].id;
+  var PROFILE = profiles.active;
+  function pkey(base, id) { id = id || PROFILE; return id === "main" ? base : base + ":" + id; }
+  function saveProfiles() { try { localStorage.setItem(PROFILES_KEY, JSON.stringify(profiles)); } catch (e) {} }
+  function profileName(id) { var x = profiles.list.filter(function (q) { return q.id === (id || PROFILE); })[0]; return x ? x.name : ""; }
+  var KEY = pkey("daily-planner-v3"), OLD_KEY = "daily-planner-v2";
   var SPAN = 3; // days kept before and after today
   var CFG = window.PLANNER_CONFIG || {};
   var $ = function (id) { return document.getElementById(id); };
@@ -384,6 +401,7 @@ details.box textarea { font-size: .78rem; direction: ltr; }
     } catch (e) { storageOk = false; }
     state = blankState();
     // bring over days from the earlier version of the app
+    if (PROFILE !== "main") return "";
     try {
       var o = JSON.parse(localStorage.getItem(OLD_KEY) || "null");
       if (o && o.days) {
@@ -517,7 +535,7 @@ details.box textarea { font-size: .78rem; direction: ltr; }
   }
 
   var loaded = load();
-  if (!loaded) seed();
+  if (!loaded && PROFILE === "main") seed();
   pruneLocal();
   takeSnap();
   if (loaded === "migrated") persist();
@@ -926,7 +944,19 @@ details.box textarea { font-size: .78rem; direction: ltr; }
     var h = '<section><h2>المظهر</h2><div class="rangeseg">' + [["auto", "تلقائي"], ["light", "☀️ فاتح"], ["dark", "🌙 غامق"]].map(function (o) {
       return '<button data-act="theme" data-t="' + o[0] + '" aria-pressed="' + (th === o[0]) + '">' + o[1] + '</button>';
     }).join("") + '</div><p class="small muted">«تلقائي» يتبع إعداد جهازك.</p></section>';
-    h += '<section><h2>الحفظ السحابي</h2><div class="status">';
+    h += '<section id="accounts"><h2>الحسابات</h2><p class="small muted">لكل حساب يومه ومهامه وتقاريره وكوده السحابي المستقل، مثل حياتك الشخصية والعمل.</p><ul class="list">' +
+      profiles.list.map(function (pf) {
+        var isNow = pf.id === PROFILE;
+        return '<li class="card"><div class="profrow">' +
+          '<input class="field" value="' + esc(pf.name) + '" data-act="profName" data-id="' + esc(pf.id) + '" aria-label="اسم الحساب">' +
+          (isNow ? '<span class="now">● الحالي</span>' : '<button class="btn" data-act="profSwitch" data-id="' + esc(pf.id) + '">انتقل إليه</button>') +
+          (isNow || pf.id === "main" ? "" : (ui.confirmProfile === pf.id
+            ? '<button class="ghost danger" data-act="profDelYes" data-id="' + esc(pf.id) + '">تأكيد الحذف</button><button class="ghost" data-act="profDelNo">تراجع</button>'
+            : '<button class="del" data-act="profDel" data-id="' + esc(pf.id) + '" aria-label="حذف الحساب">×</button>')) +
+          '</div>' + (ui.confirmProfile === pf.id ? '<p class="small err">سيُحذف هذا الحساب وبياناته من هذا الجهاز. إن كان مربوطًا بالسحابة فبياناته هناك تبقى، ويمكنك استرجاعها بكوده.</p>' : "") + '</li>';
+      }).join("") + '</ul>' +
+      '<form class="addform" data-form="profile"><input class="field grow" id="profInput" type="text" placeholder="حساب جديد، مثل: العمل" autocomplete="off"><button class="btn" type="submit">أضف حسابًا</button></form></section>';
+    h += '<section><h2>الحفظ السحابي <span class="small muted">(' + esc(profileName()) + ')</span></h2><div class="status">';
     if (cloud.status === "off") {
       h += led("", "الحفظ السحابي غير مفعّل بعد، والبيانات محفوظة على هذا الجهاز فقط.") +
         '<p class="small muted">لتفعيله ضع رابط مشروع Supabase ومفتاحه في ملف config.js (التفاصيل في SUPABASE_SETUP.md).</p>';
@@ -1082,6 +1112,10 @@ details.box textarea { font-size: .78rem; direction: ltr; }
         break;
       case "syncNow": syncNow(); break;
       case "theme": applyTheme(b.dataset.t); render(); break;
+      case "profSwitch": switchProfile(id); break;
+      case "profDel": ui.confirmProfile = id; render(); break;
+      case "profDelNo": ui.confirmProfile = null; render(); break;
+      case "profDelYes": deleteProfile(id); break;
       case "range": ui.range = b.dataset.r; ui.barSel = null; render(); break;
       case "bar": ui.barSel = ui.barSel === b.dataset.k ? null : b.dataset.k; render(); break;
       case "openDay": ui.range = "day"; goTo(parseKey(b.dataset.k)); ui.tab = "review"; render(); break;
@@ -1117,6 +1151,10 @@ details.box textarea { font-size: .78rem; direction: ltr; }
     else if (act === "dur") { it.dur = +t.value; commit(); }
     else if (act === "spent") { it.spent = +t.value; commit(); }
     else if (act === "cat") { it.cat = t.value; ui.lastCat = t.value; commit(); }
+    else if (act === "profName") {
+      var pf = profiles.list.filter(function (x) { return x.id === t.dataset.id; })[0], nv = t.value.trim();
+      if (pf && nv) { pf.name = nv.slice(0, 30); saveProfiles(); renderProfile(); } else if (pf) t.value = pf.name;
+    }
     else if (act === "catName") { var c = catOf(t.dataset.id), v = t.value.trim(); if (v) { c.name = v; commit(); } else t.value = c.name; }
     else if (t.id === "startAt") { day().startAt = t.value; save(); }
     else if (t.id === "dumpCat" || t.id === "quickCat" || t.id === "rCat") ui.lastCat = t.value;
@@ -1159,6 +1197,11 @@ details.box textarea { font-size: .78rem; direction: ltr; }
       state.settings.routines.push({ id: uid(), title: v, cat: ui.lastCat, dur: +$("rDur").value, time: $("rTime").value, days: ui.newDays.slice() });
       ui.newDays = [0, 1, 2, 3, 4, 5, 6];
       commit(); toast("أُضيفت، وستنزل في أيامها تلقائيًا");
+    } else if (f === "profile") {
+      v = $("profInput").value.trim(); if (!v) return;
+      var nid = "p" + Date.now().toString(36);
+      profiles.list.push({ id: nid, name: v.slice(0, 30) });
+      saveProfiles(); toast("أُضيف حساب «" + v + "»"); switchProfile(nid);
     } else if (f === "cat") {
       v = $("catInput").value.trim(); if (!v) return;
       var used = cats().map(function (c) { return c.color; });
@@ -1172,6 +1215,24 @@ details.box textarea { font-size: .78rem; direction: ltr; }
   document.querySelectorAll(".tab").forEach(function (b) {
     b.addEventListener("click", function () { ui.tab = b.dataset.tab; ui.open = null; render(); window.scrollTo(0, 0); });
   });
+  function renderProfile() { $("profName").textContent = profileName(); }
+  function switchProfile(id) {
+    if (!id || id === PROFILE) return;
+    save(); // keep this account's latest changes; it syncs next time it is opened
+    profiles.active = id; saveProfiles();
+    location.reload();
+  }
+  function deleteProfile(id) {
+    if (id === PROFILE || id === "main") return;
+    ["daily-planner-v3", "daily-planner-code", "daily-planner-link"].forEach(function (b) { try { localStorage.removeItem(pkey(b, id)); } catch (e) {} });
+    profiles.list = profiles.list.filter(function (x) { return x.id !== id; });
+    ui.confirmProfile = null; saveProfiles(); render(); toast("حُذف الحساب من هذا الجهاز");
+  }
+  $("profBtn").addEventListener("click", function () {
+    ui.tab = "settings"; ui.open = null; render();
+    var a = $("accounts"); if (a) a.scrollIntoView({ block: "start" });
+  });
+  renderProfile();
   $("setBtn").addEventListener("click", function () { ui.tab = "settings"; ui.open = null; render(); window.scrollTo(0, 0); loadDevices(); });
   function goTo(nd) {
     var o = offsetOf(keyOf(nd));
@@ -1205,10 +1266,10 @@ details.box textarea { font-size: .78rem; direction: ltr; }
   // The row has seven day fields: day_m3 … day_0 … day_p3 (3 days before today, today, 3 after).
   // Local-first: every change is saved on the device, then the row is merged item by item and
   // written back. Devices nudge each other over a Realtime channel so the other side pulls at once.
-  var CODE_KEY = "daily-planner-code";
+  var CODE_KEY = pkey("daily-planner-code");
   var COLS = ["day_m3", "day_m2", "day_m1", "day_0", "day_p1", "day_p2", "day_p3"];
   // `code` is this device's key: the main code on the first owner's device, a device number elsewhere
-  var META_KEY = "daily-planner-link";
+  var META_KEY = pkey("daily-planner-link");
   var sb = null, code = "", cloud = { status: "off", msg: "", last: 0, role: "", num: 0, chan: "" };
   var syncing = false, again = false, uploadTimer = null;
   try {
