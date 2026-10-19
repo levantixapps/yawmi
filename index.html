@@ -270,13 +270,49 @@ details.box .inner { display: flex; flex-direction: column; gap: 10px; margin-to
 details.box textarea { font-size: .78rem; direction: ltr; }
 
 .toast { position: fixed; bottom: calc(84px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 8px 16px; border-radius: 99px; font-size: .85rem; z-index: 10; max-width: calc(100% - 32px); text-align: center; }
+/* Account lock screen */
+.lock { position: fixed; inset: 0; z-index: 50; background: var(--bg); display: flex; align-items: center; justify-content: center; padding: 24px 16px calc(24px + env(safe-area-inset-bottom, 0px)); }
+.lock .box2 { width: 100%; max-width: 360px; display: flex; flex-direction: column; gap: 14px; align-items: center; text-align: center; }
+.lock img { width: 64px; height: 64px; border-radius: 18px; }
+.lock input { width: 100%; text-align: center; font-family: var(--font-mono); font-size: 1.6rem; letter-spacing: .4em; direction: ltr; height: 56px; }
+.lock .btn { width: 100%; }
+.lock .others { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.pinrow { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
+.pinrow input { width: 140px; text-align: center; direction: ltr; font-family: var(--font-mono); letter-spacing: .2em; }
+.locktag { font-size: .76rem; color: var(--muted); }
+/* Name prompt, greeting and change log */
+.hello { font-family: var(--font-body); font-size: .82rem; font-weight: 500; color: var(--muted); }
+.namecard { background: var(--accent-soft); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+.loglist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.loglist li { display: flex; justify-content: space-between; gap: 10px; padding-block: 8px; border-bottom: 1px dashed var(--line); font-size: .88rem; }
+.loglist li:last-child { border-bottom: 0; }
+.loglist .who { font-weight: 600; }
+.loglist .when { color: var(--muted); font-size: .78rem; white-space: nowrap; font-family: var(--font-mono); }
+
+/* Wide screens: use the room — the day screen splits into a timeline and a side column */
+.daygrid { display: flex; flex-direction: column; gap: 20px; }
+.daygrid > div { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+@media (min-width: 900px) {
+  .wrap { max-width: 1040px; padding-inline: 28px; }
+  .tabbar .in { max-width: 520px; }
+  .daygrid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; grid-template-areas: "main top" "main bottom" "main ."; gap: 20px 28px; align-items: start; }
+  .daygrid .dtop { grid-area: top; }
+  .daygrid .dmain { grid-area: main; }
+  .daygrid .dbottom { grid-area: bottom; }
+  .daygrid .dtop, .daygrid .dbottom { position: sticky; top: 96px; }
+  .list.cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stats { gap: 14px; }
+  .chart { height: 200px; }
+}
+.exportbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.exportbar span { flex: 1 1 100%; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="brandbar">
-    <span class="app"><img src="icon.svg" alt="" width="32" height="32">يومي<button class="profchip" id="profBtn" aria-label="الحسابات"><span id="profName"></span> ▾</button></span>
+    <span class="app"><img src="icon.svg" alt="" width="32" height="32">يومي<button class="profchip" id="profBtn" aria-label="الحسابات"><span id="profName"></span> ▾</button><span class="hello" id="hello"></span></span>
     <a class="by" href="https://levantixapps.github.io/" aria-label="Levantix Apps"><img src="../logo.png" alt="" width="22" height="22" onerror="this.remove()">levantixapps</a>
   </div>
   <header class="daybar">
@@ -318,6 +354,9 @@ details.box textarea { font-size: .78rem; direction: ltr; }
   function saveProfiles() { try { localStorage.setItem(PROFILES_KEY, JSON.stringify(profiles)); } catch (e) {} }
   function profileName(id) { var x = profiles.list.filter(function (q) { return q.id === (id || PROFILE); })[0]; return x ? x.name : ""; }
   var KEY = pkey("daily-planner-v3"), OLD_KEY = "daily-planner-v2";
+  var NAME_KEY = pkey("yawmi-username"), LOG_KEY = pkey("yawmi-pendinglog");
+  var userName = "";
+  try { userName = localStorage.getItem(NAME_KEY) || ""; } catch (e) {}
   var SPAN = 3; // days kept before and after today
   var CFG = window.PLANNER_CONFIG || {};
   var $ = function (id) { return document.getElementById(id); };
@@ -438,23 +477,56 @@ details.box textarea { font-size: .78rem; direction: ltr; }
   function save() {
     var now = Date.now();
     Object.keys(state.days).forEach(function (k) {
-      var d = state.days[k], cur = daySnap(d), old = snap[k], any = false;
+      var d = state.days[k], cur = daySnap(d), old = snap[k], any = false, fresh = !old;
       snap[k] = cur;
       if (!old) { if (isEmptyDay(d)) return; old = { m: {}, t: textJson(blankDay()), a: "[]" }; }
-      d.items.forEach(function (i) { if (old.m[i.id] !== cur.m[i.id]) { i.u = now; any = true; } });
-      Object.keys(old.m).forEach(function (id) { if (!(id in cur.m)) { d.del = d.del || {}; d.del[id] = now; any = true; } });
-      if (old.t !== cur.t) { d.tu = now; any = true; }
+      d.items.forEach(function (i) {
+        if (old.m[i.id] === cur.m[i.id]) return;
+        i.u = now; any = true;
+        if (fresh) return;
+        if (!old.m[i.id]) { if (!i.rid) logEvent("أضاف", i.title, k, "add:" + i.id); return; }
+        var o = {}; try { o = JSON.parse(old.m[i.id]); } catch (e) {}
+        if (!o.done && i.done) logEvent("أنجز", i.title, k, "done:" + i.id);
+        else if (o.done && !i.done) logEvent("ألغى إنجاز", i.title, k, "done:" + i.id);
+        else logEvent("عدّل", i.title, k, "edit:" + i.id);
+      });
+      Object.keys(old.m).forEach(function (id) {
+        if (id in cur.m) return;
+        d.del = d.del || {}; d.del[id] = now; any = true;
+        var o = {}; try { o = JSON.parse(old.m[id]); } catch (e) {}
+        if (!fresh) logEvent("حذف", o.title || "", k, "del:" + id);
+      });
+      if (old.t !== cur.t) { d.tu = now; any = true; if (!fresh) logEvent("كتب في مراجعة اليوم", "", k, "text:" + k); }
       if (old.a !== cur.a) any = true;
       if (any) d.updatedAt = now;
     });
     var s = setJson();
-    if (snap._s !== s) { snap._s = s; state.settings.updatedAt = now; }
+    if (snap._s !== s) { if (snap._s) logEvent("عدّل الإعدادات", "التقسيمات أو المهام الدائمة", "", "settings"); snap._s = s; state.settings.updatedAt = now; }
     persist();
     scheduleUpload();
   }
   // The cloud keeps 7 days; this device keeps an archive of past days (up to a year)
   var ARCHIVE = 365;
   function inArchive(k) { var o = offsetOf(k); return o >= -ARCHIVE && o <= SPAN; }
+  // Change log: queued on the device, uploaded with the next sync, read by the first owner
+  var pendingLog = {};
+  try { pendingLog = JSON.parse(localStorage.getItem(LOG_KEY) || "{}") || {}; } catch (e) {}
+  function logEvent(action, title, dayKey, key) {
+    if (typeof code !== "string" || !code) return;
+    pendingLog[key] = { name: userName || "", action: action, title: (title || "").slice(0, 120), day: dayKey || "", at: new Date().toISOString() };
+    try { localStorage.setItem(LOG_KEY, JSON.stringify(pendingLog)); } catch (e) {}
+  }
+  function flushLog() {
+    var keys = Object.keys(pendingLog);
+    if (!keys.length || !sb || !code) return;
+    var sent = {}, list = keys.map(function (k) { sent[k] = pendingLog[k].at; return pendingLog[k]; })
+      .sort(function (a, b) { return a.at < b.at ? -1 : 1; });
+    sb.rpc("planner_log_add", { p_code: code, p_events: list }).then(function (r) {
+      if (r.error || r.data === false) return;
+      keys.forEach(function (k) { if (pendingLog[k] && pendingLog[k].at === sent[k]) delete pendingLog[k]; });
+      try { localStorage.setItem(LOG_KEY, JSON.stringify(pendingLog)); } catch (e) {}
+    }, function () {});
+  }
   function pruneLocal() {
     Object.keys(state.days).forEach(function (k) {
       var d = state.days[k];
@@ -580,6 +652,11 @@ details.box textarea { font-size: .78rem; direction: ltr; }
     if (!ui.tab) ui.tab = defaultTab();
     renderHeader();
     var html = "";
+    if (!userName && ui.tab !== "settings") {
+      html += '<form class="namecard" data-form="uname"><b>أهلًا بك في «يومي» 👋 ما اسمك؟</b>' +
+        '<span class="small muted">يظهر اسمك في أعلى التطبيق، ويعرف به المسؤول من أجرى كل تغيير إن شاركت الحساب.</span>' +
+        '<div class="addform"><input class="field grow" id="unameInput" type="text" placeholder="اسمك" autocomplete="given-name"><button class="btn" type="submit">حفظ</button></div></form>';
+    }
     if (offsetOf(dk()) < -SPAN && ui.tab !== "settings") {
       html += '<div class="banner"><span>هذا يوم من الأرشيف، محفوظ على هذا الجهاز فقط ولا يُرفع إلى السحابة.</span><button class="linkbtn" data-act="goToday">ارجع إلى اليوم</button></div>';
     }
@@ -715,14 +792,15 @@ details.box textarea { font-size: .78rem; direction: ltr; }
       var n = new Date(), nm = n.getHours() * 60 + n.getMinutes();
       timed.forEach(function (i) { var s = toMin(i.time); if (nm >= s && nm < s + (i.dur || 60)) nowId = i.id; });
     }
+    var side = h; h = "";
     h += '<section><div class="sechead"><h2>جدول اليوم</h2><span class="muted small">اضغط على أي بند لتعديله</span></div>';
     if (!timed.length) h += '<div class="empty">لا توجد أوقات محددة. <button class="linkbtn" data-act="gostep4">حدّد الأوقات</button></div>';
     else h += '<ul class="timeline">' + timed.map(function (it) { return slot(it, nowId); }).join("") + '</ul>';
     h += '</section>';
     if (untimed.length) h += '<section><h2>بدون وقت</h2><ul class="timeline">' + untimed.map(function (it) { return slot(it, null); }).join("") + '</ul></section>';
-    h += '<section><h2>أضف شيئًا طرأ</h2><form class="addform" data-form="quick"><input class="field grow" id="quickTitle" type="text" placeholder="ماذا طرأ؟" autocomplete="off">' +
+    var add = '<section><h2>أضف شيئًا طرأ</h2><form class="addform" data-form="quick"><input class="field grow" id="quickTitle" type="text" placeholder="ماذا طرأ؟" autocomplete="off">' +
       catSelect('id="quickCat"', ui.lastCat) + '<input class="field" id="quickTime" type="time" aria-label="الوقت (اختياري)"><button class="btn" type="submit">أضف</button></form></section>';
-    return h;
+    return '<div class="daygrid"><div class="dtop">' + side + '</div><div class="dmain">' + h + '</div><div class="dbottom">' + add + '</div></div>';
   }
   function slot(it, nowId) {
     var open = ui.open === it.id, end = it.time ? fromMin(toMin(it.time) + (it.dur || 60)) : "";
@@ -880,13 +958,71 @@ details.box textarea { font-size: .78rem; direction: ltr; }
     }
     return h;
   }
+  // Export: one row per task over the chosen range
+  function exportRows(n) {
+    var endKey = n === 1 ? dk() : (offsetOf(dk()) > 0 ? keyOf(today()) : dk()), rows = [];
+    for (var i = n - 1; i >= 0; i--) {
+      var k = keyOf(addDays(parseKey(endKey), -i)), d = state.days[k];
+      if (!d) continue;
+      d.items.forEach(function (it) {
+        var q = quad(it);
+        if (q === "drop") return;
+        rows.push({
+          date: k, title: it.title, cat: catOf(it.cat).name, time: it.time ? fmt12(it.time) : "",
+          planned: it.dur || 0, spent: it.done ? (it.spent != null ? it.spent : it.dur || 0) : 0,
+          status: it.moved ? "نُقل لليوم التالي" : it.done ? "أُنجز" : "لم يُنجز",
+          top: it.top ? "نعم" : "", fixed: it.rid ? "نعم" : "", note: it.note || ""
+        });
+      });
+    }
+    return { rows: rows, from: keyOf(addDays(parseKey(endKey), -(n - 1))), to: endKey };
+  }
+  function exportName(r, ext) { return "يومي-" + profileName() + "-" + (r.from === r.to ? r.to : r.from + "_" + r.to) + "." + ext; }
+  function exportCsv(n) {
+    var r = exportRows(n);
+    if (!r.rows.length) { toast("لا توجد بنود في هذه الفترة"); return; }
+    var head = ["التاريخ", "البند", "التقسيم", "الوقت", "المدة المخططة (ساعة)", "الوقت الفعلي (ساعة)", "الحالة", "من أهم ٣", "مهمة دائمة", "ملاحظة"];
+    var cell = function (v) { v = String(v == null ? "" : v); return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+    var hrs = function (m) { return String(Math.round(m / 60 * 100) / 100); };
+    var lines = [head.join(",")].concat(r.rows.map(function (x) {
+      return [x.date, x.title, x.cat, x.time, hrs(x.planned), hrs(x.spent), x.status, x.top, x.fixed, x.note].map(cell).join(",");
+    }));
+    var done = r.rows.filter(function (x) { return x.status === "أُنجز"; }).length;
+    lines.push("", ["الملخص", "أُنجز " + done + " من " + r.rows.length].map(cell).join(","));
+    var blob = new Blob(["\ufeff" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = exportName(r, "csv");
+    document.body.appendChild(a); a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    toast("نُزّل الملف، افتحه في Excel أو Google Sheets");
+  }
+  function exportText(n) {
+    var r = exportRows(n);
+    if (!r.rows.length) { toast("لا توجد بنود في هذه الفترة"); return; }
+    var done = r.rows.filter(function (x) { return x.status === "أُنجز"; });
+    var notDone = r.rows.filter(function (x) { return x.status !== "أُنجز"; });
+    var sum = function (a, f) { return a.reduce(function (t, x) { return t + x[f]; }, 0); };
+    var line = function (x) { return (n > 1 ? shortDate(x.date) + " · " : "") + x.title + " (" + x.cat + ")" + (x.status === "نُقل لليوم التالي" ? " ← نُقل" : ""); };
+    var txt = "📋 تقرير «يومي» — " + profileName() + (userName ? " — " + userName : "") + "\n" +
+      (r.from === r.to ? r.to : "من " + r.from + " إلى " + r.to) + "\n" +
+      "أُنجز " + done.length + " من " + r.rows.length + " · " + fmtH(sum(done, "spent")) + " من " + fmtH(sum(r.rows, "planned")) + "\n\n" +
+      "✅ ما أُنجز:\n" + (done.length ? done.map(function (x) { return "• " + line(x); }).join("\n") : "—") + "\n\n" +
+      "⏳ ما لم يُنجز:\n" + (notDone.length ? notDone.map(function (x) { return "• " + line(x); }).join("\n") : "—");
+    if (navigator.share) { navigator.share({ title: "تقرير يومي", text: txt }).catch(function () {}); return; }
+    try { navigator.clipboard.writeText(txt).then(function () { toast("نُسخ التقرير، الصقه في واتساب أو أي مكان"); }, function () { toast("تعذّر النسخ"); }); }
+    catch (e) { toast("تعذّر النسخ"); }
+  }
   function reviewView() {
     var seg = '<div class="rangeseg">' + [["day", "اليوم"], ["week", "الأسبوع"], ["month", "الشهر"]].map(function (r) {
       return '<button data-act="range" data-r="' + r[0] + '" aria-pressed="' + ((ui.range || "day") === r[0]) + '">' + r[1] + '</button>';
     }).join("") + '</div>';
-    if (ui.range === "week") return seg + periodHtml(7);
-    if (ui.range === "month") return seg + periodHtml(30);
-    return seg + dayReviewView();
+    var n = ui.range === "week" ? 7 : ui.range === "month" ? 30 : 1;
+    var ex = '<div class="exportbar"><span class="small muted">صدّر ما أُنجز وما لم يُنجز ' + (n === 1 ? "لهذا اليوم" : n === 7 ? "لآخر ٧ أيام" : "لآخر ٣٠ يومًا") + ':</span>' +
+      '<button class="ghost" data-act="exportCsv" data-n="' + n + '">⬇️ ملف Excel</button>' +
+      '<button class="ghost" data-act="exportText" data-n="' + n + '">📋 نص للمشاركة</button></div>';
+    if (ui.range === "week") return seg + periodHtml(7) + ex;
+    if (ui.range === "month") return seg + periodHtml(30) + ex;
+    return seg + dayReviewView() + ex;
   }
   function dayReviewView() {
     var d = day(), items = active(d);
@@ -944,6 +1080,7 @@ details.box textarea { font-size: .78rem; direction: ltr; }
     var h = '<section><h2>المظهر</h2><div class="rangeseg">' + [["auto", "تلقائي"], ["light", "☀️ فاتح"], ["dark", "🌙 غامق"]].map(function (o) {
       return '<button data-act="theme" data-t="' + o[0] + '" aria-pressed="' + (th === o[0]) + '">' + o[1] + '</button>';
     }).join("") + '</div><p class="small muted">«تلقائي» يتبع إعداد جهازك.</p></section>';
+    h += '<section><h2>اسمك</h2><input class="field" value="' + esc(userName) + '" data-act="uname" placeholder="اسمك" aria-label="اسمك"><p class="small muted">يظهر للمسؤول الأول في قائمة الأجهزة وسجل التغييرات.</p></section>';
     h += '<section id="accounts"><h2>الحسابات</h2><p class="small muted">لكل حساب يومه ومهامه وتقاريره وكوده السحابي المستقل، مثل حياتك الشخصية والعمل.</p><ul class="list">' +
       profiles.list.map(function (pf) {
         var isNow = pf.id === PROFILE;
@@ -953,7 +1090,11 @@ details.box textarea { font-size: .78rem; direction: ltr; }
           (isNow || pf.id === "main" ? "" : (ui.confirmProfile === pf.id
             ? '<button class="ghost danger" data-act="profDelYes" data-id="' + esc(pf.id) + '">تأكيد الحذف</button><button class="ghost" data-act="profDelNo">تراجع</button>'
             : '<button class="del" data-act="profDel" data-id="' + esc(pf.id) + '" aria-label="حذف الحساب">×</button>')) +
-          '</div>' + (ui.confirmProfile === pf.id ? '<p class="small err">سيُحذف هذا الحساب وبياناته من هذا الجهاز. إن كان مربوطًا بالسحابة فبياناته هناك تبقى، ويمكنك استرجاعها بكوده.</p>' : "") + '</li>';
+          '</div>' + (pf.pin ? '<span class="locktag">🔒 محمي برمز</span>' : "") +
+          (isNow ? (pf.pin
+            ? '<div class="pinrow"><button class="ghost" data-act="pinRemove">إزالة الرمز</button><span class="small muted">يُطلب الرمز كلما فُتح هذا الحساب.</span></div>'
+            : '<div class="pinrow"><input class="field" id="pinNew" type="password" inputmode="numeric" maxlength="8" placeholder="٤–٨ أرقام" aria-label="رمز القفل"><button class="ghost" data-act="pinSet">قفل الحساب برمز</button></div>') : "") +
+          (ui.confirmProfile === pf.id ? '<p class="small err">سيُحذف هذا الحساب وبياناته من هذا الجهاز. إن كان مربوطًا بالسحابة فبياناته هناك تبقى، ويمكنك استرجاعها بكوده.</p>' : "") + '</li>';
       }).join("") + '</ul>' +
       '<form class="addform" data-form="profile"><input class="field grow" id="profInput" type="text" placeholder="حساب جديد، مثل: العمل" autocomplete="off"><button class="btn" type="submit">أضف حسابًا</button></form></section>';
     h += '<section><h2>الحفظ السحابي <span class="small muted">(' + esc(profileName()) + ')</span></h2><div class="status">';
@@ -1001,12 +1142,21 @@ details.box textarea { font-size: .78rem; direction: ltr; }
         if (!devs.length) h += '<p class="small muted">لا توجد أجهزة ثانوية بعد.</p>';
         else h += '<ul class="list">' + devs.map(function (dv) {
           var seen = dv.last_seen ? new Date(dv.last_seen) : null;
-          return '<li class="card"><div class="left"><span class="t"><b>جهاز رقم ' + dv.num + '</b> · ' + esc(dv.label || "جهاز") +
+          return '<li class="card"><div class="left"><span class="t"><b>' + esc(dv.uname || ("جهاز رقم " + dv.num)) + '</b> · جهاز رقم ' + dv.num + ' · ' + esc(dv.label || "جهاز") +
             (seen ? '<br><span class="small muted">آخر ظهور: ' + (keyOf(seen) === keyOf(new Date()) ? "اليوم " : shortDate(keyOf(seen)) + " ") + stamp(seen.getTime()) + '</span>' : "") + '</span>' +
             (ui.confirmRevoke === dv.token
               ? '<button class="ghost danger" data-act="revokeYes" data-tok="' + esc(dv.token) + '">تأكيد الإلغاء</button><button class="ghost" data-act="revokeNo">تراجع</button>'
               : '<button class="ghost danger" data-act="revoke" data-tok="' + esc(dv.token) + '">إلغاء الربط</button>') + '</div></li>';
         }).join("") + '</ul>';
+        var lg = ui.log || [];
+        h += '<div class="sechead" style="margin-top:6px"><h3>سجل التغييرات</h3><button class="linkbtn" data-act="logRefresh">تحديث</button></div>';
+        if (!lg.length) h += '<p class="small muted">لا توجد تغييرات مسجّلة بعد. يظهر هنا ما يضيفه أو ينجزه أو يعدّله كل من يستخدم هذا الحساب، لمدة ١٤ يومًا.</p>';
+        else h += '<ul class="loglist">' + lg.slice(0, ui.logAll ? 200 : 15).map(function (e) {
+          var at = new Date(e.at), who = e.num === 1 ? "أنت" : (e.name || ("جهاز " + e.num)) + " (جهاز " + e.num + ")";
+          return '<li><span><span class="who">' + esc(who) + '</span> ' + esc(e.action) + (e.title ? ' «' + esc(e.title) + '»' : "") +
+            (e.day ? ' <span class="small muted">ليوم ' + shortDate(String(e.day).slice(0, 10)) + '</span>' : "") + '</span>' +
+            '<span class="when">' + (keyOf(at) === keyOf(new Date()) ? "" : shortDate(keyOf(at)) + " ") + stamp(at.getTime()) + '</span></li>';
+        }).join("") + '</ul>' + (lg.length > 15 && !ui.logAll ? '<button class="linkbtn" data-act="logAll">عرض الكل (' + lg.length + ')</button>' : "");
         h += '<details class="box"><summary>الكود الرئيسي (للاستعادة فقط)</summary><div class="inner">' +
           '<p>احتفظ به في مكان آمن ولا تعطه لأحد. تحتاجه فقط إن ضاع هذا الجهاز. لربط أجهزتك استعمل «ربط جهاز جديد».</p>' +
           '<div class="tip ltr" style="font-family:var(--font-mono);font-size:1.3rem;text-align:center;user-select:all">' + esc(prettyCode(code)) + '</div>' +
@@ -1113,6 +1263,12 @@ details.box textarea { font-size: .78rem; direction: ltr; }
       case "syncNow": syncNow(); break;
       case "theme": applyTheme(b.dataset.t); render(); break;
       case "profSwitch": switchProfile(id); break;
+      case "exportCsv": exportCsv(+b.dataset.n); break;
+      case "exportText": exportText(+b.dataset.n); break;
+      case "pinSet": setPin($("pinNew").value); break;
+      case "pinRemove": currentProfile().pin = ""; saveProfiles(); render(); toast("أُزيل الرمز"); break;
+      case "logRefresh": loadLog(); break;
+      case "logAll": ui.logAll = true; render(); break;
       case "profDel": ui.confirmProfile = id; render(); break;
       case "profDelNo": ui.confirmProfile = null; render(); break;
       case "profDelYes": deleteProfile(id); break;
@@ -1151,6 +1307,7 @@ details.box textarea { font-size: .78rem; direction: ltr; }
     else if (act === "dur") { it.dur = +t.value; commit(); }
     else if (act === "spent") { it.spent = +t.value; commit(); }
     else if (act === "cat") { it.cat = t.value; ui.lastCat = t.value; commit(); }
+    else if (act === "uname") { if (t.value.trim()) { setUserName(t.value); toast("حُفظ الاسم"); } else t.value = userName; }
     else if (act === "profName") {
       var pf = profiles.list.filter(function (x) { return x.id === t.dataset.id; })[0], nv = t.value.trim();
       if (pf && nv) { pf.name = nv.slice(0, 30); saveProfiles(); renderProfile(); } else if (pf) t.value = pf.name;
@@ -1197,6 +1354,9 @@ details.box textarea { font-size: .78rem; direction: ltr; }
       state.settings.routines.push({ id: uid(), title: v, cat: ui.lastCat, dur: +$("rDur").value, time: $("rTime").value, days: ui.newDays.slice() });
       ui.newDays = [0, 1, 2, 3, 4, 5, 6];
       commit(); toast("أُضيفت، وستنزل في أيامها تلقائيًا");
+    } else if (f === "uname") {
+      v = $("unameInput").value.trim(); if (!v) { toast("اكتب اسمك"); return; }
+      setUserName(v); render(); toast("أهلًا، " + userName + " 🌷");
     } else if (f === "profile") {
       v = $("profInput").value.trim(); if (!v) return;
       var nid = "p" + Date.now().toString(36);
@@ -1215,7 +1375,70 @@ details.box textarea { font-size: .78rem; direction: ltr; }
   document.querySelectorAll(".tab").forEach(function (b) {
     b.addEventListener("click", function () { ui.tab = b.dataset.tab; ui.open = null; render(); window.scrollTo(0, 0); });
   });
-  function renderProfile() { $("profName").textContent = profileName(); }
+  function currentProfile() { return profiles.list.filter(function (x) { return x.id === PROFILE; })[0]; }
+  // A PIN keeps casual hands out of an account. It is a lock on this screen, not encryption of the stored data.
+  function pinHash(id, pin) {
+    var data = new TextEncoder().encode("yawmi:" + id + ":" + pin);
+    return crypto.subtle.digest("SHA-256", data).then(function (buf) {
+      return Array.prototype.map.call(new Uint8Array(buf), function (b) { return (b < 16 ? "0" : "") + b.toString(16); }).join("");
+    });
+  }
+  function setPin(raw) {
+    var pin = (raw || "").replace(/[^0-9]/g, "");
+    if (pin.length < 4 || pin.length > 8) { toast("الرمز من ٤ إلى ٨ أرقام"); return; }
+    pinHash(PROFILE, pin).then(function (h) {
+      currentProfile().pin = h; saveProfiles();
+      try { sessionStorage.setItem("yawmi-unlocked:" + PROFILE, "1"); } catch (e) {}
+      render(); toast("قُفل الحساب. احفظ الرمز جيدًا 🔒");
+    }, function () { toast("تعذّر حفظ الرمز على هذا المتصفح"); });
+  }
+  function isUnlocked() { try { return sessionStorage.getItem("yawmi-unlocked:" + PROFILE) === "1"; } catch (e) { return false; } }
+  function showLock() {
+    var pf = currentProfile();
+    if (!pf || !pf.pin || isUnlocked()) return;
+    var el = document.createElement("div");
+    el.className = "lock"; el.id = "lock";
+    var others = profiles.list.filter(function (x) { return x.id !== PROFILE; });
+    el.innerHTML = '<form class="box2" id="lockForm"><img src="icon.svg" alt=""><h2>حساب «' + esc(pf.name) + '» مقفل</h2>' +
+      '<p class="small muted">اكتب رمز القفل لفتحه.</p>' +
+      '<input class="field" id="pinIn" type="password" inputmode="numeric" maxlength="8" autocomplete="off" aria-label="رمز القفل">' +
+      '<button class="btn" type="submit">فتح</button><p class="err" id="pinErr"></p>' +
+      (others.length ? '<span class="small muted">أو انتقل إلى حساب آخر:</span><div class="others">' + others.map(function (x) {
+        return '<button type="button" class="ghost" data-go="' + esc(x.id) + '">' + (x.pin ? "🔒 " : "") + esc(x.name) + '</button>';
+      }).join("") + '</div>' : "") + '</form>';
+    document.body.appendChild(el);
+    var tries = 0;
+    $("lockForm").addEventListener("submit", function (e) {
+      e.preventDefault();
+      pinHash(PROFILE, $("pinIn").value.replace(/[^0-9]/g, "")).then(function (h) {
+        if (h === pf.pin) {
+          try { sessionStorage.setItem("yawmi-unlocked:" + PROFILE, "1"); } catch (er) {}
+          el.remove();
+        } else {
+          tries++; $("pinIn").value = "";
+          $("pinErr").textContent = tries >= 5 ? "رمز غير صحيح. انتظر قليلًا ثم حاول." : "رمز غير صحيح.";
+          if (tries >= 5) { $("pinIn").disabled = true; setTimeout(function () { $("pinIn").disabled = false; tries = 0; $("pinErr").textContent = ""; }, 30000); }
+        }
+      });
+    });
+    el.addEventListener("click", function (e) {
+      var b = e.target.closest("[data-go]");
+      if (b) { profiles.active = b.dataset.go; saveProfiles(); location.reload(); }
+    });
+    setTimeout(function () { var i = $("pinIn"); if (i) i.focus(); }, 50);
+  }
+  function renderProfile() {
+    $("profName").textContent = profileName();
+    $("hello").textContent = userName ? "أهلًا، " + userName : "";
+  }
+  function setUserName(v) {
+    userName = (v || "").trim().slice(0, 30);
+    try { if (userName) localStorage.setItem(NAME_KEY, userName); else localStorage.removeItem(NAME_KEY); } catch (e) {}
+    renderProfile(); pushName();
+  }
+  function pushName() {
+    if (sb && code && cloud.role === "secondary" && userName) sb.rpc("planner_device_name", { p_code: code, p_name: userName }).then(function () {}, function () {});
+  }
   function switchProfile(id) {
     if (!id || id === PROFILE) return;
     save(); // keep this account's latest changes; it syncs next time it is opened
@@ -1233,6 +1456,7 @@ details.box textarea { font-size: .78rem; direction: ltr; }
     var a = $("accounts"); if (a) a.scrollIntoView({ block: "start" });
   });
   renderProfile();
+  showLock();
   $("setBtn").addEventListener("click", function () { ui.tab = "settings"; ui.open = null; render(); window.scrollTo(0, 0); loadDevices(); });
   function goTo(nd) {
     var o = offsetOf(keyOf(nd));
@@ -1285,8 +1509,10 @@ details.box textarea { font-size: .78rem; direction: ltr; }
     } catch (e) {}
   }
   function setLink(key, role, num) {
+    // A device joining an existing account takes that account's categories and standing tasks
+    if (role === "secondary" || key !== code) { state.settings.updatedAt = 0; snap._s = setJson(); persist(); }
     code = key; cloud.role = role; cloud.num = num || (role === "primary" ? 1 : 0); cloud.chan = "";
-    cloud.status = "ok"; cloud.msg = ""; saveCode(); liveInit();
+    cloud.status = "ok"; cloud.msg = ""; saveCode(); liveInit(); pushName();
   }
   function forgetDevice(msg) {
     inviteStop(); pairStop();
@@ -1387,8 +1613,17 @@ details.box textarea { font-size: .78rem; direction: ltr; }
       });
     }, 3000);
   }
+  function loadLog() {
+    if (!sb || !code || cloud.role === "secondary") return;
+    sb.rpc("planner_log_list", { p_code: code }).then(function (r) {
+      if (r.error) return;
+      ui.log = arr(r.data);
+      if (ui.tab === "settings") softRender();
+    }, function () {});
+  }
   function loadDevices(done) {
     if (!sb || !code || cloud.role === "secondary") return;
+    if (!done) loadLog();
     sb.rpc("planner_devices_list", { p_code: code }).then(function (r) {
       if (r.error) return;
       ui.devices = arr(r.data);
@@ -1493,6 +1728,7 @@ details.box textarea { font-size: .78rem; direction: ltr; }
       });
     }).then(function () {
       cloud.status = "ok"; cloud.msg = ""; cloud.last = Date.now();
+      flushLog();
     }, function (e) {
       if (e && e.gone) {
         syncing = false;
