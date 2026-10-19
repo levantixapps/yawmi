@@ -330,6 +330,8 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
 }
 .exportbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .exportbar span { flex: 1 1 100%; }
+.exportbar label { display: flex; flex-direction: column; gap: 4px; }
+.exportbar input[type="date"] { direction: ltr; font-family: var(--font-mono); }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
@@ -1056,23 +1058,37 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     return h + '</section>';
   }
   // Export: one row per task over the chosen range
+  // The export range: the period shown, unless the user picked "from" and "to" dates
+  function exportRange(n) {
+    var end = n === 1 ? dk() : (offsetOf(dk()) > 0 ? keyOf(today()) : dk());
+    var from = keyOf(addDays(parseKey(end), -(n - 1))), to = end;
+    if (ui.expFrom && ui.expTo) { from = ui.expFrom; to = ui.expTo; if (from > to) { var t0 = from; from = to; to = t0; } }
+    return { from: from, to: to };
+  }
   function exportRows(n) {
-    var endKey = n === 1 ? dk() : (offsetOf(dk()) > 0 ? keyOf(today()) : dk()), rows = [];
-    for (var i = n - 1; i >= 0; i--) {
-      var k = keyOf(addDays(parseKey(endKey), -i)), d = state.days[k];
+    var rg = exportRange(n), rows = [];
+    for (var k = rg.from; k <= rg.to; k = keyOf(addDays(parseKey(k), 1))) {
+      var d = state.days[k], dt = parseKey(k), hj = "";
       if (!d) continue;
+      try { hj = hijriFmt ? hijriFmt.format(dt) : ""; } catch (e) {}
       d.items.forEach(function (it) {
-        var q = quad(it);
-        if (q === "drop") return;
+        if (quad(it) === "drop") return;
+        var at = it.doneAt ? new Date(it.doneAt) : null;
         rows.push({
-          date: k, title: it.title, cat: catOf(it.cat).name, time: it.time ? fmt12(it.time) : "",
+          date: k, weekday: dayFmt ? dayFmt.format(dt) : "", hijri: hj, title: it.title, cat: catOf(it.cat).name,
+          sort: it.time ? toMin(it.time) : 9999,
+          from: it.time ? fmt12(it.time) : "", to: it.time ? fmt12(fromMin(toMin(it.time) + (it.dur || 60))) : "",
+          time: it.time ? fmt12(it.time) : "",
           planned: it.dur || 0, spent: it.done ? (it.spent != null ? it.spent : it.dur || 0) : 0,
           status: it.moved ? "نُقل لليوم التالي" : it.done ? "أُنجز" : "لم يُنجز",
+          doneAt: at ? (keyOf(at) === k ? "" : at.getDate() + "/" + (at.getMonth() + 1) + " ") + fmt12(pad(at.getHours()) + ":" + pad(at.getMinutes())) : "",
+          doneBy: it.done ? (it.doneBy || "") : "",
           top: it.top ? "نعم" : "", fixed: it.rid ? "نعم" : "", note: it.note || ""
         });
       });
     }
-    return { rows: rows, from: keyOf(addDays(parseKey(endKey), -(n - 1))), to: endKey };
+    rows.sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : a.sort - b.sort; });
+    return { rows: rows, from: rg.from, to: rg.to };
   }
   function exportName(r, ext) { return "يومي-" + profileName() + "-" + (r.from === r.to ? r.to : r.from + "_" + r.to) + "." + ext; }
   // Real Excel workbook: sheets for done, not done and a summary (SheetJS, loaded only when needed)
@@ -1094,11 +1110,11 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     toast("جارٍ تجهيز ملف Excel…");
     loadXlsx().then(function (X) {
       var hrs = function (m) { return Math.round(m / 60 * 100) / 100; };
-      var head = ["التاريخ", "البند", "التقسيم", "الوقت", "المدة المخططة (ساعة)", "الوقت الفعلي (ساعة)", "الحالة", "من أهم ٣", "مهمة دائمة", "ملاحظة"];
-      var rowOf = function (x) { return [x.date, x.title, x.cat, x.time, hrs(x.planned), hrs(x.spent), x.status, x.top, x.fixed, x.note]; };
+      var head = ["التاريخ", "اليوم", "التاريخ الهجري", "البند", "التقسيم", "من الساعة", "إلى الساعة", "المدة المخططة (ساعة)", "الوقت الفعلي (ساعة)", "الحالة", "وقت الإنجاز", "أنجزه", "من أهم ٣", "مهمة دائمة", "ملاحظة"];
+      var rowOf = function (x) { return [x.date, x.weekday, x.hijri, x.title, x.cat, x.from, x.to, hrs(x.planned), hrs(x.spent), x.status, x.doneAt, x.doneBy, x.top, x.fixed, x.note]; };
       var done = r.rows.filter(function (x) { return x.status === "أُنجز"; });
       var notDone = r.rows.filter(function (x) { return x.status !== "أُنجز"; });
-      var widths = [12, 32, 16, 10, 12, 12, 16, 9, 10, 36].map(function (w) { return { wch: w }; });
+      var widths = [12, 10, 20, 30, 16, 11, 11, 12, 12, 16, 13, 14, 9, 10, 34].map(function (w) { return { wch: w }; });
       var sheet = function (rows) { var ws = X.utils.aoa_to_sheet([head].concat(rows.map(rowOf))); ws["!cols"] = widths; return ws; };
       // summary: totals and hours per category
       var sum = function (a, f) { return a.reduce(function (t, x) { return t + x[f]; }, 0); };
@@ -1130,11 +1146,11 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   function exportCsv(n) {
     var r = exportRows(n);
     if (!r.rows.length) { toast("لا توجد بنود في هذه الفترة"); return; }
-    var head = ["التاريخ", "البند", "التقسيم", "الوقت", "المدة المخططة (ساعة)", "الوقت الفعلي (ساعة)", "الحالة", "من أهم ٣", "مهمة دائمة", "ملاحظة"];
+    var head = ["التاريخ", "اليوم", "التاريخ الهجري", "البند", "التقسيم", "من الساعة", "إلى الساعة", "المدة المخططة (ساعة)", "الوقت الفعلي (ساعة)", "الحالة", "وقت الإنجاز", "أنجزه", "من أهم ٣", "مهمة دائمة", "ملاحظة"];
     var cell = function (v) { v = String(v == null ? "" : v); return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
     var hrs = function (m) { return String(Math.round(m / 60 * 100) / 100); };
     var lines = [head.join(",")].concat(r.rows.map(function (x) {
-      return [x.date, x.title, x.cat, x.time, hrs(x.planned), hrs(x.spent), x.status, x.top, x.fixed, x.note].map(cell).join(",");
+      return [x.date, x.weekday, x.hijri, x.title, x.cat, x.from, x.to, hrs(x.planned), hrs(x.spent), x.status, x.doneAt, x.doneBy, x.top, x.fixed, x.note].map(cell).join(",");
     }));
     var done = r.rows.filter(function (x) { return x.status === "أُنجز"; }).length;
     lines.push("", ["الملخص", "أُنجز " + done + " من " + r.rows.length].map(cell).join(","));
@@ -1151,7 +1167,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     var done = r.rows.filter(function (x) { return x.status === "أُنجز"; });
     var notDone = r.rows.filter(function (x) { return x.status !== "أُنجز"; });
     var sum = function (a, f) { return a.reduce(function (t, x) { return t + x[f]; }, 0); };
-    var line = function (x) { return (n > 1 ? shortDate(x.date) + " · " : "") + x.title + " (" + x.cat + ")" + (x.status === "نُقل لليوم التالي" ? " ← نُقل" : ""); };
+    var line = function (x) { return (r.from !== r.to ? shortDate(x.date) + " · " : "") + (x.from ? x.from + " · " : "") + x.title + " (" + x.cat + ")" + (x.status === "نُقل لليوم التالي" ? " ← نُقل" : ""); };
     var txt = "📋 تقرير «يومي» — " + profileName() + (userName ? " — " + userName : "") + "\n" +
       (r.from === r.to ? r.to : "من " + r.from + " إلى " + r.to) + "\n" +
       "أُنجز " + done.length + " من " + r.rows.length + " · " + fmtH(sum(done, "spent")) + " من " + fmtH(sum(r.rows, "planned")) + "\n\n" +
@@ -1166,9 +1182,13 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       return '<button data-act="range" data-r="' + r[0] + '" aria-pressed="' + ((ui.range || "day") === r[0]) + '">' + r[1] + '</button>';
     }).join("") + '</div>';
     var n = ui.range === "week" ? 7 : ui.range === "month" ? 30 : 1;
-    var ex = '<div class="exportbar"><span class="small muted">صدّر ما أُنجز وما لم يُنجز ' + (n === 1 ? "لهذا اليوم" : n === 7 ? "لآخر ٧ أيام" : "لآخر ٣٠ يومًا") + ':</span>' +
+    var rg = exportRange(n), minK = keyOf(addDays(today(), -ARCHIVE)), maxK = keyOf(addDays(today(), SPAN));
+    var ex = '<div class="exportbar"><span class="small muted">صدّر تقريرًا بما أُنجز وما لم يُنجز، مع التاريخ والتوقيت. اختر الفترة:</span>' +
+      '<label class="small muted">من <input class="field" type="date" data-act="expFrom" value="' + rg.from + '" min="' + minK + '" max="' + maxK + '"></label>' +
+      '<label class="small muted">إلى <input class="field" type="date" data-act="expTo" value="' + rg.to + '" min="' + minK + '" max="' + maxK + '"></label>' +
       '<button class="ghost" data-act="exportXlsx" data-n="' + n + '">⬇️ ملف Excel</button>' +
       '<button class="ghost" data-act="exportText" data-n="' + n + '">📋 نص للمشاركة</button></div>';
+    if (cloud.role === "secondary" && code) ex = '<p class="small muted">تصدير التقارير متاح من الجهاز المسؤول الأول.</p>';
     if (ui.range === "week") return seg + periodHtml(7) + ex;
     if (ui.range === "month") return seg + periodHtml(30) + ex;
     return seg + dayReviewView() + ex;
@@ -1746,7 +1766,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       case "profDel": ui.confirmProfile = id; render(); break;
       case "profDelNo": ui.confirmProfile = null; render(); break;
       case "profDelYes": deleteProfile(id); break;
-      case "range": ui.range = b.dataset.r; ui.barSel = null; render(); break;
+      case "range": ui.range = b.dataset.r; ui.barSel = null; ui.expFrom = ui.expTo = ""; render(); break;
       case "bar": ui.barSel = ui.barSel === b.dataset.k ? null : b.dataset.k; render(); break;
       case "openDay": ui.range = "day"; goTo(parseKey(b.dataset.k)); ui.tab = "review"; render(); break;
       case "goToday": goTo(today()); break;
@@ -1776,7 +1796,16 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
 
   view.addEventListener("change", function (e) {
     var t = e.target, act = t.dataset.act, it = t.dataset.id ? find(t.dataset.id) : null;
-    if (act === "done") { it.done = t.checked; it.spent = it.done ? it.dur : null; commit(); }
+    if (act === "done") {
+      it.done = t.checked; it.spent = it.done ? it.dur : null;
+      if (it.done) { it.doneAt = new Date().toISOString(); it.doneBy = userName || (cloud.num ? "جهاز " + cloud.num : ""); }
+      else { delete it.doneAt; delete it.doneBy; }
+      commit();
+    }
+    else if (act === "expFrom" || act === "expTo") {
+      var other = act === "expFrom" ? "expTo" : "expFrom", box = view.querySelector('[data-act="' + other + '"]');
+      ui[act] = t.value; if (!ui[other] && box) ui[other] = box.value;
+    }
     else if (act === "time") { it.time = t.value; commit(); }
     else if (act === "dur") { it.dur = +t.value; commit(); }
     else if (act === "spent") { it.spent = +t.value; commit(); }
