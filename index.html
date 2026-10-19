@@ -1353,20 +1353,25 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   function voiceStart() {
     var R = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!R) { toast("الإملاء الصوتي غير مدعوم في هذا المتصفح"); return; }
-    var rec = new R();
-    rec.lang = "ar-SA"; rec.continuous = true; rec.interimResults = true;
+    // One phrase per session: Chrome on Android re-sends the whole phrase as it grows in continuous
+    // mode, which repeated words. Each session's final text is taken once, then listening restarts.
+    var rec = new R(), took = false;
+    rec.lang = "ar-SA"; rec.continuous = false; rec.interimResults = true; rec.maxAlternatives = 1;
+    rec.onstart = function () { took = false; };
     rec.onresult = function (e) {
-      voice.interim = "";
-      for (var i = e.resultIndex; i < e.results.length; i++) {
+      var fin = "", tmp = "";
+      for (var i = 0; i < e.results.length; i++) {
         var t = e.results[i][0].transcript;
-        if (e.results[i].isFinal) voice.buf += " " + t; else voice.interim += " " + t;
+        if (e.results[i].isFinal) fin = t; else tmp = t; // the latest result already holds the whole phrase
       }
-      voiceConsume(); voiceShow();
+      if (fin && !took) { took = true; voice.buf += " " + fin; voice.interim = ""; voiceConsume(); }
+      else if (!took) voice.interim = tmp;
+      voiceShow();
     };
     rec.onerror = function (e) {
       if (e.error === "not-allowed" || e.error === "service-not-allowed") { voice.on = false; toast("اسمح للتطبيق باستخدام الميكروفون من إعدادات المتصفح"); render(); }
     };
-    rec.onend = function () { if (voice.on) { try { rec.start(); } catch (er) {} } }; // browsers stop after silence: keep listening
+    rec.onend = function () { voice.interim = ""; if (voice.on) { try { rec.start(); } catch (er) {} } }; // keep listening after each phrase
     voice.rec = rec; voice.on = true; voice.buf = ""; voice.interim = "";
     try { rec.start(); } catch (er) {}
     render();
