@@ -110,6 +110,7 @@ async function sendPush(sub: Sub, payload: string): Promise<number> {
       Urgency: "high",
     },
     body: await encrypt(sub, payload),
+    signal: AbortSignal.timeout(10_000), // a slow push service must not hold up everyone else
   });
   await res.body?.cancel();
   return res.status;
