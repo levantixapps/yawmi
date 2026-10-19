@@ -78,6 +78,13 @@ section, .stack { display: flex; flex-direction: column; gap: 10px; }
 /* Day bar */
 /* Brand strip: app logo and name, with the Levantix mark */
 .profchip { display: inline-flex; align-items: center; gap: 4px; margin-inline-start: 4px; font-family: var(--font-body); font-size: .8rem; font-weight: 600; color: var(--accent); background: var(--accent-soft); border: 0; border-radius: 99px; padding: 3px 10px; }
+.brandbar { position: relative; }
+.profmenu { position: absolute; top: calc(100% + 6px); inset-inline-start: 0; z-index: 20; min-width: 220px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 12px 32px rgba(0,0,0,.18); padding: 6px; display: flex; flex-direction: column; }
+.profmenu button { border: 0; background: none; text-align: start; padding: 10px 12px; border-radius: 10px; font-size: .95rem; display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+.profmenu button:hover, .profmenu button:focus-visible { background: var(--bg); }
+.profmenu .cur { color: var(--accent); font-weight: 700; }
+.profmenu hr { border: 0; border-top: 1px solid var(--line); margin: 4px 6px; }
+.profmenu .sub { color: var(--muted); font-size: .85rem; }
 .profrow { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .profrow .field { flex: 1 1 140px; }
 .profrow .now { font-size: .78rem; font-weight: 700; color: var(--done); }
@@ -280,6 +287,8 @@ details.box textarea { font-size: .78rem; direction: ltr; }
 .pinrow { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
 .pinrow input { width: 140px; text-align: center; direction: ltr; font-family: var(--font-mono); letter-spacing: .2em; }
 .locktag { font-size: .76rem; color: var(--muted); }
+.mic.live { border-color: var(--q-now); color: var(--q-now); font-weight: 600; }
+.voicehint { color: var(--q-now); }
 /* Sleep */
 .sleepcard { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
 .sleepcard .slh { font-family: var(--font-mono); font-size: 1.1rem; color: var(--c1); }
@@ -325,6 +334,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
 <div class="wrap">
   <div class="brandbar">
     <span class="app"><img src="icon.svg" alt="" width="32" height="32">يومي<button class="profchip" id="profBtn" aria-label="الحسابات"><span id="profName"></span> ▾</button><span class="hello" id="hello"></span></span>
+    <div class="profmenu" id="profMenu" role="menu" hidden></div>
     <a class="by" href="https://levantixapps.github.io/" aria-label="Levantix Apps"><img src="../logo.png" alt="" width="22" height="22" onerror="this.remove()">levantixapps</a>
   </div>
   <header class="daybar">
@@ -710,7 +720,10 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       '<p class="muted small">كل ما تريد أو تحتاج أن تعمله اليوم، مع تقسيمه وكم يأخذ من الوقت. لا ترتّب الآن، فقط اكتب. المهام الدائمة تنزل هنا تلقائيًا.</p>' +
       '<form class="addform" data-form="dump"><input class="field grow" id="dumpInput" type="text" placeholder="مثال: دراسة قانون" autocomplete="off">' +
       catSelect('id="dumpCat"', ui.lastCat) + durSelect('id="dumpDur"', ui.lastDur) +
-      '<button class="btn" type="submit">أضف</button></form>';
+      (voiceSupported() ? '<button type="button" class="ghost mic' + (voice.on ? " live" : "") + '" data-act="voice" aria-pressed="' + voice.on + '">' + (voice.on ? "⏹ أوقف" : "🎤 بالصوت") + '</button>' : "") +
+      '<button class="btn" type="submit">أضف</button></form>' +
+      (voice.on ? '<p class="small voicehint">🔴 أستمع… قل البند ثم قل <b>«أضف»</b>، مثل: «دراسة قانون أضف». وقل <b>«توقف»</b> للإنهاء.</p>' :
+        voiceSupported() ? '<p class="small muted">يمكنك الإملاء بالصوت: اضغط 🎤 وقل البند ثم «أضف».</p>' : "");
     if (!d.items.length) h += '<div class="empty">ابدأ بأول شيء يخطر ببالك.</div>';
     else h += '<ul class="list">' + d.items.map(function (it) {
       return '<li class="card"><div class="top"><span class="ttl">' + itemTitle(it) + '</span><button class="del" data-act="del" data-id="' + it.id + '" aria-label="حذف">×</button></div></li>';
@@ -1169,6 +1182,19 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     var h = '<section><h2>المظهر</h2><div class="rangeseg">' + [["auto", "تلقائي"], ["light", "☀️ فاتح"], ["dark", "🌙 غامق"]].map(function (o) {
       return '<button data-act="theme" data-t="' + o[0] + '" aria-pressed="' + (th === o[0]) + '">' + o[1] + '</button>';
     }).join("") + '</div><p class="small muted">«تلقائي» يتبع إعداد جهازك.</p></section>';
+    var perm = "Notification" in window ? Notification.permission : "unsupported";
+    h += '<section><h2>التنبيهات</h2>' +
+      '<div class="row-wrap"><button class="' + (alerts.on ? "btn" : "ghost") + '" data-act="alertsOn" aria-pressed="' + alerts.on + '">' + (alerts.on ? "🔔 التنبيهات مفعّلة" : "🔕 فعّل التنبيهات") + '</button>' +
+      '<button class="ghost" data-act="alertTest">جرّب الصوت</button></div>';
+    if (alerts.on) {
+      h += '<div class="rangeseg" style="margin-top:4px">' + [[0, "عند البدء"], [5, "قبل ٥ دقائق"], [10, "قبل ١٠ دقائق"]].map(function (o) {
+        return '<button data-act="alertLead" data-v="' + o[0] + '" aria-pressed="' + ((alerts.lead || 0) === o[0]) + '">' + o[1] + '</button>';
+      }).join("") + '</div>' +
+        '<div class="row-wrap"><button class="ghost" data-act="alertSound" aria-pressed="' + alerts.sound + '">' + (alerts.sound ? "🔊 الصوت مفعّل" : "🔇 بدون صوت") + '</button>' +
+        (perm === "default" ? '<button class="ghost" data-act="askNotify">اسمح بالإشعارات</button>' : "") + '</div>' +
+        (perm === "denied" ? '<p class="small warnline">الإشعارات ممنوعة لهذا الموقع. فعّلها من إعدادات المتصفح، وسيبقى الصوت يعمل.</p>' : "");
+    }
+    h += '<p class="small muted">يصلك صوت قصير وإشعار عند موعد كل مهمة لها وقت، ما دام التطبيق مفتوحًا أو في الخلفية. وإن أُغلق التطبيق تمامًا فقد لا يصل التنبيه.</p></section>';
     var sg = sleepGoal();
     h += '<section><h2>هدف النوم</h2><div class="sleeprow"><label>ساعات النوم <select class="field" data-act="sleepHours">' +
       [6, 6.5, 7, 7.5, 8, 8.5, 9].map(function (x) { return '<option value="' + x + '"' + (sg.hours === x ? " selected" : "") + '>' + num(x) + ' ساعات</option>'; }).join("") +
@@ -1303,6 +1329,112 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     if (!d.sleep.bed && !d.sleep.wake) delete d.sleep;
     commit();
   }
+  /* ---------- voice: speak items, "أضف" adds what came before it ---------- */
+  var voice = { on: false, rec: null, buf: "", interim: "" };
+  function voiceSupported() { return !!(window.SpeechRecognition || window.webkitSpeechRecognition); }
+  var ADD_WORD = /(^|\s)(أضف|اضف|أضيف|اضيف|إضافة|اضافة)(?=\s|$)/;
+  var STOP_WORD = /(^|\s)(توقف|أوقف|اوقف|خلاص)(?=\s|$)/;
+  function voiceText() { return (voice.buf + " " + voice.interim).replace(/\s+/g, " ").trim(); }
+  function voiceShow() { var i = $("dumpInput"); if (i) i.value = voiceText(); }
+  function voiceAdd(title) {
+    title = title.replace(/\s+/g, " ").trim();
+    if (!title) return;
+    day().items.push({ id: uid(), title: title, cat: ui.lastCat, dur: ui.lastDur || 60, important: null, urgent: null, top: false, time: "", done: false, spent: null, note: "" });
+    commit(); toast("أُضيف: " + title);
+  }
+  function voiceConsume() {
+    var m;
+    while ((m = ADD_WORD.exec(voice.buf))) {
+      voiceAdd(voice.buf.slice(0, m.index));
+      voice.buf = voice.buf.slice(m.index + m[0].length);
+    }
+    if (STOP_WORD.test(voice.buf)) { voice.buf = voice.buf.replace(STOP_WORD, " ").trim(); voiceStop(); }
+  }
+  function voiceStart() {
+    var R = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!R) { toast("الإملاء الصوتي غير مدعوم في هذا المتصفح"); return; }
+    var rec = new R();
+    rec.lang = "ar-SA"; rec.continuous = true; rec.interimResults = true;
+    rec.onresult = function (e) {
+      voice.interim = "";
+      for (var i = e.resultIndex; i < e.results.length; i++) {
+        var t = e.results[i][0].transcript;
+        if (e.results[i].isFinal) voice.buf += " " + t; else voice.interim += " " + t;
+      }
+      voiceConsume(); voiceShow();
+    };
+    rec.onerror = function (e) {
+      if (e.error === "not-allowed" || e.error === "service-not-allowed") { voice.on = false; toast("اسمح للتطبيق باستخدام الميكروفون من إعدادات المتصفح"); render(); }
+    };
+    rec.onend = function () { if (voice.on) { try { rec.start(); } catch (er) {} } }; // browsers stop after silence: keep listening
+    voice.rec = rec; voice.on = true; voice.buf = ""; voice.interim = "";
+    try { rec.start(); } catch (er) {}
+    render();
+  }
+  function voiceStop() {
+    voice.on = false;
+    if (voice.rec) { try { voice.rec.stop(); } catch (er) {} }
+    var left = voiceText(); voice.buf = ""; voice.interim = "";
+    render();
+    var i = $("dumpInput"); if (i && left) i.value = left; // anything said without "أضف" stays in the box
+  }
+
+  /* ---------- time alerts: a short chime and a notification as each task begins ---------- */
+  var ALERT_KEY = pkey("yawmi-alerts");
+  var alerts = { on: false, lead: 0, sound: true };
+  try { var aj = JSON.parse(localStorage.getItem(ALERT_KEY) || "null"); if (aj) alerts = aj; } catch (e) {}
+  var alerted = {}, audioCtx = null;
+  function saveAlerts() { try { localStorage.setItem(ALERT_KEY, JSON.stringify(alerts)); } catch (e) {} }
+  function unlockAudio() {
+    if (audioCtx) return;
+    var A = window.AudioContext || window.webkitAudioContext;
+    if (A) { try { audioCtx = new A(); } catch (e) {} }
+  }
+  document.addEventListener("pointerdown", unlockAudio, { once: true });
+  function chime() {
+    if (!alerts.sound) return;
+    unlockAudio();
+    if (!audioCtx) return;
+    try {
+      if (audioCtx.state === "suspended") audioCtx.resume();
+      [[880, 0], [1320, 0.18]].forEach(function (n) {
+        var o = audioCtx.createOscillator(), g = audioCtx.createGain(), t0 = audioCtx.currentTime + n[1];
+        o.type = "sine"; o.frequency.value = n[0];
+        g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.25, t0 + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.35);
+        o.connect(g); g.connect(audioCtx.destination); o.start(t0); o.stop(t0 + 0.4);
+      });
+    } catch (e) {}
+  }
+  function notify(title, body) {
+    if (!("Notification" in window) || Notification.permission !== "granted") return;
+    var opts = { body: body, icon: "icon-192.png", badge: "icon-192.png", tag: "yawmi-" + title, lang: "ar", dir: "rtl" };
+    if (navigator.serviceWorker && navigator.serviceWorker.ready) {
+      navigator.serviceWorker.ready.then(function (reg) { reg.showNotification(title, opts); }, function () { try { new Notification(title, opts); } catch (e) {} });
+    } else { try { new Notification(title, opts); } catch (e) {} }
+  }
+  function checkAlerts() {
+    if (!alerts.on) return;
+    var k = keyOf(new Date()), d = state.days[k];
+    if (!d) return;
+    var now = new Date(), nm = now.getHours() * 60 + now.getMinutes();
+    active(d).forEach(function (it) {
+      if (it.done || !it.time) return;
+      var at = toMin(it.time) - (alerts.lead || 0), id = k + it.id + it.time + alerts.lead;
+      if (alerted[id] || nm < at || nm > at + 2) return;
+      alerted[id] = true;
+      var when = alerts.lead ? "بعد " + alerts.lead + " دقائق" : "حان الوقت";
+      chime(); notify(when + ": " + it.title, fmt12(it.time) + " · " + catOf(it.cat).name + " · " + durLabel(it.dur || 60));
+      toast("⏰ " + when + ": " + it.title);
+    });
+  }
+  setInterval(checkAlerts, 20000);
+  function askNotify() {
+    if (!("Notification" in window)) { toast("الإشعارات غير مدعومة هنا. على الآيفون ثبّت التطبيق على الشاشة الرئيسية أولًا."); return; }
+    Notification.requestPermission().then(function (p) {
+      toast(p === "granted" ? "تم تفعيل الإشعارات ✓" : "لم يُسمح بالإشعارات، فعّلها من إعدادات المتصفح");
+      render();
+    });
+  }
   function toggleIn(a, v) { var i = a.indexOf(v); if (i >= 0) a.splice(i, 1); else a.push(v); }
   function routine(id) { return state.settings.routines.filter(function (r) { return r.id === id; })[0]; }
 
@@ -1358,6 +1490,12 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       case "theme": applyTheme(b.dataset.t); render(); break;
       case "profSwitch": switchProfile(id); break;
       case "wakeNow": setSleep(dk(), "wake", nowHM()); break;
+      case "voice": if (voice.on) voiceStop(); else voiceStart(); break;
+      case "alertsOn": alerts.on = !alerts.on; saveAlerts(); if (alerts.on) { unlockAudio(); if ("Notification" in window && Notification.permission === "default") askNotify(); } render(); break;
+      case "alertLead": alerts.lead = +b.dataset.v; saveAlerts(); render(); break;
+      case "alertSound": alerts.sound = !alerts.sound; saveAlerts(); render(); break;
+      case "alertTest": unlockAudio(); var s0 = alerts.sound; alerts.sound = true; chime(); alerts.sound = s0; notify("تجربة: هذا شكل التنبيه", "سيصلك مثله عند بدء كل مهمة"); break;
+      case "askNotify": askNotify(); break;
       case "sleepNow":
         var tk = keyOf(addDays(today(), 1));
         setSleep(tk, "bed", nowHM()); toast("تُصبح على خير 🌙 سُجّل وقت نومك"); break;
@@ -1552,10 +1690,29 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     profiles.list = profiles.list.filter(function (x) { return x.id !== id; });
     ui.confirmProfile = null; saveProfiles(); render(); toast("حُذف الحساب من هذا الجهاز");
   }
-  $("profBtn").addEventListener("click", function () {
-    ui.tab = "settings"; ui.open = null; render();
-    var a = $("accounts"); if (a) a.scrollIntoView({ block: "start" });
+  // Account menu: switch directly from the top bar
+  function closeProfMenu() { $("profMenu").hidden = true; $("profBtn").setAttribute("aria-expanded", "false"); }
+  $("profBtn").addEventListener("click", function (e) {
+    e.stopPropagation();
+    var m = $("profMenu");
+    if (!m.hidden) { closeProfMenu(); return; }
+    m.innerHTML = profiles.list.map(function (x) {
+      var cur = x.id === PROFILE;
+      return '<button role="menuitem" data-go="' + esc(x.id) + '" class="' + (cur ? "cur" : "") + '"><span>' + (x.pin ? "🔒 " : "") + esc(x.name) + '</span>' + (cur ? "<span>✓</span>" : "") + '</button>';
+    }).join("") + '<hr><button role="menuitem" class="sub" data-go="__manage">⚙ إدارة الحسابات وإضافة حساب</button>';
+    m.hidden = false; $("profBtn").setAttribute("aria-expanded", "true");
   });
+  $("profMenu").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-go]");
+    if (!b) return;
+    closeProfMenu();
+    if (b.dataset.go === "__manage") {
+      ui.tab = "settings"; ui.open = null; render();
+      var a = $("accounts"); if (a) a.scrollIntoView({ block: "start" });
+    } else switchProfile(b.dataset.go);
+  });
+  document.addEventListener("click", function (e) { if (!$("profMenu").hidden && !e.target.closest("#profMenu")) closeProfMenu(); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeProfMenu(); });
   renderProfile();
   showLock();
   $("setBtn").addEventListener("click", function () { ui.tab = "settings"; ui.open = null; render(); window.scrollTo(0, 0); loadDevices(); });
