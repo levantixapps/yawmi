@@ -984,7 +984,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
         '<div class="bar"><i style="width:' + w + '%"></i></div>' + (prev.planned ? trend(td.done, pv ? pv.done : 0).replace("معدّلك", prevLabel) : "") + '</div>';
     }).join("") + '</div></section>';
 
-    h += sleepHtml(endKey, n);
+    if (sleepOn()) h += sleepHtml(endKey, n);
     // most accomplished
     var names = Object.keys(t.titles).sort(function (a, b) { return t.titles[b].n - t.titles[a].n || t.titles[b].m - t.titles[a].m; }).slice(0, 6);
     if (names.length) {
@@ -997,6 +997,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   }
   // Sleep: minutes asleep for a day (bed time the night before, wake time that morning)
   function sleepGoal() { return state.settings.sleep || { hours: 7, wake: "05:00" }; }
+  function sleepOn() { return !(state.settings.sleep && state.settings.sleep.off); }
   function sleepMins(d) {
     if (!d || !d.sleep || !d.sleep.bed || !d.sleep.wake) return null;
     var m = (toMin(d.sleep.wake) - toMin(d.sleep.bed) + 1440) % 1440;
@@ -1005,7 +1006,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   function wokeEarly(d) { return !!(d && d.sleep && d.sleep.wake) && toMin(d.sleep.wake) <= toMin(sleepGoal().wake) + 15; }
   function sleepCard() {
     var d = day(), sl = d.sleep || {}, m = sleepMins(d), g = sleepGoal(), o = offsetOf(dk());
-    if (o > 0) return "";
+    if (o > 0 || !sleepOn()) return "";
     var h = '<div class="sleepcard"><div class="sechead"><h3>😴 نومك ليلة ' + (o === 0 ? "أمس" : "هذا اليوم") + '</h3>' +
       (m != null ? '<b class="slh">' + fmtH(m) + '</b>' : "") + '</div>' +
       '<div class="sleeprow"><label>نمت الساعة <input class="field" type="time" data-act="sleepBed" value="' + (sl.bed || "") + '"></label>' +
@@ -1199,7 +1200,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     var top = items.filter(function (i) { return i.top; }), topDone = top.filter(function (i) { return i.done; }).length;
     var h = reportHtml(dk());
     var sm = sleepMins(d);
-    if (sm != null) h += '<p class="small">😴 نمت ' + fmtH(sm) + (d.sleep.wake ? '، واستيقظت ' + fmt12(d.sleep.wake) + (wokeEarly(d) ? ' مبكرًا ✓' : '') : '') + '.</p>';
+    if (sm != null && sleepOn()) h += '<p class="small">😴 نمت ' + fmtH(sm) + (d.sleep.wake ? '، واستيقظت ' + fmt12(d.sleep.wake) + (wokeEarly(d) ? ' مبكرًا ✓' : '') : '') + '.</p>';
     h += '<div class="stats"><div class="stat"><b>' + items.filter(function (i) { return i.done; }).length + '/' + items.length + '</b><span>بنود أُنجزت</span></div>' +
       '<div class="stat"><b>' + topDone + '/' + top.length + '</b><span>من أهم ٣</span></div><div class="stat"><b>' + left.length + '</b><span>متبقٍّ</span></div></div>';
     var canMove = offsetOf(dk()) < SPAN;
@@ -1290,7 +1291,8 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
         '<li>المهمة يجب أن يكون لها وقت، وغير منجزة، وأن تكون المزامنة تمت (⚙ ← متزامن).</li></ul></details>' : "") + '</div>';
     h += '<p class="small muted">بدون إشعارات الخادم: يصلك صوت قصير وإشعار ما دام التطبيق مفتوحًا أو في الخلفية فقط.</p></section>';
     var sg = sleepGoal();
-    h += '<section><h2>هدف النوم</h2><div class="sleeprow"><label>ساعات النوم <select class="field" data-act="sleepHours">' +
+    if (!sleepOn()) h += '<section><h2>متابعة النوم</h2><div><button class="ghost" data-act="sleepToggle">😴 أظهر متابعة النوم</button></div><p class="small muted">متوقفة: لا تظهر بطاقة النوم ولا قسمه في التقارير.</p></section>';
+    else h += '<section><div class="sechead"><h2>هدف النوم</h2><button class="linkbtn" data-act="sleepToggle">إيقاف متابعة النوم</button></div><div class="sleeprow"><label>ساعات النوم <select class="field" data-act="sleepHours">' +
       [6, 6.5, 7, 7.5, 8, 8.5, 9].map(function (x) { return '<option value="' + x + '"' + (sg.hours === x ? " selected" : "") + '>' + num(x) + ' ساعات</option>'; }).join("") +
       '</select></label><label>أستيقظ قبل <input class="field" type="time" data-act="sleepWakeGoal" value="' + sg.wake + '"></label></div>' +
       '<p class="small muted">النوم المبكر بعد العشاء والاستيقاظ قبل الفجر يعطيك ساعات صباح مباركة، دون أن تنقص من حاجة جسمك.</p></section>';
@@ -1726,6 +1728,9 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       case "theme": applyTheme(b.dataset.t); render(); break;
       case "profSwitch": switchProfile(id); break;
       case "wakeNow": setSleep(dk(), "wake", nowHM()); break;
+      case "sleepToggle":
+        var sgv = sleepGoal(); state.settings.sleep = { hours: sgv.hours, wake: sgv.wake, off: sleepOn() };
+        commit(); toast(sleepOn() ? "عادت متابعة النوم" : "أُوقفت متابعة النوم"); break;
       case "voice": if (voice.on) voiceStop(); else voiceStart(); break;
       case "alertsOn": alerts.on = !alerts.on; saveAlerts(); if (alerts.on) { unlockAudio(); if ("Notification" in window && Notification.permission === "default") askNotify(); } render(); break;
       case "alertLead": alerts.lead = +b.dataset.v; saveAlerts(); pushRefresh(); render(); break;
@@ -1812,8 +1817,8 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     else if (act === "cat") { it.cat = t.value; ui.lastCat = t.value; commit(); }
     else if (act === "sleepBed") setSleep(dk(), "bed", t.value);
     else if (act === "sleepWake") setSleep(dk(), "wake", t.value);
-    else if (act === "sleepHours") { state.settings.sleep = { hours: +t.value, wake: sleepGoal().wake }; commit(); }
-    else if (act === "sleepWakeGoal" && t.value) { state.settings.sleep = { hours: sleepGoal().hours, wake: t.value }; commit(); }
+    else if (act === "sleepHours") { state.settings.sleep = { hours: +t.value, wake: sleepGoal().wake, off: !sleepOn() }; commit(); }
+    else if (act === "sleepWakeGoal" && t.value) { state.settings.sleep = { hours: sleepGoal().hours, wake: t.value, off: !sleepOn() }; commit(); }
     else if (act === "uname") { if (t.value.trim()) { setUserName(t.value); toast("حُفظ الاسم"); } else t.value = userName; }
     else if (act === "profName") {
       var pf = profiles.list.filter(function (x) { return x.id === t.dataset.id; })[0], nv = t.value.trim();
