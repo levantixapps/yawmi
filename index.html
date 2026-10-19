@@ -1075,6 +1075,58 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     return { rows: rows, from: keyOf(addDays(parseKey(endKey), -(n - 1))), to: endKey };
   }
   function exportName(r, ext) { return "يومي-" + profileName() + "-" + (r.from === r.to ? r.to : r.from + "_" + r.to) + "." + ext; }
+  // Real Excel workbook: sheets for done, not done and a summary (SheetJS, loaded only when needed)
+  var xlsxLoading = null;
+  function loadXlsx() {
+    if (window.XLSX) return Promise.resolve(window.XLSX);
+    if (!xlsxLoading) xlsxLoading = new Promise(function (ok, fail) {
+      var sc = document.createElement("script");
+      sc.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+      sc.onload = function () { window.XLSX ? ok(window.XLSX) : fail(); };
+      sc.onerror = function () { xlsxLoading = null; fail(); };
+      document.head.appendChild(sc);
+    });
+    return xlsxLoading;
+  }
+  function exportXlsx(n) {
+    var r = exportRows(n);
+    if (!r.rows.length) { toast("لا توجد بنود في هذه الفترة"); return; }
+    toast("جارٍ تجهيز ملف Excel…");
+    loadXlsx().then(function (X) {
+      var hrs = function (m) { return Math.round(m / 60 * 100) / 100; };
+      var head = ["التاريخ", "البند", "التقسيم", "الوقت", "المدة المخططة (ساعة)", "الوقت الفعلي (ساعة)", "الحالة", "من أهم ٣", "مهمة دائمة", "ملاحظة"];
+      var rowOf = function (x) { return [x.date, x.title, x.cat, x.time, hrs(x.planned), hrs(x.spent), x.status, x.top, x.fixed, x.note]; };
+      var done = r.rows.filter(function (x) { return x.status === "أُنجز"; });
+      var notDone = r.rows.filter(function (x) { return x.status !== "أُنجز"; });
+      var widths = [12, 32, 16, 10, 12, 12, 16, 9, 10, 36].map(function (w) { return { wch: w }; });
+      var sheet = function (rows) { var ws = X.utils.aoa_to_sheet([head].concat(rows.map(rowOf))); ws["!cols"] = widths; return ws; };
+      // summary: totals and hours per category
+      var sum = function (a, f) { return a.reduce(function (t, x) { return t + x[f]; }, 0); };
+      var byCat = {};
+      r.rows.forEach(function (x) { var c = byCat[x.cat] || (byCat[x.cat] = { n: 0, d: 0, p: 0, s: 0 }); c.n++; c.p += x.planned; c.s += x.spent; if (x.status === "أُنجز") c.d++; });
+      var summary = [
+        ["تقرير «يومي»", profileName() + (userName ? " — " + userName : "")],
+        ["الفترة", r.from === r.to ? r.to : r.from + " إلى " + r.to],
+        [],
+        ["عدد البنود", r.rows.length],
+        ["أُنجز", done.length],
+        ["لم يُنجز", notDone.length],
+        ["نسبة الإنجاز", r.rows.length ? Math.round(done.length / r.rows.length * 100) + "٪" : "—"],
+        ["الساعات المخططة", hrs(sum(r.rows, "planned"))],
+        ["الساعات الفعلية", hrs(sum(r.rows, "spent"))],
+        [],
+        ["التقسيم", "البنود", "أُنجز", "الساعات المخططة", "الساعات الفعلية"]
+      ].concat(Object.keys(byCat).map(function (c) { var o = byCat[c]; return [c, o.n, o.d, hrs(o.p), hrs(o.s)]; }));
+      var wsSum = X.utils.aoa_to_sheet(summary); wsSum["!cols"] = [{ wch: 18 }, { wch: 28 }, { wch: 10 }, { wch: 16 }, { wch: 16 }];
+      var wb = X.utils.book_new();
+      X.utils.book_append_sheet(wb, wsSum, "الملخص");
+      X.utils.book_append_sheet(wb, sheet(done), "ما أُنجز");
+      X.utils.book_append_sheet(wb, sheet(notDone), "ما لم يُنجز");
+      wb.Workbook = { Views: [{ RTL: true }] };
+      X.writeFile(wb, exportName(r, "xlsx"));
+      toast("نُزّل ملف Excel ✓");
+    }, function () { toast("تعذّر تحميل أداة Excel (تحتاج إنترنت)، فنزّلته بصيغة CSV"); exportCsv(n); });
+  }
   function exportCsv(n) {
     var r = exportRows(n);
     if (!r.rows.length) { toast("لا توجد بنود في هذه الفترة"); return; }
@@ -1115,7 +1167,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     }).join("") + '</div>';
     var n = ui.range === "week" ? 7 : ui.range === "month" ? 30 : 1;
     var ex = '<div class="exportbar"><span class="small muted">صدّر ما أُنجز وما لم يُنجز ' + (n === 1 ? "لهذا اليوم" : n === 7 ? "لآخر ٧ أيام" : "لآخر ٣٠ يومًا") + ':</span>' +
-      '<button class="ghost" data-act="exportCsv" data-n="' + n + '">⬇️ ملف Excel</button>' +
+      '<button class="ghost" data-act="exportXlsx" data-n="' + n + '">⬇️ ملف Excel</button>' +
       '<button class="ghost" data-act="exportText" data-n="' + n + '">📋 نص للمشاركة</button></div>';
     if (ui.range === "week") return seg + periodHtml(7) + ex;
     if (ui.range === "month") return seg + periodHtml(30) + ex;
@@ -1686,6 +1738,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
         var tk = keyOf(addDays(today(), 1));
         setSleep(tk, "bed", nowHM()); toast("تُصبح على خير 🌙 سُجّل وقت نومك"); break;
       case "exportCsv": exportCsv(+b.dataset.n); break;
+      case "exportXlsx": exportXlsx(+b.dataset.n); break;
       case "exportText": exportText(+b.dataset.n); break;
       case "pinSet": setPin($("pinNew").value); break;
       case "pinRemove": currentProfile().pin = ""; saveProfiles(); render(); toast("أُزيل الرمز"); break;
