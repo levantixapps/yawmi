@@ -1537,6 +1537,8 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       }).then(function (res) { return res.json(); }).then(function (r) {
         var why = {
           not_registered: "الجهاز غير مسجّل في الخادم لهذا الحساب. أوقف الإشعارات ثم فعّلها من جديد.",
+          bad_public_key: "قيمة VAPID_PUBLIC_KEY في أسرار Supabase غير صحيحة. انسخها من ملف المفاتيح مرة أخرى (القيمة فقط).",
+          bad_private_key: "قيمة VAPID_PRIVATE_KEY في أسرار Supabase غير صحيحة. انسخها من ملف المفاتيح مرة أخرى (القيمة فقط).",
           push_401: "مفاتيح الإشعارات في Supabase غير صحيحة (VAPID). راجع الأسرار الثلاثة.",
           push_403: "مفاتيح الإشعارات في Supabase لا تطابق مفتاح التطبيق. راجع VAPID_PUBLIC_KEY.",
           push_404: "انتهى اشتراك الجهاز. أوقف الإشعارات ثم فعّلها من جديد.",

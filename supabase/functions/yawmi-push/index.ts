@@ -11,9 +11,24 @@
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const VAPID_PUBLIC = Deno.env.get("VAPID_PUBLIC_KEY")!;
-const VAPID_PRIVATE = Deno.env.get("VAPID_PRIVATE_KEY")!;
-const VAPID_SUBJECT = Deno.env.get("VAPID_SUBJECT") ?? "mailto:admin@example.com";
+// Secrets pasted by hand often carry spaces, quotes, a "NAME=" prefix or standard base64: tidy them
+function cleanKey(v: string | undefined): string {
+  return (v ?? "").trim().replace(/^["']|["']$/g, "").replace(/^[A-Z_]+\s*=\s*/, "").replace(/\s+/g, "")
+    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+const VAPID_PUBLIC = cleanKey(Deno.env.get("VAPID_PUBLIC_KEY"));
+const VAPID_PRIVATE = cleanKey(Deno.env.get("VAPID_PRIVATE_KEY"));
+const VAPID_SUBJECT = (Deno.env.get("VAPID_SUBJECT") ?? "mailto:admin@example.com").trim().replace(/^VAPID_SUBJECT\s*=\s*/, "");
+
+// Which secret is wrong, if any (shown by the app's test button)
+function keyProblem(): string | null {
+  let pub: Uint8Array, priv: Uint8Array;
+  try { pub = fromB64u(VAPID_PUBLIC); } catch { return "bad_public_key"; }
+  try { priv = fromB64u(VAPID_PRIVATE); } catch { return "bad_private_key"; }
+  if (pub.length !== 65 || pub[0] !== 4) return "bad_public_key";
+  if (priv.length !== 32) return "bad_private_key";
+  return null;
+}
 
 const enc = new TextEncoder();
 
@@ -116,6 +131,8 @@ Deno.serve(async (req) => {
 
   // Test button in the app: send one notification to this device right away
   if (input.test) {
+    const problem = keyProblem();
+    if (problem) return Response.json({ ok: false, reason: problem }, { headers: CORS });
     const t = await fetch(`${SUPABASE_URL}/rest/v1/rpc/yawmi_push_target`, {
       method: "POST", headers, body: JSON.stringify({ p_key: input.key ?? "", p_endpoint: input.endpoint ?? "" }),
     });
