@@ -290,6 +290,8 @@ details.box textarea { font-size: .78rem; direction: ltr; }
 .chart.sleepchart .b .d.low { background: var(--q-short); }
 .sleepchart .goal { position: absolute; inset-inline: 0; border-top: 2px dashed var(--ink); opacity: .35; pointer-events: none; }
 .goalkey { border-top: 2px dashed var(--ink); opacity: .45; height: 0 !important; width: 14px !important; border-radius: 0 !important; }
+details.changes summary { cursor: pointer; font-size: .85rem; color: var(--accent); font-weight: 600; }
+details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto; }
 /* Name prompt, greeting and change log */
 .hello { font-family: var(--font-body); font-size: .82rem; font-weight: 500; color: var(--muted); }
 .namecard { background: var(--accent-soft); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
@@ -523,15 +525,19 @@ details.box textarea { font-size: .78rem; direction: ltr; }
   var pendingLog = {};
   try { pendingLog = JSON.parse(localStorage.getItem(LOG_KEY) || "{}") || {}; } catch (e) {}
   function logEvent(action, title, dayKey, key) {
-    if (typeof code !== "string" || !code) return;
-    pendingLog[key] = { name: userName || "", action: action, title: (title || "").slice(0, 120), day: dayKey || "", at: new Date().toISOString() };
+    if (typeof code !== "string" || !code || cloud.role !== "secondary") return;
+    var n = new Date(), dm = function (d) { return d.getDate() + "/" + (d.getMonth() + 1); };
+    var line = dm(n) + " " + pad(n.getHours()) + ":" + pad(n.getMinutes()) + " — " + action +
+      (title ? " «" + String(title).slice(0, 120) + "»" : "") + (dayKey && dayKey !== keyOf(n) ? " (ليوم " + dm(parseKey(dayKey)) + ")" : "");
+    pendingLog[key] = { line: line, at: n.toISOString() };
     try { localStorage.setItem(LOG_KEY, JSON.stringify(pendingLog)); } catch (e) {}
   }
   function flushLog() {
     var keys = Object.keys(pendingLog);
     if (!keys.length || !sb || !code) return;
     var sent = {}, list = keys.map(function (k) { sent[k] = pendingLog[k].at; return pendingLog[k]; })
-      .sort(function (a, b) { return a.at < b.at ? -1 : 1; });
+      .sort(function (a, b) { return a.at < b.at ? -1 : 1; })
+      .map(function (e) { return e.line || ((e.action || "") + " «" + (e.title || "") + "»"); });
     rpc("log_add", { p_code: code, p_events: list }).then(function (r) {
       if (r.error || r.data === false) return;
       keys.forEach(function (k) { if (pendingLog[k] && pendingLog[k].at === sent[k]) delete pendingLog[k]; });
@@ -1151,6 +1157,13 @@ details.box textarea { font-size: .78rem; direction: ltr; }
     if (meta) meta.setAttribute("content", dark ? "#0F141B" : "#1F5FBF");
   }
   applyTheme(themeNow());
+  // A secondary device's changes: one cell of lines, newest shown first
+  function changesHtml(dv) {
+    var lines = String(dv.changes || "").split("\n").filter(function (x) { return x.trim(); }).reverse();
+    if (!lines.length) return '<p class="small muted">لا توجد تغييرات من هذا الجهاز بعد.</p>';
+    return '<details class="changes"><summary>سجل التغييرات (' + lines.length + ')</summary><ul class="loglist">' +
+      lines.map(function (l) { return '<li><span>' + esc(l) + '</span></li>'; }).join("") + '</ul></details>';
+  }
   function settingsView() {
     var th = themeNow();
     var h = '<section><h2>المظهر</h2><div class="rangeseg">' + [["auto", "تلقائي"], ["light", "☀️ فاتح"], ["dark", "🌙 غامق"]].map(function (o) {
@@ -1161,7 +1174,7 @@ details.box textarea { font-size: .78rem; direction: ltr; }
       [6, 6.5, 7, 7.5, 8, 8.5, 9].map(function (x) { return '<option value="' + x + '"' + (sg.hours === x ? " selected" : "") + '>' + num(x) + ' ساعات</option>'; }).join("") +
       '</select></label><label>أستيقظ قبل <input class="field" type="time" data-act="sleepWakeGoal" value="' + sg.wake + '"></label></div>' +
       '<p class="small muted">النوم المبكر بعد العشاء والاستيقاظ قبل الفجر يعطيك ساعات صباح مباركة، دون أن تنقص من حاجة جسمك.</p></section>';
-    h += '<section><h2>اسمك</h2><input class="field" value="' + esc(userName) + '" data-act="uname" placeholder="اسمك" aria-label="اسمك"><p class="small muted">يظهر للمسؤول الأول في قائمة الأجهزة وسجل التغييرات.</p></section>';
+    h += '<section><h2>اسمك</h2><input class="field" value="' + esc(userName) + '" data-act="uname" placeholder="اسمك" aria-label="اسمك"><p class="small muted">يظهر للمسؤول الأول في قائمة الأجهزة مع سجل تغييراتك.</p></section>';
     h += '<section id="accounts"><h2>الحسابات</h2><p class="small muted">لكل حساب يومه ومهامه وتقاريره وكوده السحابي المستقل، مثل حياتك الشخصية والعمل.</p><ul class="list">' +
       profiles.list.map(function (pf) {
         var isNow = pf.id === PROFILE;
@@ -1219,7 +1232,7 @@ details.box textarea { font-size: .78rem; direction: ltr; }
             '<div><button class="ghost" data-act="inviteCancel">إغلاق</button></div></div>';
         }
         var devs = ui.devices || [];
-        h += '<h3 style="margin-top:6px">الأجهزة المرتبطة</h3>';
+        h += '<div class="sechead" style="margin-top:6px"><h3>الأجهزة المرتبطة</h3>' + (devs.length ? '<button class="linkbtn" data-act="logRefresh">تحديث</button>' : "") + '</div>';
         if (!devs.length) h += '<p class="small muted">لا توجد أجهزة ثانوية بعد.</p>';
         else h += '<ul class="list">' + devs.map(function (dv) {
           var seen = dv.last_seen ? new Date(dv.last_seen) : null;
@@ -1227,17 +1240,9 @@ details.box textarea { font-size: .78rem; direction: ltr; }
             (seen ? '<br><span class="small muted">آخر ظهور: ' + (keyOf(seen) === keyOf(new Date()) ? "اليوم " : shortDate(keyOf(seen)) + " ") + stamp(seen.getTime()) + '</span>' : "") + '</span>' +
             (ui.confirmRevoke === dv.token
               ? '<button class="ghost danger" data-act="revokeYes" data-tok="' + esc(dv.token) + '">تأكيد الإلغاء</button><button class="ghost" data-act="revokeNo">تراجع</button>'
-              : '<button class="ghost danger" data-act="revoke" data-tok="' + esc(dv.token) + '">إلغاء الربط</button>') + '</div></li>';
+              : '<button class="ghost danger" data-act="revoke" data-tok="' + esc(dv.token) + '">إلغاء الربط</button>') + '</div>' +
+            changesHtml(dv) + '</li>';
         }).join("") + '</ul>';
-        var lg = ui.log || [];
-        h += '<div class="sechead" style="margin-top:6px"><h3>سجل التغييرات</h3><button class="linkbtn" data-act="logRefresh">تحديث</button></div>';
-        if (!lg.length) h += '<p class="small muted">لا توجد تغييرات مسجّلة بعد. يظهر هنا ما يضيفه أو ينجزه أو يعدّله كل من يستخدم هذا الحساب، لمدة ١٤ يومًا.</p>';
-        else h += '<ul class="loglist">' + lg.slice(0, ui.logAll ? 200 : 15).map(function (e) {
-          var at = new Date(e.at), who = e.num === 1 ? "أنت" : (e.name || ("جهاز " + e.num)) + " (جهاز " + e.num + ")";
-          return '<li><span><span class="who">' + esc(who) + '</span> ' + esc(e.action) + (e.title ? ' «' + esc(e.title) + '»' : "") +
-            (e.day ? ' <span class="small muted">ليوم ' + shortDate(String(e.day).slice(0, 10)) + '</span>' : "") + '</span>' +
-            '<span class="when">' + (keyOf(at) === keyOf(new Date()) ? "" : shortDate(keyOf(at)) + " ") + stamp(at.getTime()) + '</span></li>';
-        }).join("") + '</ul>' + (lg.length > 15 && !ui.logAll ? '<button class="linkbtn" data-act="logAll">عرض الكل (' + lg.length + ')</button>' : "");
         h += '<details class="box"><summary>الكود الرئيسي (للاستعادة فقط)</summary><div class="inner">' +
           '<p>احتفظ به في مكان آمن ولا تعطه لأحد. تحتاجه فقط إن ضاع هذا الجهاز. لربط أجهزتك استعمل «ربط جهاز جديد».</p>' +
           '<div class="tip ltr" style="font-family:var(--font-mono);font-size:1.3rem;text-align:center;user-select:all">' + esc(prettyCode(code)) + '</div>' +
@@ -1360,8 +1365,7 @@ details.box textarea { font-size: .78rem; direction: ltr; }
       case "exportText": exportText(+b.dataset.n); break;
       case "pinSet": setPin($("pinNew").value); break;
       case "pinRemove": currentProfile().pin = ""; saveProfiles(); render(); toast("أُزيل الرمز"); break;
-      case "logRefresh": loadLog(); break;
-      case "logAll": ui.logAll = true; render(); break;
+      case "logRefresh": loadDevices(); break;
       case "profDel": ui.confirmProfile = id; render(); break;
       case "profDelNo": ui.confirmProfile = null; render(); break;
       case "profDelYes": deleteProfile(id); break;
@@ -1721,17 +1725,8 @@ details.box textarea { font-size: .78rem; direction: ltr; }
       });
     }, 3000);
   }
-  function loadLog() {
-    if (!sb || !code || cloud.role === "secondary") return;
-    rpc("log_list", { p_code: code }).then(function (r) {
-      if (r.error) return;
-      ui.log = arr(r.data);
-      if (ui.tab === "settings") softRender();
-    }, function () {});
-  }
   function loadDevices(done) {
     if (!sb || !code || cloud.role === "secondary") return;
-    if (!done) loadLog();
     rpc("devices_list", { p_code: code }).then(function (r) {
       if (r.error) return;
       ui.devices = arr(r.data);
