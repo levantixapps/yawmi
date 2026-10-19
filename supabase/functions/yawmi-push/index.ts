@@ -103,7 +103,32 @@ async function sendPush(sub: Sub, payload: string): Promise<number> {
 const headers = { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json" };
 type Due = { endpoint: string; sub: Sub; title: string; body: string; tag: string };
 
-Deno.serve(async () => {
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
+  let input: { test?: boolean; key?: string; endpoint?: string } = {};
+  try { input = await req.json(); } catch { /* the minute job sends {} */ }
+
+  // Test button in the app: send one notification to this device right away
+  if (input.test) {
+    const t = await fetch(`${SUPABASE_URL}/rest/v1/rpc/yawmi_push_target`, {
+      method: "POST", headers, body: JSON.stringify({ p_key: input.key ?? "", p_endpoint: input.endpoint ?? "" }),
+    });
+    const sub = t.ok ? await t.json() : null;
+    if (!sub) return Response.json({ ok: false, reason: t.ok ? "not_registered" : "db_" + t.status }, { headers: CORS });
+    try {
+      const status = await sendPush(sub, JSON.stringify({ title: "🔔 تجربة من «يومي»", body: "الإشعارات تعمل على هذا الجهاز ✓", tag: "test-" + Date.now() }));
+      return Response.json({ ok: status >= 200 && status < 300, reason: "push_" + status }, { headers: CORS });
+    } catch (e) {
+      return Response.json({ ok: false, reason: "error: " + String(e) }, { headers: CORS });
+    }
+  }
+
   const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/yawmi_push_due`, { method: "POST", headers, body: "{}" });
   if (!res.ok) return new Response(await res.text(), { status: 500 });
   const rows: Due[] = await res.json();

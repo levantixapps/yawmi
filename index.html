@@ -1208,7 +1208,14 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     }
     h += '<div class="pushbox"><b>📲 إشعارات حتى والتطبيق مغلق</b>' +
       '<p class="small muted">يرسلها خادم Supabase في موعد كل مهمة، مثل رسائل واتساب. تحتاج الحفظ السحابي، وعلى الآيفون تحتاج التطبيق مثبّتًا على الشاشة الرئيسية.</p>' +
-      '<div><button class="' + (pushOn ? "btn" : "ghost") + '" data-act="pushOn">' + (pushOn ? "✓ مفعّلة على هذا الجهاز (اضغط للإيقاف)" : "فعّلها على هذا الجهاز") + '</button></div></div>';
+      '<div class="row-wrap"><button class="' + (pushOn ? "btn" : "ghost") + '" data-act="pushOn">' + (pushOn ? "✓ مفعّلة لهذا الحساب (اضغط للإيقاف)" : "فعّلها لهذا الحساب") + '</button>' +
+      (pushOn ? '<button class="ghost" data-act="pushTest">🔔 إرسال إشعار تجريبي</button>' : "") + '</div>' +
+      (profiles.list.length > 1 ? '<p class="small muted">لكل حساب تفعيله: انتقل إلى كل حساب وفعّلها فيه، فيصلك إشعار كل حساب باسمه.</p>' : "") +
+      (pushOn ? '<details class="changes"><summary>لا يظهر الإشعار؟</summary><ul class="small muted" style="margin:6px 0 0;padding-inline-start:18px">' +
+        '<li>أندرويد: الإعدادات ← التطبيقات ← Chrome (أو «يومي») ← الإشعارات: تأكد أنها مسموحة، وأن «الإشعارات من المواقع» غير مكتومة.</li>' +
+        '<li>وضع «عدم الإزعاج» أو توفير البطارية الشديد قد يؤخر الإشعارات أو يخفيها.</li>' +
+        '<li>آيفون: يجب أن يكون التطبيق مثبّتًا على الشاشة الرئيسية، وفُعّلت الإشعارات من داخله، ثم الإعدادات ← الإشعارات ← يومي.</li>' +
+        '<li>المهمة يجب أن يكون لها وقت، وغير منجزة، وأن تكون المزامنة تمت (⚙ ← متزامن).</li></ul></details>' : "") + '</div>';
     h += '<p class="small muted">بدون إشعارات الخادم: يصلك صوت قصير وإشعار ما دام التطبيق مفتوحًا أو في الخلفية فقط.</p></section>';
     var sg = sleepGoal();
     h += '<section><h2>هدف النوم</h2><div class="sleeprow"><label>ساعات النوم <select class="field" data-act="sleepHours">' +
@@ -1434,18 +1441,27 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     } else { try { new Notification(title, opts); } catch (e) {} }
   }
   function checkAlerts() {
-    if (!alerts.on) return;
-    var k = keyOf(new Date()), d = state.days[k];
-    if (!d) return;
-    var now = new Date(), nm = now.getHours() * 60 + now.getMinutes();
-    active(d).forEach(function (it) {
-      if (it.done || !it.time) return;
-      var at = toMin(it.time) - (alerts.lead || 0), id = k + it.id + it.time + alerts.lead;
-      if (alerted[id] || nm < at || nm > at + 2) return;
-      alerted[id] = true;
-      var when = alerts.lead ? "بعد " + alerts.lead + " دقائق" : "حان الوقت";
-      chime(); if (!pushOn) notify(when + ": " + it.title, fmt12(it.time) + " · " + catOf(it.cat).name + " · " + durLabel(it.dur || 60));
-      toast("⏰ " + when + ": " + it.title);
+    var k = keyOf(new Date()), now = new Date(), nm = now.getHours() * 60 + now.getMinutes(), many = profiles.list.length > 1;
+    profiles.list.forEach(function (pf) {
+      var mine = pf.id === PROFILE, al = alerts, st = state, srv = pushOn;
+      if (!mine) {
+        try {
+          al = JSON.parse(localStorage.getItem(pkey("yawmi-alerts", pf.id)) || "null");
+          st = JSON.parse(localStorage.getItem(pkey("daily-planner-v3", pf.id)) || "null");
+          srv = localStorage.getItem(pkey("yawmi-push-on", pf.id)) === "1";
+        } catch (e) { return; }
+      }
+      if (!al || !al.on || !st || !st.days || !st.days[k]) return;
+      arr(st.days[k].items).forEach(function (it) {
+        if (it.done || it.moved || !it.time || (it.important === false && it.urgent === false)) return;
+        var at = toMin(it.time) - (al.lead || 0), id = pf.id + k + it.id + it.time + al.lead;
+        if (alerted[id] || nm < at || nm > at + 2) return;
+        alerted[id] = true;
+        var when = (many ? "[" + pf.name + "] " : "") + (al.lead ? "بعد " + al.lead + " دقائق" : "حان الوقت");
+        if (al.sound !== false) chime();
+        if (!srv) notify(when + ": " + it.title, fmt12(it.time) + " · " + durLabel(it.dur || 60));
+        toast("⏰ " + when + ": " + it.title);
+      });
     });
   }
   setInterval(checkAlerts, 20000);
@@ -1462,7 +1478,16 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   }
   function setPushOn(v) { pushOn = v; try { localStorage.setItem(PUSH_KEY, v ? "1" : "0"); } catch (e) {} }
   function pushSave(sub) {
-    return rpc("push_save", { p_key: code, p_sub: sub.toJSON(), p_tz: -new Date().getTimezoneOffset(), p_lead: alerts.lead || 0 });
+    var args = { p_key: code, p_sub: sub.toJSON(), p_tz: -new Date().getTimezoneOffset(), p_lead: alerts.lead || 0 };
+    var withLabel = { p_key: args.p_key, p_sub: args.p_sub, p_tz: args.p_tz, p_lead: args.p_lead, p_label: profiles.list.length > 1 ? profileName() : null };
+    return rpc("push_save", withLabel).then(function (r) { return r.error ? rpc("push_save", args) : r; });
+  }
+  // other accounts on this device that still want server notifications
+  function otherPushAccounts() {
+    return profiles.list.filter(function (x) {
+      if (x.id === PROFILE) return false;
+      try { return localStorage.getItem(pkey("yawmi-push-on", x.id)) === "1"; } catch (e) { return false; }
+    }).length;
   }
   function pushEnable() {
     if (!pushSupported()) { toast("هذا المتصفح لا يدعم الإشعارات والتطبيق مغلق. على الآيفون ثبّت التطبيق على الشاشة الرئيسية أولًا."); return; }
@@ -1485,8 +1510,10 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     if (!pushSupported()) return;
     navigator.serviceWorker.ready.then(function (reg) { return reg.pushManager.getSubscription(); }).then(function (sub) {
       if (!sub) return;
-      if (sb) rpc("push_delete", { p_endpoint: sub.endpoint }).then(function () {}, function () {});
-      return sub.unsubscribe();
+      if (sb && code) rpc("push_unsub", { p_key: code, p_endpoint: sub.endpoint }).then(function (r) {
+        if (r.error && !otherPushAccounts()) rpc("push_delete", { p_endpoint: sub.endpoint });
+      }, function () {});
+      if (!otherPushAccounts()) return sub.unsubscribe();
     }).catch(function () {});
     toast("أُوقفت الإشعارات والتطبيق مغلق");
   }
@@ -1495,6 +1522,30 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     if (!pushOn || !pushSupported() || !sb || !code) return;
     navigator.serviceWorker.ready.then(function (reg) { return reg.pushManager.getSubscription(); })
       .then(function (sub) { if (sub) pushSave(sub); else setPushOn(false); }).catch(function () {});
+  }
+  function pushTest() {
+    if (!pushSupported() || !sb || !code) return;
+    toast("جارٍ إرسال إشعار تجريبي…");
+    navigator.serviceWorker.ready.then(function (reg) { return reg.pushManager.getSubscription(); }).then(function (sub) {
+      if (!sub) { setPushOn(false); render(); toast("هذا الجهاز غير مشترك في الإشعارات. اضغط «فعّلها» من جديد"); return; }
+      return pushSave(sub).then(function () {
+        return fetch(CFG.supabaseUrl + "/functions/v1/yawmi-push", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: "Bearer " + CFG.supabaseAnonKey, apikey: CFG.supabaseAnonKey },
+          body: JSON.stringify({ test: true, key: code, endpoint: sub.endpoint })
+        });
+      }).then(function (res) { return res.json(); }).then(function (r) {
+        var why = {
+          not_registered: "الجهاز غير مسجّل في الخادم لهذا الحساب. أوقف الإشعارات ثم فعّلها من جديد.",
+          push_401: "مفاتيح الإشعارات في Supabase غير صحيحة (VAPID). راجع الأسرار الثلاثة.",
+          push_403: "مفاتيح الإشعارات في Supabase لا تطابق مفتاح التطبيق. راجع VAPID_PUBLIC_KEY.",
+          push_404: "انتهى اشتراك الجهاز. أوقف الإشعارات ثم فعّلها من جديد.",
+          push_410: "انتهى اشتراك الجهاز. أوقف الإشعارات ثم فعّلها من جديد."
+        };
+        if (r && r.ok) toast("أُرسل ✓ إن لم يظهر خلال ثوانٍ، فالمنع من إعدادات الجوال (انظر الإرشادات تحته)");
+        else toast("لم يُرسل: " + (why[r && r.reason] || (r && r.reason) || "خطأ غير معروف"));
+      });
+    }).catch(function () { toast("تعذّر الاتصال بدالة الإرسال. تأكد من الإنترنت ومن نشر yawmi-push"); });
   }
   function askNotify() {
     if (!("Notification" in window)) { toast("الإشعارات غير مدعومة هنا. على الآيفون ثبّت التطبيق على الشاشة الرئيسية أولًا."); return; }
@@ -1605,6 +1656,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       case "alertsOn": alerts.on = !alerts.on; saveAlerts(); if (alerts.on) { unlockAudio(); if ("Notification" in window && Notification.permission === "default") askNotify(); } render(); break;
       case "alertLead": alerts.lead = +b.dataset.v; saveAlerts(); pushRefresh(); render(); break;
       case "pushOn": if (pushOn) pushDisable(); else pushEnable(); break;
+      case "pushTest": pushTest(); break;
       case "tipClose": tip.hidden = true; try { localStorage.setItem(TIP_KEY, JSON.stringify(tip)); } catch (e) {} render(); break;
       case "tipEdit": ui.tipEdit = true; render(); break;
       case "tipCancel": ui.tipEdit = false; render(); break;
