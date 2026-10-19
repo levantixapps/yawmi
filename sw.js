@@ -1,7 +1,7 @@
 // Offline support: the app shell is served network-first (so updates arrive),
 // fonts and the Supabase library cache-first. Personal data never passes through here;
 // it lives in the browser's localStorage.
-var CACHE = "yawmi-v17";
+var CACHE = "yawmi-v18";
 var CORE = ["./", "index.html", "config.js", "manifest.webmanifest", "icon.svg", "icon-192.png", "icon-512.png"];
 
 self.addEventListener("install", function (e) {
@@ -45,4 +45,20 @@ self.addEventListener("fetch", function (e) {
       })
     );
   }
+});
+
+// Notifications sent by the yawmi-push function, even when the app is closed
+self.addEventListener("push", function (e) {
+  var d = {};
+  try { d = e.data ? e.data.json() : {}; } catch (err) { d = { title: e.data ? e.data.text() : "يومي" }; }
+  e.waitUntil(self.registration.showNotification(d.title || "يومي", {
+    body: d.body || "", tag: d.tag || "yawmi", icon: "icon-192.png", badge: "icon-192.png", lang: "ar", dir: "rtl", renotify: true
+  }));
+});
+self.addEventListener("notificationclick", function (e) {
+  e.notification.close();
+  e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(function (list) {
+    for (var i = 0; i < list.length; i++) { if ("focus" in list[i]) return list[i].focus(); }
+    return self.clients.openWindow("./");
+  }));
 });
