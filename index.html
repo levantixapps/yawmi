@@ -1433,9 +1433,9 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       });
     } catch (e) {}
   }
-  function notify(title, body) {
+  function notify(title, body, tag) {
     if (!("Notification" in window) || Notification.permission !== "granted") return;
-    var opts = { body: body, icon: "icon-192.png", badge: "icon-192.png", tag: "yawmi-" + title, lang: "ar", dir: "rtl" };
+    var opts = { body: body, icon: "icon-192.png", badge: "icon-192.png", tag: tag || ("yawmi-" + title), renotify: true, lang: "ar", dir: "rtl" };
     if (navigator.serviceWorker && navigator.serviceWorker.ready) {
       navigator.serviceWorker.ready.then(function (reg) { reg.showNotification(title, opts); }, function () { try { new Notification(title, opts); } catch (e) {} });
     } else { try { new Notification(title, opts); } catch (e) {} }
@@ -1459,7 +1459,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
         alerted[id] = true;
         var when = (many ? "[" + pf.name + "] " : "") + (al.lead ? "بعد " + al.lead + " دقائق" : "حان الوقت");
         if (al.sound !== false) chime();
-        if (!srv) notify(when + ": " + it.title, fmt12(it.time) + " · " + durLabel(it.dur || 60));
+        notify(when + ": " + it.title, "الساعة " + it.time, k + ":" + it.id + ":" + it.time + ":" + (al.lead || 0));
         toast("⏰ " + when + ": " + it.title);
       });
     });
