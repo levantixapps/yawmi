@@ -521,7 +521,7 @@ details.box textarea { font-size: .78rem; direction: ltr; }
     if (!keys.length || !sb || !code) return;
     var sent = {}, list = keys.map(function (k) { sent[k] = pendingLog[k].at; return pendingLog[k]; })
       .sort(function (a, b) { return a.at < b.at ? -1 : 1; });
-    sb.rpc("planner_log_add", { p_code: code, p_events: list }).then(function (r) {
+    rpc("log_add", { p_code: code, p_events: list }).then(function (r) {
       if (r.error || r.data === false) return;
       keys.forEach(function (k) { if (pendingLog[k] && pendingLog[k].at === sent[k]) delete pendingLog[k]; });
       try { localStorage.setItem(LOG_KEY, JSON.stringify(pendingLog)); } catch (e) {}
@@ -1437,7 +1437,7 @@ details.box textarea { font-size: .78rem; direction: ltr; }
     renderProfile(); pushName();
   }
   function pushName() {
-    if (sb && code && cloud.role === "secondary" && userName) sb.rpc("planner_device_name", { p_code: code, p_name: userName }).then(function () {}, function () {});
+    if (sb && code && cloud.role === "secondary" && userName) rpc("device_name", { p_code: code, p_name: userName }).then(function () {}, function () {});
   }
   function switchProfile(id) {
     if (!id || id === PROFILE) return;
@@ -1529,6 +1529,17 @@ details.box textarea { font-size: .78rem; direction: ltr; }
     if (/Linux/i.test(ua)) return "حاسوب لينكس";
     return "جهاز";
   }
+  // Database functions are named yawmi_*; older databases still have planner_* until supabase_v4.sql runs
+  var rpcPrefix = "yawmi_";
+  function rpc(name, args) {
+    return sb.rpc(rpcPrefix + name, args).then(function (r) {
+      if (r.error && r.error.code === "PGRST202" && rpcPrefix === "yawmi_") {
+        rpcPrefix = "planner_";
+        return sb.rpc(rpcPrefix + name, args);
+      }
+      return r;
+    });
+  }
   function cleanCode(c) { return (c || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }
   function prettyCode(c) { return (c.match(/.{1,4}/g) || []).join("-"); }
   function refreshCloud() { if (ui.tab === "settings") softRender(); else renderHeader(); }
@@ -1559,7 +1570,7 @@ details.box textarea { font-size: .78rem; direction: ltr; }
 
   function createCode() {
     cloud.msg = "";
-    sb.rpc("planner_create").then(function (r) {
+    rpc("create").then(function (r) {
       if (r.error || !r.data) { cloud.msg = "تعذّر إنشاء الكود: " + netError(r.error); refreshCloud(); return; }
       setLink(r.data, "primary", 1);
       state.settings.updatedAt = state.settings.updatedAt || Date.now(); // upload this device's setup
@@ -1570,7 +1581,7 @@ details.box textarea { font-size: .78rem; direction: ltr; }
     var c = cleanCode(raw);
     if (c.length < 8) { toast("اكتب الكود كما يظهر على جهازك الآخر"); return; }
     cloud.msg = "";
-    sb.rpc("planner_get", { p_code: c }).then(function (r) {
+    rpc("get", { p_code: c }).then(function (r) {
       if (r.error) { cloud.msg = netError(r.error); refreshCloud(); return; }
       if (!r.data || r.data.role === "secondary") { cloud.msg = "هذا ليس كودًا رئيسيًا صحيحًا. تأكد منه وأعد المحاولة."; refreshCloud(); return; }
       setLink(c, "primary", 1); render(); toast("استُعيد حساب المسؤول الأول، جارٍ جلب بياناتك"); syncNow();
@@ -1581,7 +1592,7 @@ details.box textarea { font-size: .78rem; direction: ltr; }
     var t = cleanCode(raw);
     if (t.length !== 8) { toast("رمز الربط ٨ أحرف وأرقام، كما يظهر على الجهاز المسؤول"); return; }
     cloud.msg = "";
-    sb.rpc("planner_join", { p_token: t, p_label: deviceLabel() }).then(function (r) {
+    rpc("join", { p_token: t, p_label: deviceLabel() }).then(function (r) {
       if (r.error) { cloud.msg = netError(r.error); refreshCloud(); return; }
       if (!r.data) { cloud.msg = "رمز الربط غير صحيح أو انتهت صلاحيته. اطلب رمزًا جديدًا من الجهاز المسؤول."; refreshCloud(); return; }
       setLink(r.data.token, "secondary", r.data.num); render(); toast("تم الربط ✓ هذا الجهاز رقم " + r.data.num); syncNow();
@@ -1592,7 +1603,7 @@ details.box textarea { font-size: .78rem; direction: ltr; }
   function inviteStop() { clearTimeout(inviteTimer); ui.invite = null; }
   function invite() {
     cloud.msg = "";
-    sb.rpc("planner_invite", { p_code: code }).then(function (r) {
+    rpc("invite", { p_code: code }).then(function (r) {
       if (r.error || !r.data) { cloud.msg = "تعذّر إنشاء رمز الربط: " + netError(r.error); refreshCloud(); return; }
       ui.invite = { token: r.data, until: Date.now() + 10 * 60000 };
       devCount = (ui.devices || []).length;
@@ -1615,7 +1626,7 @@ details.box textarea { font-size: .78rem; direction: ltr; }
   }
   function loadLog() {
     if (!sb || !code || cloud.role === "secondary") return;
-    sb.rpc("planner_log_list", { p_code: code }).then(function (r) {
+    rpc("log_list", { p_code: code }).then(function (r) {
       if (r.error) return;
       ui.log = arr(r.data);
       if (ui.tab === "settings") softRender();
@@ -1624,7 +1635,7 @@ details.box textarea { font-size: .78rem; direction: ltr; }
   function loadDevices(done) {
     if (!sb || !code || cloud.role === "secondary") return;
     if (!done) loadLog();
-    sb.rpc("planner_devices_list", { p_code: code }).then(function (r) {
+    rpc("devices_list", { p_code: code }).then(function (r) {
       if (r.error) return;
       ui.devices = arr(r.data);
       if (done) done(ui.devices);
@@ -1633,7 +1644,7 @@ details.box textarea { font-size: .78rem; direction: ltr; }
   }
   function revoke(tok) {
     ui.confirmRevoke = null;
-    sb.rpc("planner_device_revoke", { p_code: code, p_token: tok }).then(function (r) {
+    rpc("device_revoke", { p_code: code, p_token: tok }).then(function (r) {
       if (r.error) { toast("تعذّر إلغاء الربط: " + netError(r.error)); return; }
       toast("أُلغي ربط الجهاز"); loadDevices();
     }, function () { toast("تعذّر الاتصال. تأكد من الإنترنت."); });
@@ -1687,7 +1698,7 @@ details.box textarea { font-size: .78rem; direction: ltr; }
     if (syncing) { again = true; return; }
     if (!navigator.onLine) { cloud.status = "offline"; refreshCloud(); return; }
     syncing = true; cloud.status = "syncing"; refreshCloud();
-    sb.rpc("planner_get", { p_code: code }).then(function (r) {
+    rpc("get", { p_code: code }).then(function (r) {
       if (r.error) throw r.error;
       if (!r.data) { var gone = new Error("gone"); gone.gone = true; throw gone; }
       var row = r.data, base = row.base_date, todayKey = keyOf(today()), remote = {};
@@ -1721,7 +1732,7 @@ details.box textarea { font-size: .78rem; direction: ltr; }
       if (!upload) return;
       var data = { base_date: todayKey, settings: { categories: state.settings.categories, routines: state.settings.routines, updatedAt: state.settings.updatedAt || 0 } };
       windowKeys().forEach(function (k, i) { data[COLS[i]] = merged[k] ? toRemote(k, merged[k]) : null; });
-      return sb.rpc("planner_save", { p_code: code, p_data: data }).then(function (r2) {
+      return rpc("save", { p_code: code, p_data: data }).then(function (r2) {
         if (r2.error) throw r2.error;
         if (r2.data === false) throw new Error("لم يُعثر على صفك في السحابة. تأكد من الكود.");
         nudge();
@@ -1754,7 +1765,7 @@ details.box textarea { font-size: .78rem; direction: ltr; }
   function pairStop() { clearTimeout(pairTimer); ui.pair = null; }
   function pairStart() {
     cloud.msg = "";
-    sb.rpc("planner_pair_start").then(function (r) {
+    rpc("pair_start").then(function (r) {
       if (r.error || !r.data) { cloud.msg = "تعذّر إنشاء رمز الربط: " + netError(r.error); refreshCloud(); return; }
       ui.pair = { token: r.data, until: Date.now() + 10 * 60000 };
       render(); pairPoll();
@@ -1766,7 +1777,7 @@ details.box textarea { font-size: .78rem; direction: ltr; }
     if (Date.now() > ui.pair.until) { pairStop(); cloud.msg = "انتهت صلاحية الرمز. اضغط «اربط بجوالي عبر QR» لرمز جديد."; refreshCloud(); return; }
     pairTimer = setTimeout(function () {
       if (!ui.pair) return;
-      sb.rpc("planner_pair_take", { p_token: ui.pair.token, p_label: deviceLabel() }).then(function (r) {
+      rpc("pair_take", { p_token: ui.pair.token, p_label: deviceLabel() }).then(function (r) {
         if (!r.error && r.data && r.data.token) {
           pairStop(); setLink(r.data.token, "secondary", r.data.num);
           render(); toast("تم الربط ✓ هذا الجهاز رقم " + r.data.num); syncNow();
@@ -1789,7 +1800,7 @@ details.box textarea { font-size: .78rem; direction: ltr; }
       toast("افتح هذا الرابط على الجهاز المسؤول الأول");
       return;
     }
-    sb.rpc("planner_pair_approve", { p_token: cleanCode(m[2]), p_code: code }).then(function (r) {
+    rpc("pair_approve", { p_token: cleanCode(m[2]), p_code: code }).then(function (r) {
       if (r.error) { toast("تعذّر الربط: " + netError(r.error)); return; }
       toast(r.data ? "تم ربط الجهاز الآخر ✓" : "انتهت صلاحية الرمز، اطلب رمزًا جديدًا");
       if (r.data) setTimeout(loadDevices, 2500);
