@@ -342,6 +342,9 @@ details.box textarea { font-size: .78rem; direction: ltr; }
 .ghead .qctl { display: flex; gap: 4px; }
 .gok { color: var(--done); font-weight: 600; }
 .cat.me { color: var(--accent); font-weight: 600; }
+.admpanel { display: flex; flex-direction: column; gap: 10px; border: 1px solid var(--line); border-radius: 14px; padding: 12px; }
+.admpanel .stat small { font-size: .8rem; color: var(--muted); }
+.admpanel code { font-family: var(--font-mono); font-size: .85rem; }
 .sharebtn { width: 100%; border: 1px solid var(--line); font: inherit; text-align: start; cursor: pointer; }
 .gbad { color: var(--q-short); font-weight: 600; }
 /* Templates */
@@ -1477,6 +1480,63 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     return '<div class="banner"><span>🌷 مضى أسبوع مع «يومي». إن نفعك، فشاركه مع من تحب، والدال على الخير كفاعله.</span>' +
       '<span class="row-wrap"><button class="btn" data-act="shareApp">📤 شارك</button><button class="linkbtn" data-act="shareLater">ليس الآن</button></span></div>';
   }
+  /* ---------- ADMIN: accounts and devices on Supabase (supabase_v9.sql; codes never leave the server) ---------- */
+  function ago(ts) {
+    if (!ts) return "—";
+    var n = Math.floor((Date.now() - new Date(ts).getTime()) / 86400000);
+    return n <= 0 ? "اليوم" : n === 1 ? "أمس" : "منذ " + n + (n <= 10 ? " أيام" : " يومًا");
+  }
+  function kb(b) { return b >= 1048576 ? num(b / 1048576) + " م.ب" : Math.max(1, Math.round(b / 1024)) + " ك.ب"; }
+  function admLoad() {
+    if (!sb) { toast("الحفظ السحابي غير مفعّل"); return; }
+    ui.adm = { loading: true, dev: {} }; render();
+    Promise.all([rpc("admin_stats", { p_admin: adminKey }), rpc("admin_accounts", { p_admin: adminKey })]).then(function (r) {
+      if (r[0].error || r[1].error) { ui.adm = { err: r[0].error && r[0].error.code === "PGRST202" ? "شغّل ملف supabase_v9.sql في Supabase أولًا." : "تعذّر التحميل: " + netError(r[0].error || r[1].error) }; }
+      else if (!r[0].data) ui.adm = { err: "مفتاح المشرف غير صحيح." };
+      else ui.adm = { stats: r[0].data, accounts: arr(r[1].data), dev: {} };
+      render();
+    }, function () { ui.adm = { err: "تعذّر الاتصال. تأكد من الإنترنت." }; render(); });
+  }
+  function admDevices(id) {
+    if (ui.adm.dev[id]) { delete ui.adm.dev[id]; render(); return; }
+    rpc("admin_devices", { p_admin: adminKey, p_id: id }).then(function (r) { ui.adm.dev[id] = arr(r.data); render(); });
+  }
+  function admDelete(kind, id) {
+    rpc("admin_delete", { p_admin: adminKey, p_kind: kind, p_id: id }).then(function (r) {
+      ui.adm.confirm = null;
+      if (r.data) { toast(kind === "account" ? "حُذف الحساب من السحابة" : "فُصل الجهاز"); admLoad(); } else { toast("تعذّر الحذف"); render(); }
+    });
+  }
+  function adminPanelHtml() {
+    var a = ui.adm, h = '<div class="admpanel"><div class="sechead"><b>📊 إدارة الحسابات والأجهزة</b>' +
+      '<button class="linkbtn" data-act="admLoad">' + (a ? "تحديث" : "اعرض") + '</button></div>';
+    if (!a) return h + '<p class="small muted">إحصاءات وقائمة بالحسابات والأجهزة على Supabase وآخر نشاط لكلٍّ منها، دون أي محتوى أو كود.</p></div>';
+    if (a.loading) return h + '<p class="small muted">جارٍ التحميل…</p></div>';
+    if (a.err) return h + '<p class="err">' + esc(a.err) + '</p></div>';
+    var st = a.stats, idle = st.idle_days;
+    h += '<div class="stats"><div class="stat"><b>' + st.accounts_7 + '<small>/' + st.accounts + '</small></b><span>حسابات نشيطة هذا الأسبوع</span></div>' +
+      '<div class="stat"><b>' + st.devices_7 + '<small>/' + st.devices + '</small></b><span>أجهزة ثانوية نشيطة</span></div>' +
+      '<div class="stat"><b>' + st.push + '</b><span>اشتراك إشعارات</span></div></div>' +
+      '<p class="small">الحسابات النشيطة خلال ٣٠ يومًا: <b>' + st.accounts_30 + '</b>. بيانات الحسابات: <b>' + kb(st.data_bytes) + '</b>، وحجم القاعدة كلها ' + kb(st.db_bytes) + ' من ٥٠٠ م.ب المجانية.</p>' +
+      '<p class="small muted">يُحذف تلقائيًا كل يوم الحساب الذي لم يُفتح منذ ' + idle + ' يومًا، والجهاز الثانوي الذي لم يظهر منذ ' + idle + ' يومًا. بيانات المستخدمين على أجهزتهم لا تتأثر.</p>';
+    h += '<ul class="list">' + a.accounts.map(function (x) {
+      var days = Math.floor((Date.now() - new Date(x.updated_at).getTime()) / 86400000), devs = a.dev[x.id];
+      var tag = days >= idle - 7 ? '<span class="gbad">سيُحذف قريبًا</span>' : days >= 7 ? '<span class="muted">خامل</span>' : '<span class="gok">نشيط</span>';
+      return '<li class="card"><div class="top"><span class="ttl"><span><code>' + esc(x.id) + '</code> · ' + tag + '</span>' +
+        '<span class="small muted">آخر نشاط: ' + ago(x.updated_at) + ' · أُنشئ ' + shortDate(keyOf(new Date(x.created_at))) + ' · ' + kb(x.bytes) +
+        ' · أجهزة ثانوية: ' + x.devices + (x.devices_seen ? ' (آخرها ' + ago(x.devices_seen) + ')' : "") + ' · إشعارات: ' + x.push + '</span></span></div>' +
+        '<div class="row-wrap">' + (x.devices ? '<button class="ghost" data-act="admDev" data-id="' + esc(x.id) + '">' + (devs ? "إخفاء الأجهزة" : "الأجهزة") + '</button>' : "") +
+        (a.confirm === "account:" + x.id
+          ? '<button class="ghost danger" data-act="admDelYes" data-k="account" data-id="' + esc(x.id) + '">تأكيد حذف الحساب من السحابة</button><button class="ghost" data-act="admDelNo">تراجع</button>'
+          : '<button class="ghost danger" data-act="admDel" data-k="account" data-id="' + esc(x.id) + '">حذف</button>') + '</div>' +
+        (devs ? '<ul class="small" style="margin:0;padding-inline-start:18px">' + devs.map(function (dv) {
+          return '<li>جهاز رقم ' + dv.num + ' · ' + esc(dv.label || "جهاز") + ' · آخر ظهور: ' + ago(dv.last_seen) + ' ' +
+            (a.confirm === "device:" + dv.id ? '<button class="linkbtn" data-act="admDelYes" data-k="device" data-id="' + esc(dv.id) + '">تأكيد الفصل</button>'
+              : '<button class="linkbtn" data-act="admDel" data-k="device" data-id="' + esc(dv.id) + '">فصل</button>') + '</li>';
+        }).join("") + '</ul>' : "") + '</li>';
+    }).join("") + '</ul></div>';
+    return h;
+  }
   function quranSettingsHtml() {
     var g = qCfg();
     var h = '<section id="quran"><h2>📖 الحفظ والورد</h2><p class="muted small">عدّاد يومي لما تقرؤه وتحفظه وتراجعه بالصفحات، مع هدف لكل منها، ويتابع موضع ختمتك وعدد ما تحفظه.</p>' +
@@ -1973,7 +2033,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     var perm = "Notification" in window ? Notification.permission : "unsupported";
     var adminHtml = '<details class="box"' + (adminKey ? " open" : "") + '><summary>وضع المشرف (معلومة اليوم)</summary><div class="inner">' +
       (adminKey
-        ? '<p>أنت في وضع المشرف: يظهر زر «✏️ تعديل» على معلومة اليوم، وأي تعديل يراه كل المستخدمين.</p>' +
+        ? adminPanelHtml() + '<p>أنت في وضع المشرف: يظهر زر «✏️ تعديل» على معلومة اليوم، وأي تعديل يراه كل المستخدمين.</p>' +
           '<form class="stack" data-form="tipnew" style="gap:8px"><b>أضف معلومة جديدة</b><textarea id="tipNewBody" placeholder="نص المعلومة" style="min-height:70px"></textarea>' +
           '<input class="field" id="tipNewSource" placeholder="المصدر (اختياري)"><div class="row-wrap"><button class="btn" type="submit">أضف</button><button class="ghost" type="button" data-act="adminOut">خروج من وضع المشرف</button></div></form>'
         : '<p>اكتب «مفتاح المشرف» الذي ظهر لك في Supabase بعد تشغيل supabase_v6.sql.</p>' +
@@ -2469,6 +2529,11 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       case "prayOn": setPray({ on: !prayCfg().on }); break;
       case "focus": focusStart(it); break;
       case "tpl": tplApply(b.dataset.t); break;
+      case "admLoad": admLoad(); break;
+      case "admDev": admDevices(id); break;
+      case "admDel": ui.adm.confirm = b.dataset.k + ":" + id; render(); break;
+      case "admDelNo": ui.adm.confirm = null; render(); break;
+      case "admDelYes": admDelete(b.dataset.k, id); break;
       case "mine": ui.mine = b.dataset.v === "1"; try { localStorage.setItem(pkey("yawmi-mine"), ui.mine ? "1" : ""); } catch (e) {} render(); break;
       case "shareApp": shareApp(b.dataset.to); if (!b.dataset.to) render(); break;
       case "shareLater": try { localStorage.setItem("yawmi-share-asked", "later"); } catch (e) {} render(); break;
