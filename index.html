@@ -3221,7 +3221,25 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     }, 2000);
   }
   // Links opened from a scanned QR: #join=<code> (new device joins) or #pair=<token> (first owner approves)
+  // Tapping a task notification opens that day with the task open: #task=<date>:<id> (or a message from sw.js)
+  function openTask(k, id) {
+    var has = function (st) { return st && st.days && st.days[k] && arr(st.days[k].items).some(function (i) { return i.id === id; }); };
+    if (!has(state)) {
+      var other = profiles.list.filter(function (pf) {
+        if (pf.id === PROFILE) return false;
+        try { return has(JSON.parse(localStorage.getItem(pkey("daily-planner-v3", pf.id)) || "null")); } catch (e) { return false; }
+      })[0];
+      if (other) { profiles.active = other.id; saveProfiles(); location.hash = "task=" + k + ":" + id; location.reload(); return; }
+    }
+    var o = offsetOf(k);
+    if (o < -ARCHIVE || o > FUTURE) return;
+    save(); current = parseKey(k); ui.tab = "day"; ui.open = has(state) ? id : null; render();
+    var el = view.querySelector('[data-act="open"][data-id="' + id + '"]');
+    if (el) el.scrollIntoView({ block: "center" });
+  }
   function handleLink() {
+    var t = /^#task=(\d{4}-\d{2}-\d{2}):(.+)$/.exec(location.hash || "");
+    if (t) { try { history.replaceState(null, "", appUrl()); } catch (e) {} openTask(t[1], decodeURIComponent(t[2])); return; }
     var m = /^#(pair|join)=([a-z0-9-]+)$/i.exec(location.hash || "");
     if (!m) return;
     try { history.replaceState(null, "", appUrl()); } catch (e) {}
@@ -3244,6 +3262,10 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
 
   window.addEventListener("online", syncNow);
   window.addEventListener("offline", function () { if (code && sb) { cloud.status = "offline"; refreshCloud(); } });
+  if (navigator.serviceWorker) navigator.serviceWorker.addEventListener("message", function (e) {
+    var t = e.data && e.data.task && /^(\d{4}-\d{2}-\d{2}):(.+)$/.exec(e.data.task);
+    if (t) openTask(t[1], t[2]);
+  });
   document.addEventListener("visibilitychange", function () {
     if (document.hidden) return;
     pruneLocal(); // the 7-day window moves at midnight

@@ -1,7 +1,7 @@
 // Offline support: the app shell is served network-first (so updates arrive),
 // fonts and the Supabase library cache-first. Personal data never passes through here;
 // it lives in the browser's localStorage.
-var CACHE = "yawmi-v40";
+var CACHE = "yawmi-v41";
 var CORE = ["./", "index.html", "guide.html", "config.js", "manifest.webmanifest", "icon.svg", "icon-192.png", "icon-512.png"];
 
 self.addEventListener("install", function (e) {
@@ -55,10 +55,14 @@ self.addEventListener("push", function (e) {
     body: d.body || "", tag: d.tag || "yawmi", icon: "icon-192.png", badge: "icon-192.png", lang: "ar", dir: "rtl", renotify: true
   }));
 });
+// A task's tag is "<date>:<id>:<time>:<lead>": open that task in the app
 self.addEventListener("notificationclick", function (e) {
   e.notification.close();
+  var m = /^(\d{4}-\d{2}-\d{2}):([^:]+):/.exec(e.notification.tag || ""), task = m ? m[1] + ":" + m[2] : "";
   e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(function (list) {
-    for (var i = 0; i < list.length; i++) { if ("focus" in list[i]) return list[i].focus(); }
-    return self.clients.openWindow("./");
+    for (var i = 0; i < list.length; i++) {
+      if ("focus" in list[i]) { if (task) list[i].postMessage({ task: task }); return list[i].focus(); }
+    }
+    return self.clients.openWindow("./" + (task ? "#task=" + encodeURIComponent(task).replace("%3A", ":") : ""));
   }));
 });
