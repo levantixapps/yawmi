@@ -2324,7 +2324,8 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
         alerted[id] = true;
         var when = (many ? "[" + pf.name + "] " : "") + (al.lead ? "بعد " + al.lead + " دقائق" : "حان الوقت");
         if (al.sound !== false) chime();
-        notify(when + ": " + it.title, "الساعة " + it.time, k + ":" + it.id + ":" + it.time + ":" + (al.lead || 0));
+        // with server push on, the push already shows this one; a second would be a duplicate
+        if (!srv) notify(when + ": " + it.title, "الساعة " + it.time, k + ":" + it.id + ":" + it.time + ":" + (al.lead || 0));
         toast("⏰ " + when + ": " + it.title);
       });
     });
