@@ -955,11 +955,11 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     drawQr();
   }
   function drawQr() {
-    var box = $("qrBox");
-    if (!box) return;
-    if (typeof QRCode !== "function") { box.outerHTML = '<p class="err">تعذّر رسم رمز QR. تأكد من الإنترنت.</p>'; return; }
-    new QRCode(box, { text: box.dataset.qr, width: 200, height: 200, colorDark: "#000000", colorLight: "#FFFFFF", correctLevel: QRCode.CorrectLevel.M });
-    box.removeAttribute("title");
+    view.querySelectorAll(".qrbox[data-qr]").forEach(function (box) {
+      if (typeof QRCode !== "function") { box.outerHTML = '<p class="err">تعذّر رسم رمز QR. تأكد من الإنترنت.</p>'; return; }
+      new QRCode(box, { text: box.dataset.qr, width: 200, height: 200, colorDark: "#000000", colorLight: "#FFFFFF", correctLevel: QRCode.CorrectLevel.M });
+      box.removeAttribute("title");
+    });
   }
 
   /* ---------- PLAN ---------- */
@@ -1068,12 +1068,20 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   function qCfg() {
     var q = state.settings.quran || {};
     return { on: !!q.on, read: q.read == null ? 5 : q.read, hifz: q.hifz == null ? 1 : q.hifz, rev: q.rev == null ? 5 : q.rev,
-      page: q.page || 1, mem: q.mem || 0, khatmat: q.khatmat || 0 };
+      page: q.page || 1, hpage: q.hpage || 1, rpage: q.rpage || 1, mem: q.mem || 0, khatmat: q.khatmat || 0 };
   }
   function setQuran(ch) {
     var q = qCfg();
     Object.keys(ch).forEach(function (k) { q[k] = ch[k]; });
     state.settings.quran = q;
+  }
+  function qWrap(p) { return ((p - 1) % Q_PAGES + Q_PAGES) % Q_PAGES + 1; }
+  // Where today's remaining pages start, e.g. « · التالي: ص 120–122»
+  function qNext(g, f, left) {
+    var p = g[{ read: "page", hifz: "hpage", rev: "rpage" }[f]];
+    if (!(left > 0)) return " · وصلت إلى ص " + p;
+    var e = qWrap(p + left - 1);
+    return " · التالي: ص " + p + (left > 1 ? "–" + e : "");
   }
   function qDay(d) { var q = (d && d.quran) || {}; return { read: q.read || 0, hifz: q.hifz || 0, rev: q.rev || 0 }; }
   function qHas(d) { var q = qDay(d); return !!(q.read || q.hifz || q.rev); }
@@ -1112,7 +1120,8 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       setQuran({ khatmat: Math.floor(pos / Q_PAGES), page: pos % Q_PAGES + 1 });
       if (Math.floor(pos / Q_PAGES) > g.khatmat) toast("ختمت القرآن، تقبّل الله منك 🌷");
     }
-    else if (field === "hifz") setQuran({ mem: Math.max(0, Math.min(Q_PAGES, g.mem + diff)) });
+    else if (field === "hifz") setQuran({ mem: Math.max(0, Math.min(Q_PAGES, g.mem + diff)), hpage: qWrap(g.hpage + diff) });
+    else if (field === "rev") setQuran({ rpage: qWrap(g.rpage + diff) });
     commit();
   }
   function quranCard() {
@@ -1129,7 +1138,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
         '<span class="qctl"><button class="qbtn" data-act="qAdd" data-f="' + f[0] + '" data-v="-1" aria-label="أنقص صفحة">−</button>' +
         '<input class="field qnum" type="number" inputmode="numeric" min="0" max="' + Q_PAGES + '" value="' + v + '" data-act="qSet" data-f="' + f[0] + '" aria-label="' + f[1] + ' بالصفحات">' +
         '<button class="qbtn" data-act="qAdd" data-f="' + f[0] + '" data-v="1" aria-label="زد صفحة">+</button></span>' +
-        '<span class="qgoal">' + (goal ? (v >= goal ? "✓ " : "") + "من " + pagesText(goal) : "صفحة") + '</span>' +
+        '<span class="qgoal">' + (goal ? (v >= goal ? "✓ " : "") + "من " + pagesText(goal) : "صفحة") + qNext(g, f[0], goal - v) + '</span>' +
         (goal ? '<div class="bar"><i style="width:' + pct + '%"></i></div>' : "") + '</div>';
     });
     h += '<p class="small muted qfoot">الختمة: وصلت إلى صفحة <b>' + g.page + '</b> (الجزء ' + juzOf(g.page) + ')' + (g.khatmat ? ' · ختمت ' + g.khatmat + ' مرة' : "") +
@@ -1440,8 +1449,21 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   }
   /* ---------- SHARE THE APP ---------- */
   var SHARE_URL = "https://levantixapps.github.io/yawmi/";
-  function shareApp() {
-    var txt = "«يومي» تطبيق مجاني لتنظيم الوقت: خطّط صباحًا، وتابع خلال اليوم، وراجع مساءً. فيه أوقات الصلاة، ومتابعة الورد والحفظ، والأهداف، ومؤقت التركيز.";
+  var SHARE_HOW = {
+    pc: ["💻 للحاسوب", "على الحاسوب: افتح الرابط في متصفح Chrome أو Edge، ثم اضغط زر «تثبيت» ⊕ في آخر شريط العنوان، فيصير «يومي» تطبيقًا على حاسوبك."],
+    android: ["🤖 لأندرويد", "على أندرويد: افتح الرابط في Chrome، ثم اضغط ⋮ في الأعلى ← «تثبيت التطبيق» أو «إضافة إلى الشاشة الرئيسية»."],
+    ios: ["🍎 للآيفون", "على الآيفون: افتح الرابط في Safari (وليس من داخل واتساب)، ثم اضغط زر المشاركة ⬆️ في الأسفل ← «إضافة إلى الشاشة الرئيسية» ← «إضافة». وافتحه دائمًا من أيقونته لتعمل الإشعارات."]
+  };
+  function shareHtml() {
+    return '<details class="box"><summary>📤 شارك «يومي» مع من تحب</summary><div class="inner">' +
+      '<p class="small">اختر جهاز من ترسل إليه، فيُرسل الرابط مع طريقة التثبيت المناسبة له:</p><div class="row-wrap">' +
+      Object.keys(SHARE_HOW).map(function (k) { return '<button class="ghost" data-act="shareApp" data-to="' + k + '">' + SHARE_HOW[k][0] + '</button>'; }).join("") + '</div>' +
+      '<p class="small muted">أو امسح الرمز بكاميرا الجوال لفتح التطبيق مباشرة:</p><div class="qrbox" data-qr="' + SHARE_URL + '"></div>' +
+      '<ul class="small muted" style="margin:0;padding-inline-start:18px">' + Object.keys(SHARE_HOW).map(function (k) { return '<li>' + SHARE_HOW[k][1] + '</li>'; }).join("") + '</ul></div></details>';
+  }
+  function shareApp(to) {
+    var txt = "«يومي» تطبيق مجاني لتنظيم الوقت: خطّط صباحًا، وتابع خلال اليوم، وراجع مساءً. فيه أوقات الصلاة، ومتابعة الورد والحفظ، والأهداف، ومؤقت التركيز." +
+      "\n\n" + (SHARE_HOW[to] ? SHARE_HOW[to][1] : SHARE_HOW.android[1] + "\n" + SHARE_HOW.ios[1]);
     try { localStorage.setItem("yawmi-share-asked", "1"); } catch (e) {}
     if (navigator.share) { navigator.share({ title: "يومي", text: txt, url: SHARE_URL }).catch(function () {}); return; }
     try { navigator.clipboard.writeText(txt + "\n" + SHARE_URL).then(function () { toast("نُسخ الرابط، الصقه في واتساب أو أي مكان"); }, function () { toast(SHARE_URL); }); }
@@ -1466,9 +1488,11 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
         '<label>هدف القراءة اليومي ' + numIn("read", g.read, 604) + ' صفحة</label>' +
         '<label>هدف الحفظ الجديد ' + numIn("hifz", g.hifz, 20) + ' صفحة</label>' +
         '<label>هدف المراجعة ' + numIn("rev", g.rev, 604) + ' صفحة</label>' +
-        '<label>وصلت في ختمتي إلى صفحة ' + numIn("page", g.page, 604) + '</label>' +
+        '<label>أقرأ ابتداءً من صفحة ' + numIn("page", g.page, 604) + '</label>' +
+        '<label>أحفظ ابتداءً من صفحة ' + numIn("hpage", g.hpage, 604) + '</label>' +
+        '<label>أراجع ابتداءً من صفحة ' + numIn("rpage", g.rpage, 604) + '</label>' +
         '<label>أحفظ من القرآن ' + numIn("mem", g.mem, 604) + ' صفحة</label></div>' +
-        '<p class="small muted">اجعل الهدف ٠ لإخفاء عدّاده. الجزء نحو ٢٠ صفحة، والمصحف ٦٠٤ صفحات. ما تسجّله من قراءة يحرّك موضع الختمة تلقائيًا، وما تسجّله من حفظ يُضاف إلى محفوظك.</p>';
+        '<p class="small muted">اجعل الهدف ٠ لإخفاء عدّاده. الجزء نحو ٢٠ صفحة، والمصحف ٦٠٤ صفحات. كل صفحة تسجّلها تحرّك موضعها تلقائيًا، فيظهر لك في «جدولي» من أي صفحة تبدأ اليوم. وما تحفظه يُضاف إلى محفوظك.</p>';
     }
     return h + '</section>';
   }
@@ -1943,7 +1967,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   function settingsView() {
     var th = themeNow();
     var h = '<a class="guidelink" href="guide.html">📖 دليل استخدام «يومي» <span>كل الميزات خطوة بخطوة ←</span></a>' +
-      '<button class="guidelink sharebtn" data-act="shareApp">📤 شارك «يومي» مع من تحب <span>رابط التطبيق مجانًا ←</span></button>';
+      shareHtml();
     h += '<section><h2>المظهر</h2><div class="rangeseg">' + [["auto", "تلقائي"], ["light", "☀️ فاتح"], ["dark", "🌙 غامق"]].map(function (o) {
       return '<button data-act="theme" data-t="' + o[0] + '" aria-pressed="' + (th === o[0]) + '">' + o[1] + '</button>';
     }).join("") + '</div><p class="small muted">«تلقائي» يتبع إعداد جهازك.</p></section>';
@@ -2447,7 +2471,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       case "focus": focusStart(it); break;
       case "tpl": tplApply(b.dataset.t); break;
       case "mine": ui.mine = b.dataset.v === "1"; try { localStorage.setItem(pkey("yawmi-mine"), ui.mine ? "1" : ""); } catch (e) {} render(); break;
-      case "shareApp": shareApp(); render(); break;
+      case "shareApp": shareApp(b.dataset.to); if (!b.dataset.to) render(); break;
       case "shareLater": try { localStorage.setItem("yawmi-share-asked", "later"); } catch (e) {} render(); break;
       case "gPer": ui.gPer = b.dataset.v; view.querySelectorAll('[data-act="gPer"]').forEach(function (x) { x.setAttribute("aria-pressed", x.dataset.v === ui.gPer); }); break;
       case "goalAdd": var ga = goals().filter(function (g) { return g.id === id; })[0]; if (ga) { ga.prog = Math.max(0, (ga.prog || 0) + +b.dataset.v); commit(); } break;
@@ -2573,7 +2597,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     else if (t.id === "gHow") ui.gHow = t.value;
     else if (act === "qSet") qChange(dk(), t.dataset.f, +t.value);
     else if (act === "qCfg") {
-      var qmax = t.dataset.f === "hifz" ? 20 : Q_PAGES, qmin = t.dataset.f === "page" ? 1 : 0, qv = Math.max(qmin, Math.min(qmax, Math.round(+t.value) || 0)), qc = {};
+      var qmax = t.dataset.f === "hifz" ? 20 : Q_PAGES, qmin = /page$/.test(t.dataset.f) ? 1 : 0, qv = Math.max(qmin, Math.min(qmax, Math.round(+t.value) || 0)), qc = {};
       qc[t.dataset.f] = qv; setQuran(qc); commit();
     }
     else if (act === "prayBlock") setPray({ block: +t.value });
@@ -2897,13 +2921,14 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     uploadTimer = setTimeout(syncNow, 1500);
   }
   // A content-free "changed" ping on the row's own random channel; the other devices then pull
-  var chan = null;
+  var chan = null, live = false, lastPoll = 0;
   function liveInit() {
+    live = false;
     if (chan) { try { sb.removeChannel(chan); } catch (e) {} chan = null; }
     if (!sb || !code || !cloud.chan) return;
     try {
       chan = sb.channel("yawmi-" + cloud.chan, { config: { broadcast: { self: false } } });
-      chan.on("broadcast", { event: "changed" }, function () { syncNow(); }).subscribe();
+      chan.on("broadcast", { event: "changed" }, function () { syncNow(); }).subscribe(function (st) { live = st === "SUBSCRIBED"; });
     } catch (e) { chan = null; }
   }
   function nudge() { try { if (chan) chan.send({ type: "broadcast", event: "changed", payload: {} }); } catch (e) {} }
@@ -3166,7 +3191,12 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     syncNow();
     softRender();
   });
-  setInterval(function () { if (!document.hidden) syncNow(); }, 60000);
+  // While the live channel is connected, other devices announce their changes, so a full check every 10 minutes is enough
+  // (this keeps Supabase download traffic low); without it, check every minute.
+  setInterval(function () {
+    if (document.hidden || Date.now() - lastPoll < (live ? 600000 : 60000) - 2000) return;
+    lastPoll = Date.now(); syncNow();
+  }, 60000);
 
   // Refresh the "now" highlight each minute, unless the user is typing
   setInterval(function () { if (ui.tab === "day" && !isTyping()) render(); }, 60000);
