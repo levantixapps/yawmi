@@ -88,14 +88,16 @@ section, .stack { display: flex; flex-direction: column; gap: 10px; }
 .profrow { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .profrow .field { flex: 1 1 140px; }
 .profrow .now { font-size: .78rem; font-weight: 700; color: var(--done); }
-.brandbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-block: 14px 0; }
+.brandbar { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; padding-block: 14px 0; }
 .brandbar .app { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--ink); }
 .brandbar .app img { width: 40px; height: 40px; border-radius: 11px; flex: none; }
-.brandbar .bt { display: flex; flex-direction: column; line-height: 1.1; }
-.brandbar .bt b { font-family: var(--font-display); font-weight: 800; font-size: 1.3rem; }
-.brandbar .bt small { font-size: .72rem; color: var(--muted); letter-spacing: .02em; direction: ltr; text-align: right; }
-.brandbar .who { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; min-width: 0; }
-.brandbar .who .hello { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 46vw; }
+.brandbar .bt { display: flex; flex-direction: column; align-items: center; line-height: 1.05; }
+.brandbar .bt b { font-family: var(--font-display); font-weight: 800; font-size: 1.35rem; }
+.brandbar .bt small { margin-top: 3px; padding-top: 3px; border-top: 1px solid var(--line); font-family: var(--font-mono); font-size: .58rem; font-weight: 600; color: var(--muted); letter-spacing: .14em; direction: ltr; }
+.brandbar .hello { margin: 0; text-align: center; display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
+.brandbar .hello .g { font-size: .78rem; color: var(--muted); }
+.brandbar .hello .nm { font-family: var(--font-display); font-weight: 700; font-size: 1.05rem; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.brandbar .who { display: flex; justify-content: flex-end; }
 .daybar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding-block: 10px 10px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--line); }
 .daybar .title { flex: 1; min-width: 0; }
 .daybar h1 { margin: 0; font-family: var(--font-display); font-size: 1.35rem; font-weight: 700; line-height: 1.2; }
@@ -347,8 +349,8 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       <img src="icon.svg" alt="" width="40" height="40">
       <span class="bt"><b>يومي</b><small>levantixapps</small></span>
     </a>
+    <p class="hello" id="hello" aria-live="polite"></p>
     <div class="who">
-      <span class="hello" id="hello"></span>
       <button class="profchip" id="profBtn" aria-label="الحسابات" aria-haspopup="menu"><span id="profName"></span> ▾</button>
     </div>
     <div class="profmenu" id="profMenu" role="menu" hidden></div>
@@ -1951,7 +1953,9 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   }
   function renderProfile() {
     $("profName").textContent = profileName();
-    $("hello").textContent = userName ? "أهلًا، " + userName : "";
+    var hr = new Date().getHours();
+    var g = hr >= 4 && hr < 12 ? "صباح الخير" : hr >= 12 && hr < 17 ? "طاب يومك" : "مساء الخير";
+    $("hello").innerHTML = userName ? '<span class="g">' + g + '</span><span class="nm">' + esc(userName) + ' 🌷</span>' : "";
   }
   function setUserName(v) {
     userName = (v || "").trim().slice(0, 30);
@@ -2351,6 +2355,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     if (o < -ARCHIVE || o > SPAN) current = today();
     persist();
     loadTip();
+    renderProfile();
     syncNow();
     softRender();
   });
