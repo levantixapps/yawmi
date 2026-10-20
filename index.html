@@ -940,6 +940,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     if (ui.tab === "day" || ui.tab === "plan") html += tipHtml();
     if (!userName && ui.tab !== "settings") {
       html += '<form class="namecard" data-form="uname"><b>أهلًا بك في «يومي» 👋 ما اسمك؟</b>' +
+        (teamPending() ? '<span class="small"><b>👥 بعد كتابة اسمك تنضم إلى الفريق تلقائيًا.</b></span>' : "") +
         '<span class="small muted">يظهر اسمك في أعلى التطبيق، ويعرف به المسؤول من أجرى كل تغيير إن شاركت الحساب.</span>' +
         '<div class="addform"><input class="field grow" id="unameInput" type="text" placeholder="اسمك" autocomplete="given-name"><button class="btn" type="submit">حفظ</button></div></form>';
     }
@@ -1490,10 +1491,11 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   function admLoad() {
     if (!sb) { toast("الحفظ السحابي غير مفعّل"); return; }
     ui.adm = { loading: true, dev: {} }; render();
-    Promise.all([rpc("admin_stats", { p_admin: adminKey }), rpc("admin_accounts", { p_admin: adminKey })]).then(function (r) {
+    var keep = ui.adm || {};
+    Promise.all([rpc("admin_stats", { p_admin: adminKey }), rpc("admin_accounts", { p_admin: adminKey }), sb.rpc("yawmi_admin_teams", { p_admin: adminKey })]).then(function (r) {
       if (r[0].error || r[1].error) { ui.adm = { err: r[0].error && r[0].error.code === "PGRST202" ? "شغّل ملف supabase_v9.sql في Supabase أولًا." : "تعذّر التحميل: " + netError(r[0].error || r[1].error) }; }
       else if (!r[0].data) ui.adm = { err: "مفتاح المشرف غير صحيح." };
-      else ui.adm = { stats: r[0].data, accounts: arr(r[1].data), dev: {} };
+      else ui.adm = { stats: r[0].data, accounts: arr(r[1].data), teams: r[2].error ? null : arr(r[2].data), dev: {}, hours: keep.hours || {} };
       render();
     }, function () { ui.adm = { err: "تعذّر الاتصال. تأكد من الإنترنت." }; render(); });
   }
@@ -1507,15 +1509,54 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       if (r.data) { toast(kind === "account" ? "حُذف الحساب من السحابة" : "فُصل الجهاز"); admLoad(); } else { toast("تعذّر الحذف"); render(); }
     });
   }
-  // Teams (supabase_v10.sql): add a member under a leader, or take them out
-  function admTeam(op, leader, member) {
-    if (!member) { toast("اختر التابع"); return; }
-    sb.rpc("yawmi_admin_" + op, { p_admin: adminKey, p_leader: leader, p_member: member }).then(function (r) {
-      if (r.error) { toast(r.error.code === "PGRST202" ? "شغّل ملف supabase_v10.sql في Supabase أولًا" : "تعذّر: " + netError(r.error)); return; }
-      if (!r.data) { toast(op === "link" ? "تعذّر الربط" : "تعذّر فك الربط"); return; }
-      toast(op === "link" ? "تم الربط ✓ يصل حساب الفريق إلى كلٍّ منهما حين يفتح التطبيق" : "فُكّ الربط");
-      admLoad();
+  // Teams (supabase_v11.sql): named teams, each with a leader, members and an invite link that expires
+  function admTeam(fn, args, ok) {
+    args.p_admin = adminKey;
+    sb.rpc("yawmi_admin_team_" + fn, args).then(function (r) {
+      if (r.error) { toast(r.error.code === "PGRST202" ? "شغّل ملف supabase_v11.sql في Supabase أولًا" : "تعذّر: " + netError(r.error)); return; }
+      if (r.data === null || r.data === false) { toast("تعذّر، حدّث اللوحة وأعد المحاولة"); return; }
+      if (ok) toast(ok);
+      ui.adm.confirm = null; admLoad();
     }, function () { toast("تعذّر الاتصال. تأكد من الإنترنت."); });
+  }
+  function teamUrl(tk) { return appUrl() + "#team=" + tk; }
+  var INVITE_HOURS = [[1, "ساعة"], [6, "٦ ساعات"], [24, "يوم"], [72, "٣ أيام"], [168, "٧ أيام"]];
+  function untilText(ts) {
+    var d = new Date(ts), mins = Math.round((d.getTime() - Date.now()) / 60000);
+    return mins < 60 ? "بعد " + Math.max(1, mins) + " دقيقة" : (keyOf(d) === keyOf(new Date()) ? "اليوم " : shortDate(keyOf(d)) + " ") + stamp(d.getTime());
+  }
+  function admTeamsHtml(a) {
+    var who = function (p) { return esc(p.name || p.id); };
+    var people = a.accounts.map(function (y) { return '<option value="' + esc(y.id) + '">' + who(y) + (y.label ? " · " + esc(y.label) : "") + '</option>'; }).join("");
+    var h = '<h3 style="margin-top:10px">👥 الفرق</h3>' +
+      '<div class="addform"><input class="field grow" id="admTeamName" type="text" maxlength="40" placeholder="اسم الفريق، مثل: فريق المبيعات" autocomplete="off">' +
+      '<select class="field" id="admTeamLead"><option value="">المسؤول…</option>' + people + '</select><button class="btn" data-act="admTeamNew">أنشئ</button></div>';
+    if (!a.teams.length) return h + '<p class="small muted">لا توجد فرق بعد. أنشئ فريقًا واختر مسؤوله، ثم أرسل رابط الدعوة للأعضاء، أو أضفهم من القائمة.</p>';
+    return h + '<ul class="list">' + a.teams.map(function (t) {
+      var mem = arr(t.members), hrs = a.hours[t.id] || 24;
+      var others = a.accounts.filter(function (y) { return y.id !== t.leader_id && !mem.some(function (m) { return m.id === y.id; }); });
+      var inv = t.invite
+        ? '<div class="small">🔗 رابط الدعوة، ينتهي ' + untilText(t.invite_until) + ':</div><div class="tip ltr small" style="user-select:all;word-break:break-all">' + esc(teamUrl(t.invite)) + '</div>' +
+          '<div class="row-wrap"><button class="ghost" data-act="admInvCopy" data-id="' + esc(t.invite) + '">📋 انسخ الرابط</button><button class="ghost" data-act="admInvShare" data-id="' + esc(t.invite) + '" data-n="' + esc(t.name) + '">📤 أرسله</button><button class="ghost danger" data-act="admInvStop" data-id="' + esc(t.id) + '">إيقاف الرابط</button></div>'
+        : '<div class="addform"><span class="small">رابط دعوة صالح لمدة</span><select class="field" data-act="admInvHrs" data-id="' + esc(t.id) + '">' + INVITE_HOURS.map(function (o) {
+            return '<option value="' + o[0] + '"' + (o[0] === hrs ? " selected" : "") + '>' + o[1] + '</option>';
+          }).join("") + '</select><button class="ghost" data-act="admInvNew" data-id="' + esc(t.id) + '">🔗 أنشئ رابطًا</button></div>';
+      return '<li class="card"><div class="top"><span class="ttl"><span><b>' + esc(t.name) + '</b> · المسؤول: <b>' + esc(t.leader_name || t.leader_id) + '</b>' + (t.leader_taken ? "" : ' <span class="muted">(⏳ لم يصله بعد)</span>') + '</span>' +
+        '<span class="small muted">آخر نشاط: ' + ago(t.updated_at) + ' · التابعون: ' + mem.length + '</span></span></div>' +
+        (mem.length ? '<ul class="small" style="margin:0;padding-inline-start:18px">' + mem.map(function (m) {
+          var k = "trm:" + t.id + ":" + m.id;
+          return '<li>' + who(m) + ' · ' + esc(m.label || "جهاز") + ' · ' + (m.taken ? "آخر ظهور: " + ago(m.seen) : "⏳ لم يفتح التطبيق بعد") + ' ' +
+            (a.confirm === k ? '<button class="linkbtn" data-act="admTeamRmYes" data-id="' + esc(t.id) + '" data-m="' + esc(m.id) + '">تأكيد الإزالة</button>'
+              : '<button class="linkbtn" data-act="admDel" data-k="trm" data-id="' + esc(t.id + ":" + m.id) + '">إزالة</button>') + '</li>';
+        }).join("") + '</ul>' : "") +
+        (others.length ? '<div class="addform"><select class="field grow" id="admAdd-' + esc(t.id) + '"><option value="">أضف شخصًا إلى الفريق…</option>' + others.map(function (y) {
+          return '<option value="' + esc(y.id) + '">' + who(y) + (y.label ? " · " + esc(y.label) : "") + '</option>';
+        }).join("") + '</select><button class="ghost" data-act="admTeamAdd" data-id="' + esc(t.id) + '">أضف</button></div>' : "") +
+        inv +
+        '<div class="row-wrap">' + (a.confirm === "account:" + t.id
+          ? '<button class="ghost danger" data-act="admDelYes" data-k="account" data-id="' + esc(t.id) + '">تأكيد حذف الفريق ومهامه</button><button class="ghost" data-act="admDelNo">تراجع</button>'
+          : '<button class="linkbtn" data-act="admDel" data-k="account" data-id="' + esc(t.id) + '">حذف الفريق</button>') + '</div></li>';
+    }).join("") + '</ul>';
   }
   function adminPanelHtml() {
     var a = ui.adm, h = '<div class="admpanel"><div class="sechead"><b>📊 إدارة الحسابات والأجهزة</b>' +
@@ -1530,30 +1571,21 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       (st.teams != null ? '<div class="stat"><b>' + st.teams + '</b><span>فرق</span></div>' : "") + '</div>' +
       '<p class="small">الحسابات النشيطة خلال ٣٠ يومًا: <b>' + st.accounts_30 + '</b>. بيانات الحسابات: <b>' + kb(st.data_bytes) + '</b>، وحجم القاعدة كلها ' + kb(st.db_bytes) + ' من ٥٠٠ م.ب المجانية.</p>' +
       '<p class="small muted">يُحذف تلقائيًا كل يوم الحساب الذي لم يُفتح منذ ' + idle + ' يومًا، والجهاز الثانوي الذي لم يظهر منذ ' + idle + ' يومًا. بيانات المستخدمين على أجهزتهم لا تتأثر.</p>';
-    h += '<ul class="list">' + a.accounts.map(function (x) {
+    if (a.teams) h += admTeamsHtml(a);
+    else h += '<p class="small muted">لإنشاء الفرق وروابط الدعوة، شغّل ملفي supabase_v10.sql ثم supabase_v11.sql في Supabase.</p>';
+    h += '<h3 style="margin-top:10px">الأشخاص</h3><ul class="list">' + a.accounts.map(function (x) {
       var days = Math.floor((Date.now() - new Date(x.updated_at).getTime()) / 86400000), devs = a.dev[x.id];
       var tag = days >= idle - 7 ? '<span class="gbad">سيُحذف قريبًا</span>' : days >= 7 ? '<span class="muted">خامل</span>' : '<span class="gok">نشيط</span>';
-      var mem = arr(x.members), lead = arr(x.leaders), who = function (p) { return esc(p.name || p.id); };
-      var teamH = mem.length ? '<div class="small"><b>👥 فريقه:</b><ul style="margin:2px 0;padding-inline-start:18px">' + mem.map(function (m) {
-        var k = "unlink:" + x.id + ":" + m.id;
-        return '<li>' + who(m) + ' · جهاز رقم ' + m.num + ' · ' + esc(m.label || "جهاز") + ' · ' + (m.taken ? "آخر ظهور: " + ago(m.seen) : "⏳ لم يفتح التطبيق بعد") + ' ' +
-          (a.confirm === k ? '<button class="linkbtn" data-act="admUnlinkYes" data-id="' + esc(x.id) + '" data-m="' + esc(m.id) + '">تأكيد فك الربط</button>'
-            : '<button class="linkbtn" data-act="admDel" data-k="unlink" data-id="' + esc(x.id + ":" + m.id) + '">فك الربط</button>') + '</li>';
-      }).join("") + '</ul></div>' : "";
-      if (lead.length) teamH += '<div class="small">تابع لـ: <b>' + lead.map(who).join("، ") + '</b></div>';
-      if (a.linking === x.id) {
-        var opts = a.accounts.filter(function (y) { return y.id !== x.id && !mem.some(function (m) { return m.id === y.id; }); });
-        teamH += '<div class="addform"><select class="field grow" id="admLinkSel"><option value="">اختر التابع…</option>' + opts.map(function (y) {
-          return '<option value="' + esc(y.id) + '">' + who(y) + (y.label ? " · " + esc(y.label) : "") + '</option>';
-        }).join("") + '</select><button class="btn" data-act="admLinkDo" data-id="' + esc(x.id) + '">ربط</button><button class="ghost" data-act="admLinkNo">إلغاء</button></div>';
-      }
+      var leads = arr(a.teams).filter(function (t) { return t.leader_id === x.id; }), mem = leads;
+      var ins = arr(a.teams).filter(function (t) { return arr(t.members).some(function (m) { return m.id === x.id; }); });
+      var teamH = (leads.length ? '<div class="small">👥 مسؤول عن: <b>' + leads.map(function (t) { return esc(t.name); }).join("، ") + '</b></div>' : "") +
+        (ins.length ? '<div class="small">تابع في: <b>' + ins.map(function (t) { return esc(t.name); }).join("، ") + '</b></div>' : "");
       return '<li class="card"><div class="top"><span class="ttl"><span><b>' + (x.name ? esc(x.name) : '<span class="muted">بلا اسم</span>') + '</b> · <code>' + esc(x.id) + '</code> · ' + tag + '</span>' +
         '<span class="small muted">' + (x.label ? esc(x.label) + ' · ' : "") + 'آخر نشاط: ' + ago(x.updated_at) + ' · أُنشئ ' + shortDate(keyOf(new Date(x.created_at))) + ' · ' + kb(x.bytes) +
         ' · أجهزة ثانوية: ' + x.devices + (x.devices_seen ? ' (آخرها ' + ago(x.devices_seen) + ')' : "") + ' · إشعارات: ' + x.push + '</span></span></div>' + teamH +
-        '<div class="row-wrap">' + (x.members && a.linking !== x.id ? '<button class="ghost" data-act="admLinkStart" data-id="' + esc(x.id) + '">👥 أضف تابعًا</button>' : "") +
-        (x.devices ? '<button class="ghost" data-act="admDev" data-id="' + esc(x.id) + '">' + (devs ? "إخفاء الأجهزة" : "الأجهزة") + '</button>' : "") +
+        '<div class="row-wrap">' + (x.devices ? '<button class="ghost" data-act="admDev" data-id="' + esc(x.id) + '">' + (devs ? "إخفاء الأجهزة" : "الأجهزة") + '</button>' : "") +
         (a.confirm === "account:" + x.id
-          ? '<button class="ghost danger" data-act="admDelYes" data-k="account" data-id="' + esc(x.id) + '">' + (mem.length ? "تأكيد حذف الحساب وفريقه من السحابة" : "تأكيد حذف الحساب من السحابة") + '</button><button class="ghost" data-act="admDelNo">تراجع</button>'
+          ? '<button class="ghost danger" data-act="admDelYes" data-k="account" data-id="' + esc(x.id) + '">' + (mem.length ? "تأكيد حذف الحساب وفرقه من السحابة" : "تأكيد حذف الحساب من السحابة") + '</button><button class="ghost" data-act="admDelNo">تراجع</button>'
           : '<button class="ghost danger" data-act="admDel" data-k="account" data-id="' + esc(x.id) + '">حذف</button>') + '</div>' +
         (devs ? '<ul class="small" style="margin:0;padding-inline-start:18px">' + devs.map(function (dv) {
           return '<li>جهاز رقم ' + dv.num + ' · ' + esc(dv.label || "جهاز") + ' · آخر ظهور: ' + ago(dv.last_seen) + ' ' +
@@ -2561,10 +2593,26 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       case "admDel": ui.adm.confirm = b.dataset.k + ":" + id; render(); break;
       case "admDelNo": ui.adm.confirm = null; render(); break;
       case "admDelYes": admDelete(b.dataset.k, id); break;
-      case "admLinkStart": ui.adm.linking = id; ui.adm.confirm = null; render(); break;
-      case "admLinkNo": ui.adm.linking = null; render(); break;
-      case "admLinkDo": admTeam("link", id, ($("admLinkSel") || {}).value); break;
-      case "admUnlinkYes": admTeam("unlink", id, b.dataset.m); break;
+      case "admTeamNew":
+        var tn = $("admTeamName").value.trim(), tl = $("admTeamLead").value;
+        if (!tn || !tl) { toast("اكتب اسم الفريق واختر مسؤوله"); break; }
+        admTeam("new", { p_leader: tl, p_name: tn }, "أُنشئ الفريق ✓ يصل إلى المسؤول حين يفتح التطبيق"); break;
+      case "admTeamAdd":
+        var tm = ($("admAdd-" + id) || {}).value;
+        if (!tm) { toast("اختر الشخص"); break; }
+        admTeam("add", { p_team: id, p_member: tm }, "أُضيف ✓ يصله حساب الفريق حين يفتح التطبيق"); break;
+      case "admTeamRmYes": admTeam("remove", { p_team: id, p_member: b.dataset.m }, "أُزيل من الفريق"); break;
+      case "admInvNew": admTeam("invite", { p_team: id, p_hours: ui.adm.hours[id] || 24 }, "أُنشئ رابط الدعوة ✓"); break;
+      case "admInvStop": admTeam("invite", { p_team: id, p_hours: 0 }, "أُوقف الرابط"); break;
+      case "admInvCopy":
+        try { navigator.clipboard.writeText(teamUrl(id)).then(function () { toast("نُسخ الرابط، الصقه في واتساب"); }, function () { toast("انسخ الرابط يدويًا"); }); }
+        catch (err) { toast("انسخ الرابط يدويًا"); }
+        break;
+      case "admInvShare":
+        var itxt = "انضم إلى «" + b.dataset.n + "» في تطبيق «يومي»: افتح الرابط واكتب اسمك.";
+        if (navigator.share) navigator.share({ title: "يومي", text: itxt, url: teamUrl(id) }).catch(function () {});
+        else try { navigator.clipboard.writeText(itxt + "\n" + teamUrl(id)).then(function () { toast("نُسخت الدعوة، الصقها في واتساب"); }, function () {}); } catch (err) {}
+        break;
       case "mine": ui.mine = b.dataset.v === "1"; try { localStorage.setItem(pkey("yawmi-mine"), ui.mine ? "1" : ""); } catch (e) {} render(); break;
       case "shareApp": shareApp(b.dataset.to); if (!b.dataset.to) render(); break;
       case "shareLater": try { localStorage.setItem("yawmi-share-asked", "later"); } catch (e) {} render(); break;
@@ -2666,6 +2714,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
 
   view.addEventListener("change", function (e) {
     var t = e.target, act = t.dataset.act, it = t.dataset.id ? find(t.dataset.id) : null;
+    if (act === "admInvHrs") { if (ui.adm) ui.adm.hours[t.dataset.id] = +t.value; return; }
     if (act === "done") {
       it.done = t.checked; it.spent = it.done ? (it.focus || it.dur) : null;
       if (it.done) { it.doneAt = new Date().toISOString(); it.doneBy = userName || (cloud.num ? "جهاز " + cloud.num : ""); }
@@ -3046,6 +3095,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     cloud.status = code ? "ok" : "nocode";
     if (code) { liveInit(); syncNow(); }
     teamInbox();
+    if (PROFILE === "main" && teamPending()) teamJoin(teamPending());
   }
   // Teams set up by the admin (supabase_v10.sql): the team account arrives by itself as a new account on this device,
   // "فريقي" for the leader and "فريق <leader>" for a member. Each account here that is a first owner asks once per opening.
@@ -3058,23 +3108,52 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       if (meta.role === "secondary") return;
       sb.rpc("yawmi_team_inbox", { p_key: c }).then(function (r) {
         arr(r.data).forEach(function (t) {
-          if (!codes[t.key]) {
-            var nid = "p" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
-            var nm = (t.kind === "lead" ? "فريقي" : "فريق " + (t.leader || "المسؤول")).slice(0, 30);
-            try {
-              localStorage.setItem(pkey("daily-planner-code", nid), t.key);
-              localStorage.setItem(pkey("daily-planner-link", nid), JSON.stringify({ role: t.kind === "lead" ? "primary" : "secondary", num: t.num, chan: "" }));
-              var un = localStorage.getItem(pkey("yawmi-username", pf.id));
-              if (un) localStorage.setItem(pkey("yawmi-username", nid), un);
-            } catch (e) { return; }
+          if (!codes[t.key] && addTeamProfile(t, pf.id)) {
             codes[t.key] = pf;
-            profiles.list.push({ id: nid, name: nm }); saveProfiles();
-            toast("👥 أُضيف حساب «" + nm + "». تجده في قائمة الحسابات أعلى الشاشة");
+            toast("👥 أُضيف حساب «" + teamTitle(t) + "». تجده في قائمة الحسابات أعلى الشاشة");
           }
           sb.rpc("yawmi_team_ack", { p_key: c, p_team: t.team }).then(function () {}, function () {});
         });
       }, function () {});
     });
+  }
+  function teamTitle(t) { return (t.name || (t.kind === "lead" ? "فريقي" : "فريق " + (t.leader || "المسؤول"))).slice(0, 30); }
+  // A team account becomes a new account on this device, named after the team; returns its id
+  function addTeamProfile(t, fromId) {
+    var have = profiles.list.filter(function (pf) { try { return localStorage.getItem(pkey("daily-planner-code", pf.id)) === t.key; } catch (e) { return false; } })[0];
+    if (have) return "";
+    var nid = "p" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+    try {
+      localStorage.setItem(pkey("daily-planner-code", nid), t.key);
+      localStorage.setItem(pkey("daily-planner-link", nid), JSON.stringify({ role: t.kind === "lead" ? "primary" : "secondary", num: t.num, chan: "" }));
+      var un = localStorage.getItem(pkey("yawmi-username", fromId));
+      if (un) localStorage.setItem(pkey("yawmi-username", nid), un);
+    } catch (e) { return ""; }
+    profiles.list.push({ id: nid, name: teamTitle(t) }); saveProfiles();
+    return nid;
+  }
+  // Invite link #team=<token>: joins with this device's personal account (the first one), made from the name if needed
+  var TEAM_PENDING = "yawmi-team-pending";
+  function teamPending() { try { return localStorage.getItem(TEAM_PENDING) || ""; } catch (e) { return ""; } }
+  function teamJoin(tk) {
+    var c = "", meta = {};
+    try { c = localStorage.getItem(pkey("daily-planner-code", "main")) || ""; meta = JSON.parse(localStorage.getItem(pkey("daily-planner-link", "main")) || "{}"); } catch (e) {}
+    if (!c || meta.role === "secondary") {
+      try { localStorage.setItem(TEAM_PENDING, tk); } catch (e) {}
+      if (PROFILE !== "main") { profiles.active = "main"; saveProfiles(); location.reload(); return; }
+      if (meta.role === "secondary" || c) { toast("هذا الجهاز مربوط بحساب شخص آخر، فلا يمكنه الانضمام إلى فريق"); try { localStorage.removeItem(TEAM_PENDING); } catch (e) {} return; }
+      if (userName) createCode(true); // joins once the account exists
+      else { ui.tab = "day"; render(); toast("👋 اكتب اسمك أولًا، ثم تنضم إلى الفريق تلقائيًا"); }
+      return;
+    }
+    try { localStorage.removeItem(TEAM_PENDING); } catch (e) {}
+    sb.rpc("yawmi_team_join", { p_key: c, p_token: tk, p_label: deviceLabel() }).then(function (r) {
+      if (r.error) { toast(r.error.code === "PGRST202" ? "الانضمام بالرابط غير مفعّل بعد على الخادم" : "تعذّر الانضمام: " + netError(r.error)); return; }
+      if (!r.data) { toast("رابط الفريق غير صحيح أو انتهت صلاحيته. اطلب رابطًا جديدًا."); return; }
+      var nid = addTeamProfile(r.data, "main");
+      toast("👥 انضممت إلى «" + teamTitle(r.data) + "» ✓");
+      if (nid) setTimeout(function () { switchProfile(nid); }, 1500);
+    }, function () { try { localStorage.setItem(TEAM_PENDING, tk); } catch (e) {} toast("تعذّر الاتصال. سننضم إلى الفريق عند عودة الإنترنت."); });
   }
   function netError(e) { return (e && e.message) || "تعذّر الاتصال بالخادم. تأكد من الإنترنت."; }
 
@@ -3085,6 +3164,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       setLink(r.data, "primary", 1);
       state.settings.updatedAt = state.settings.updatedAt || Date.now(); // upload this device's setup
       render(); if (!quiet) toast("أصبحت المسؤول الأول ✓"); syncNow();
+      if (PROFILE === "main" && teamPending()) teamJoin(teamPending());
     }, function (e) { cloud.msg = netError(e); refreshCloud(); });
   }
   function useCode(raw) {
@@ -3316,10 +3396,11 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   function handleLink() {
     var t = /^#task=(\d{4}-\d{2}-\d{2}):(.+)$/.exec(location.hash || "");
     if (t) { try { history.replaceState(null, "", appUrl()); } catch (e) {} openTask(t[1], decodeURIComponent(t[2])); return; }
-    var m = /^#(pair|join)=([a-z0-9-]+)$/i.exec(location.hash || "");
+    var m = /^#(pair|join|team)=([a-z0-9-]+)$/i.exec(location.hash || "");
     if (!m) return;
     try { history.replaceState(null, "", appUrl()); } catch (e) {}
     if (!sb) { toast("الحفظ السحابي غير مفعّل على هذا الجهاز"); return; }
+    if (m[1].toLowerCase() === "team") { teamJoin(cleanCode(m[2])); return; }
     if (m[1].toLowerCase() === "join") {
       if (code) { toast("هذا الجهاز مربوط بالفعل"); return; }
       ui.tab = "settings"; render(); joinWith(m[2]); return;

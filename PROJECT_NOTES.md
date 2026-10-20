@@ -126,6 +126,8 @@
 - المشرف يختار مسؤولًا ← «أضف تابعًا» (`yawmi_admin_link`). للمسؤول حساب فريق واحد مستقل (`yawmi_accounts.team_leader`)، والتابع جهاز ثانوي فيه (`yawmi_team_members`).
 - عند فتح التطبيق يسأل كل حساب «مسؤول أول» على الجهاز `yawmi_team_inbox`، فيُضاف حساب «فريقي» للمسؤول أو «فريق <الاسم>» للتابع، ثم `yawmi_team_ack`. إعادة الربط من اللوحة ترسله من جديد (لا يتكرر إن كان موجودًا).
 - حذف حساب المسؤول يحذف فريقه (cascade). التنظيف لا يحذف مسؤولًا فريقه نشيط. والتابع الذي لا يفتح الفريق ٣٠ يومًا يُفصل كأي جهاز ثانوي.
+- **منذ v11:** فرق بأسماء (`team_name`)، وللمسؤول أكثر من فريق. اللوحة فيها قسم «👥 الفرق»: إنشاء فريق ومسؤوله (`yawmi_admin_team_new`)، إضافة/إزالة شخص (`_team_add` / `_team_remove`)، ورابط دعوة `#team=<token>` لمدة ساعة إلى ٧ أيام أو إيقافه (`_team_invite`، `invite_token`/`invite_until`). دوال v10 `yawmi_admin_link/unlink` حُذفت.
+- فتح الرابط: `teamJoin()` ينضم بكود الحساب الأول على الجهاز (`main`)؛ إن لم يوجد يُحفظ الرمز في `yawmi-team-pending` حتى يكتب الشخص اسمه ويُنشأ حسابه، ثم `yawmi_team_join` ويُضاف حساب الفريق وينتقل إليه.
 - الدوال الجديدة تُستدعى بـ `sb.rpc` مباشرة لا `rpc()`، لأن `rpc()` يتحول للأسماء القديمة `planner_*` عند خطأ PGRST202.
 - الضغط على إشعار مهمة يفتحها: وسم الإشعار `<date>:<id>:<time>:<lead>`، و`sw.js` يرسل للتطبيق المفتوح رسالة `{task}` أو يفتح `#task=<date>:<id>`، و`openTask()` ينتقل إلى ذلك اليوم ويفتح البند (ويبدّل الحساب إن كانت المهمة في حساب آخر على الجهاز).
 
@@ -146,8 +148,9 @@
 | `supabase_v9.sql` | تنظيف يومي (حساب خامل ٣٠ يومًا يُحذف مع أجهزته واشتراكاته، وجهاز ثانوي خامل ٣٠ يومًا يُفصل، وسجل cron أقدم من يومين)، ولوحة إدارة للمشرف، وإشعارات بلا جدول سجل (`sent_until`) |
 
 | `supabase_v10.sql` | الفرق: اسم صاحب الحساب ونوع جهازه، وربط تابع بمسؤول من لوحة المشرف (`yawmi_team_members`) |
+| `supabase_v11.sql` | فرق بأسماء، وأكثر من فريق للمسؤول، ورابط دعوة لكل فريق ينتهي بعد مدة |
 
-(لا يوجد v3، فقد دُمج في v4.) **كلها مُشغَّلة على المشروع الحالي، ما عدا v9 وv10 حتى يشغّلهما المالك.**
+(لا يوجد v3، فقد دُمج في v4.) **كلها مُشغَّلة على المشروع الحالي، ما عدا v9 وv10 وv11 حتى يشغّلها المالك.**
 
 ### الجداول
 | الجدول | محتواه |
@@ -163,7 +166,8 @@
 كل الجداول مغلقة (RLS + سحب الصلاحيات)، والوصول فقط عبر دوال `yawmi_*` (security definer). من يعرف كود الحساب فقط يصل إلى صفه.
 
 ### الدوال العامة
-`yawmi_create` · `yawmi_get` · `yawmi_save` · `yawmi_invite` · `yawmi_join` · `yawmi_pair_start` · `yawmi_pair_approve` · `yawmi_pair_take` · `yawmi_devices_list` · `yawmi_device_revoke` · `yawmi_device_name` · `yawmi_log_add` · `yawmi_push_save` · `yawmi_push_unsub` · `yawmi_push_delete` · `yawmi_tip_for` · `yawmi_tip_save` · `yawmi_tip_hide` · `yawmi_admin_check` · `yawmi_push_status` · `yawmi_admin_stats` · `yawmi_admin_accounts` · `yawmi_admin_devices` · `yawmi_admin_delete` · `yawmi_whoami` · `yawmi_team_inbox` · `yawmi_team_ack` · `yawmi_admin_link` · `yawmi_admin_unlink`.
+`yawmi_create` · `yawmi_get` · `yawmi_save` · `yawmi_invite` · `yawmi_join` · `yawmi_pair_start` · `yawmi_pair_approve` · `yawmi_pair_take` · `yawmi_devices_list` · `yawmi_device_revoke` · `yawmi_device_name` · `yawmi_log_add` · `yawmi_push_save` · `yawmi_push_unsub` · `yawmi_push_delete` · `yawmi_tip_for` · `yawmi_tip_save` · `yawmi_tip_hide` · `yawmi_admin_check` · `yawmi_push_status` · `yawmi_admin_stats` · `yawmi_admin_accounts` · `yawmi_admin_devices` · `yawmi_admin_delete` · `yawmi_whoami` · `yawmi_team_inbox` · `yawmi_team_ack` · `yawmi_team_join` · `yawmi_admin_teams` · `yawmi_admin_team_new` · `yawmi_admin_team_add` · `yawmi_admin_team_remove` · `yawmi_admin_team_invite`.
+داخلية أيضًا: `yawmi_team_add_member` · `yawmi_team_title`.
 داخلية (لا يستدعيها التطبيق): `yawmi_rand` · `yawmi_resolve` · `yawmi_add_device` · `yawmi_push_due` · `yawmi_push_target`.
 
 ### إعدادات Supabase الأخرى
