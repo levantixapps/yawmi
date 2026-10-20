@@ -418,7 +418,8 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   var NAME_KEY = pkey("yawmi-username"), LOG_KEY = pkey("yawmi-pendinglog");
   var userName = "";
   try { userName = localStorage.getItem(NAME_KEY) || ""; } catch (e) {}
-  var SPAN = 3; // days kept before and after today
+  var SPAN = 3; // days kept in the cloud before and after today
+  var FUTURE = 365; // days ahead you can plan on this device; they sync once within SPAN
   var CFG = window.PLANNER_CONFIG || {};
   var $ = function (id) { return document.getElementById(id); };
   var view = $("view");
@@ -569,7 +570,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   }
   // The cloud keeps 7 days; this device keeps an archive of past days (up to a year)
   var ARCHIVE = 365;
-  function inArchive(k) { var o = offsetOf(k); return o >= -ARCHIVE && o <= SPAN; }
+  function inArchive(k) { var o = offsetOf(k); return o >= -ARCHIVE && o <= FUTURE; }
   // Change log: queued on the device, uploaded with the next sync, read by the first owner
   var pendingLog = {};
   try { pendingLog = JSON.parse(localStorage.getItem(LOG_KEY) || "{}") || {}; } catch (e) {}
@@ -703,7 +704,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     $("dayDate").textContent = dateLine(current);
     $("goToday").hidden = diff === 0;
     $("prev").disabled = diff <= -ARCHIVE;
-    $("next").disabled = diff >= SPAN;
+    $("next").disabled = diff >= FUTURE;
     document.querySelectorAll(".tab").forEach(function (b) { b.setAttribute("aria-current", b.dataset.tab === ui.tab ? "true" : "false"); });
     var dot = $("cloudDot");
     dot.hidden = cloud.status === "off" || cloud.status === "nocode";
@@ -726,6 +727,9 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       html += '<form class="namecard" data-form="uname"><b>أهلًا بك في «يومي» 👋 ما اسمك؟</b>' +
         '<span class="small muted">يظهر اسمك في أعلى التطبيق، ويعرف به المسؤول من أجرى كل تغيير إن شاركت الحساب.</span>' +
         '<div class="addform"><input class="field grow" id="unameInput" type="text" placeholder="اسمك" autocomplete="given-name"><button class="btn" type="submit">حفظ</button></div></form>';
+    }
+    if (offsetOf(dk()) > SPAN && ui.tab !== "settings") {
+      html += '<div class="banner"><span>📌 يوم قادم: ما تكتبه هنا محفوظ على هذا الجهاز فقط، ويُزامَن مع أجهزتك تلقائيًا قبل موعده بـ٣ أيام.</span><button class="linkbtn" data-act="goToday">ارجع إلى اليوم</button></div>';
     }
     if (offsetOf(dk()) < -SPAN && ui.tab !== "settings") {
       html += '<div class="banner"><span>هذا يوم من الأرشيف، محفوظ على هذا الجهاز فقط ولا يُرفع إلى السحابة.</span><button class="linkbtn" data-act="goToday">ارجع إلى اليوم</button></div>';
@@ -847,9 +851,15 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     items.forEach(function (i) { if (by[i.cat] == null) { by[i.cat] = 0; order.push(i.cat); } by[i.cat] += i.dur || 0; });
     return '<div class="catsum">' + order.map(function (c) { var o = catOf(c); return '<span class="cat" style="--cc:var(--c' + o.color + ')"><i></i>' + esc(o.name) + ' <b>' + fmtH(by[c]) + '</b></span>'; }).join("") + '</div>';
   }
+  function quickAddHtml(title, ph) {
+    return '<section><h2>' + title + '</h2><form class="addform" data-form="quick"><input class="field grow" id="quickTitle" type="text" placeholder="' + ph + '" autocomplete="off">' +
+      catSelect('id="quickCat"', ui.lastCat) + '<input class="field" id="quickTime" type="time" aria-label="الوقت (اختياري)"><button class="btn" type="submit">أضف</button></form>' +
+      '<p class="small muted">الوقت اختياري. وللملاحظة الطويلة اضغط على البند بعد إضافته واكتبها تحته.</p></section>';
+  }
   function dayView() {
     var d = day(), items = active(d);
-    if (!d.items.length) return sleepCard() + '<div class="empty"><p>لم تخطّط لهذا اليوم بعد.</p><button class="btn" data-act="tab" data-tab="plan">خطّط ليومك في ٤ خطوات</button></div>';
+    if (!d.items.length) return sleepCard() + '<div class="empty"><p>لم تخطّط لهذا اليوم بعد.</p><button class="btn" data-act="tab" data-tab="plan">خطّط ليومك في ٤ خطوات</button></div>' +
+      quickAddHtml("أو أضف مهمة أو ملاحظة سريعة", "مثل: موعد طبيب الأسنان");
     var st = dayStats(d), pct = Math.min(100, Math.round(st.rate * 100));
     var h = '<div class="progress"><span>إنجاز اليوم</span><div class="bar"><i style="width:' + pct + '%"></i></div><b>' + pct + '%</b></div>' + catSummary(items);
     var top = items.filter(function (i) { return i.top; });
@@ -871,8 +881,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     else h += '<ul class="timeline">' + timed.map(function (it) { return slot(it, nowId); }).join("") + '</ul>';
     h += '</section>';
     if (untimed.length) h += '<section><h2>بدون وقت</h2><ul class="timeline">' + untimed.map(function (it) { return slot(it, null); }).join("") + '</ul></section>';
-    var add = '<section><h2>أضف شيئًا طرأ</h2><form class="addform" data-form="quick"><input class="field grow" id="quickTitle" type="text" placeholder="ماذا طرأ؟" autocomplete="off">' +
-      catSelect('id="quickCat"', ui.lastCat) + '<input class="field" id="quickTime" type="time" aria-label="الوقت (اختياري)"><button class="btn" type="submit">أضف</button></form></section>';
+    var add = quickAddHtml("أضف شيئًا طرأ", "ماذا طرأ؟");
     return '<div class="daygrid"><div class="dtop">' + side + '</div><div class="dmain">' + h + '</div><div class="dbottom">' + add + '</div></div>';
   }
   function slot(it, nowId) {
@@ -1220,7 +1229,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       return '<button data-act="range" data-r="' + r[0] + '" aria-pressed="' + ((ui.range || "day") === r[0]) + '">' + r[1] + '</button>';
     }).join("") + '</div>';
     var n = ui.range === "week" ? 7 : ui.range === "month" ? 30 : 1;
-    var rg = exportRange(n), minK = keyOf(addDays(today(), -ARCHIVE)), maxK = keyOf(addDays(today(), SPAN));
+    var rg = exportRange(n), minK = keyOf(addDays(today(), -ARCHIVE)), maxK = keyOf(addDays(today(), FUTURE));
     var ex = '<div class="exportbar"><span class="small muted">صدّر تقريرًا بما أُنجز وما لم يُنجز، مع التاريخ والتوقيت. اختر الفترة:</span>' +
       '<label class="small muted">من <input class="field" type="date" data-act="expFrom" value="' + rg.from + '" min="' + minK + '" max="' + maxK + '"></label>' +
       '<label class="small muted">إلى <input class="field" type="date" data-act="expTo" value="' + rg.to + '" min="' + minK + '" max="' + maxK + '"></label>' +
@@ -1240,7 +1249,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     if (sm != null && sleepOn()) h += '<p class="small">😴 نمت ' + fmtH(sm) + (d.sleep.wake ? '، واستيقظت ' + fmt12(d.sleep.wake) + (wokeEarly(d) ? ' مبكرًا ✓' : '') : '') + '.</p>';
     h += '<div class="stats"><div class="stat"><b>' + items.filter(function (i) { return i.done; }).length + '/' + items.length + '</b><span>بنود أُنجزت</span></div>' +
       '<div class="stat"><b>' + topDone + '/' + top.length + '</b><span>من أهم ٣</span></div><div class="stat"><b>' + left.length + '</b><span>متبقٍّ</span></div></div>';
-    var canMove = offsetOf(dk()) < SPAN;
+    var canMove = offsetOf(dk()) < FUTURE;
     h += '<section><div class="sechead"><h2>ما لم يُنجز</h2>' + (left.length && canMove ? '<button class="linkbtn" data-act="moveAll">انقل الكل للغد</button>' : "") + '</div>';
     if (!left.length) h += '<div class="empty">لا شيء متبقٍّ.</div>';
     else h += '<ul class="list">' + left.map(function (it) {
@@ -2029,7 +2038,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   $("setBtn").addEventListener("click", function () { ui.tab = "settings"; ui.open = null; render(); window.scrollTo(0, 0); loadDevices(); });
   function goTo(nd) {
     var o = offsetOf(keyOf(nd));
-    if (o < -ARCHIVE || o > SPAN) { toast(o > SPAN ? "يمكنك التخطيط حتى ٣ أيام قادمة" : "الأرشيف يحفظ سنة واحدة"); return; }
+    if (o < -ARCHIVE || o > FUTURE) { toast(o > FUTURE ? "يمكنك التخطيط حتى سنة قادمة" : "الأرشيف يحفظ سنة واحدة"); return; }
     save(); pruneLocal(); current = nd; ui.tab = null; ui.step = 1; ui.open = null; ui.barSel = null; render();
   }
   function shift(n) { goTo(addDays(current, n)); }
@@ -2056,7 +2065,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       });
       document.body.appendChild(o);
     }
-    var minK = keyOf(addDays(today(), -ARCHIVE)), maxK = keyOf(addDays(today(), SPAN)), todayK = keyOf(today());
+    var minK = keyOf(addDays(today(), -ARCHIVE)), maxK = keyOf(addDays(today(), FUTURE)), todayK = keyOf(today()), syncK = keyOf(addDays(today(), SPAN));
     var first = new Date(cal.y, cal.m, 1), lead = (first.getDay() + 1) % 7; // weeks start on Saturday
     var days = new Date(cal.y, cal.m + 1, 0).getDate();
     var canPrev = keyOf(new Date(cal.y, cal.m, 0)) >= minK, canNext = keyOf(new Date(cal.y, cal.m + 1, 1)) <= maxK;
@@ -2077,10 +2086,10 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       }
       var hd = ""; try { hd = hijriDayFmt.format(dt); } catch (e) {}
       h += '<button class="cday' + (k === todayK ? " today" : "") + (k === dk() ? " sel" : "") + '" data-cal="day" data-k="' + k + '"' +
-        (out ? ' disabled title="' + (k > maxK ? "التخطيط متاح حتى ٣ أيام قادمة فقط" : "الأرشيف يحفظ سنة واحدة") + '"' : "") + '>' +
+        (out ? ' disabled title="' + (k > maxK ? "التخطيط متاح حتى سنة قادمة" : "الأرشيف يحفظ سنة واحدة") + '"' : "") + '>' +
         '<b>' + d + '</b><small>' + hd + '</small>' + dot + '</button>';
     }
-    h += '</div><div class="calfoot"><span class="small muted"><i class="cdot"></i> فيه مهام · <i class="cdot ok"></i> أُنجز كله · الباهت خارج المدى (حتى ٣ أيام قادمة، وسنة إلى الوراء)</span>' +
+    h += '</div><div class="calfoot"><span class="small muted"><i class="cdot"></i> فيه مهام · <i class="cdot ok"></i> أُنجز كله · ما بعد ' + shortDate(syncK) + ' يُحفظ على هذا الجهاز ويُزامَن قبل موعده بـ٣ أيام</span>' +
       '<div class="row-wrap"><button class="ghost" data-cal="today">اليوم</button><button class="ghost" data-cal="close">إغلاق</button></div></div></div>';
     o.innerHTML = h;
   }
@@ -2423,7 +2432,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     if (document.hidden) return;
     pruneLocal(); // the 7-day window moves at midnight
     var o = offsetOf(dk());
-    if (o < -ARCHIVE || o > SPAN) current = today();
+    if (o < -ARCHIVE || o > FUTURE) current = today();
     persist();
     loadTip();
     renderProfile();
