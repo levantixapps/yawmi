@@ -341,6 +341,8 @@ details.box textarea { font-size: .78rem; direction: ltr; }
 .gbar s { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--ink); opacity: .45; border-radius: 2px; }
 .ghead .qctl { display: flex; gap: 4px; }
 .gok { color: var(--done); font-weight: 600; }
+.cat.me { color: var(--accent); font-weight: 600; }
+.sharebtn { width: 100%; border: 1px solid var(--line); font: inherit; text-align: start; cursor: pointer; }
 .gbad { color: var(--q-short); font-weight: 600; }
 /* Templates */
 .tplbox { border: 1px dashed var(--line); border-radius: 14px; padding: 10px 14px; }
@@ -740,7 +742,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   function itemsMap(d) { var m = {}; d.items.forEach(function (i) { m[i.id] = itemJson(i); }); return m; }
   function textJson(d) { return JSON.stringify([d.good, d.improve, d.notes, d.startAt, d.sleep || null]); }
   function daySnap(d) { return { m: itemsMap(d), t: textJson(d), a: JSON.stringify(d.applied), q: JSON.stringify(d.quran || null) }; }
-  function setJson() { return JSON.stringify([state.settings.categories, state.settings.routines, state.settings.sleep || null, state.settings.prayer || null, state.settings.quran || null, state.settings.templates || null, state.settings.goals || null]); }
+  function setJson() { return JSON.stringify([state.settings.categories, state.settings.routines, state.settings.sleep || null, state.settings.prayer || null, state.settings.quran || null, state.settings.templates || null, state.settings.goals || null, state.settings.team || null]); }
   function isEmptyDay(d) { return !d.items.length && !d.good && !d.improve && !d.notes && !(d.sleep && (d.sleep.bed || d.sleep.wake)) && !qHas(d); }
   function takeSnap() {
     snap = { _s: setJson() };
@@ -853,6 +855,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   }
 
   var ui = { tab: null, step: 1, open: null, lastCat: "study", lastDur: 60, newDays: [0, 1, 2, 3, 4, 5, 6], confirmWipe: false };
+  try { ui.mine = localStorage.getItem(pkey("yawmi-mine")) === "1"; } catch (e) {}
 
   /* ---------- first run ---------- */
   function seed() {
@@ -1396,6 +1399,63 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       old.slice().reverse().map(function (g) { return goalCard(g).replace('<b>' + esc(g.title) + '</b>', '<b>' + esc(g.title) + '</b> <span class="small muted">' + goalLabel(g) + '</span>'); }).join("") + '</ul></div></details>';
     return h;
   }
+  /* ---------- TEAM: the account's linked devices act as members; a task can be assigned with `to` (device number) ---------- */
+  // The first owner keeps state.settings.team = [{ num, name }] in step with its device list, so every member gets it by sync.
+  function team() { return arr(state.settings.team); }
+  function teamOn() { return team().length > 1; }
+  function myNum() { return cloud.num || 1; }
+  function memberName(n) { var m = team().filter(function (x) { return x.num === n; })[0]; return m ? m.name : "جهاز " + n; }
+  function teamSync(devs) {
+    var list = [{ num: 1, name: userName || "المسؤول الأول" }].concat(arr(devs).map(function (dv) { return { num: dv.num, name: dv.uname || "جهاز " + dv.num }; }));
+    if (JSON.stringify(list) === JSON.stringify(team())) return;
+    state.settings.team = list.length > 1 ? list : [];
+    save();
+  }
+  function isMine(it) { return !it.to || it.to === myNum(); }
+  function teamChip(it) {
+    if (!teamOn() || !it.to) return "";
+    return '<span class="cat' + (it.to === myNum() ? " me" : "") + '">👤 ' + (it.to === myNum() ? "لك" : esc(memberName(it.to))) + '</span>';
+  }
+  function teamSelect(it) {
+    if (!teamOn()) return "";
+    return '<div class="timerow">👤 لمن؟ <select class="field" data-act="assign" data-id="' + it.id + '" aria-label="لمن هذه المهمة"><option value="">للجميع</option>' +
+      team().map(function (m) { return '<option value="' + m.num + '"' + (it.to === m.num ? " selected" : "") + '>' + esc(m.name) + (m.num === myNum() ? " (أنا)" : "") + '</option>'; }).join("") + '</select></div>';
+  }
+  function teamFilterHtml(d) {
+    if (!teamOn()) return "";
+    var others = active(d).filter(function (i) { return !isMine(i); }).length;
+    return '<div class="rangeseg" style="grid-template-columns:repeat(2,1fr)"><button data-act="mine" data-v="0" aria-pressed="' + !ui.mine + '">كل مهام الفريق</button>' +
+      '<button data-act="mine" data-v="1" aria-pressed="' + !!ui.mine + '">مهامي فقط' + (ui.mine && others ? " (أُخفي " + others + ")" : "") + '</button></div>';
+  }
+  function teamReviewHtml(d) {
+    if (!teamOn()) return "";
+    var by = {};
+    active(d).forEach(function (i) { if (!i.to) return; var b = by[i.to] || (by[i.to] = { n: 0, done: 0 }); b.n++; if (i.done) b.done++; });
+    var nums = Object.keys(by);
+    if (!nums.length) return "";
+    return '<section><h2>👥 الفريق</h2><div class="catrows">' + nums.map(function (n) {
+      var b = by[n], w = Math.round(b.done / b.n * 100);
+      return '<div class="catrow" style="--cc:var(--c1)"><div class="hd"><span>👤 ' + esc(memberName(+n)) + '</span><b>' + b.done + ' من ' + b.n + '</b></div><div class="bar"><i style="width:' + w + '%"></i></div></div>';
+    }).join("") + '</div></section>';
+  }
+  /* ---------- SHARE THE APP ---------- */
+  var SHARE_URL = "https://levantixapps.github.io/yawmi/";
+  function shareApp() {
+    var txt = "«يومي» تطبيق مجاني لتنظيم الوقت: خطّط صباحًا، وتابع خلال اليوم، وراجع مساءً. فيه أوقات الصلاة، ومتابعة الورد والحفظ، والأهداف، ومؤقت التركيز.";
+    try { localStorage.setItem("yawmi-share-asked", "1"); } catch (e) {}
+    if (navigator.share) { navigator.share({ title: "يومي", text: txt, url: SHARE_URL }).catch(function () {}); return; }
+    try { navigator.clipboard.writeText(txt + "\n" + SHARE_URL).then(function () { toast("نُسخ الرابط، الصقه في واتساب أو أي مكان"); }, function () { toast(SHARE_URL); }); }
+    catch (e) { toast(SHARE_URL); }
+  }
+  // After a week of use, ask once (in «جدولي») whether they'd share it
+  function shareAskHtml() {
+    var since = 0, asked = false;
+    try { since = +localStorage.getItem("yawmi-since") || 0; asked = !!localStorage.getItem("yawmi-share-asked"); } catch (e) { return ""; }
+    if (!since) { try { localStorage.setItem("yawmi-since", String(Date.now())); } catch (e) {} return ""; }
+    if (asked || Date.now() - since < 7 * 86400000) return "";
+    return '<div class="banner"><span>🌷 مضى أسبوع مع «يومي». إن نفعك، فشاركه مع من تحب، والدال على الخير كفاعله.</span>' +
+      '<span class="row-wrap"><button class="btn" data-act="shareApp">📤 شارك</button><button class="linkbtn" data-act="shareLater">ليس الآن</button></span></div>';
+  }
   function quranSettingsHtml() {
     var g = qCfg();
     var h = '<section id="quran"><h2>📖 الحفظ والورد</h2><p class="muted small">عدّاد يومي لما تقرؤه وتحفظه وتراجعه بالصفحات، مع هدف لكل منها، ويتابع موضع ختمتك وعدد ما تحفظه.</p>' +
@@ -1425,11 +1485,11 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       '<p class="small muted">الوقت اختياري. وللملاحظة الطويلة اضغط على البند بعد إضافته واكتبها تحته.</p></section>';
   }
   function dayView() {
-    var d = day(), items = active(d);
+    var d = day(), items = active(d).filter(function (i) { return !ui.mine || isMine(i); });
     if (!d.items.length) return sleepCard() + prayCard(dk()) + quranCard() + '<div class="empty"><p>لم تخطّط لهذا اليوم بعد.</p><button class="btn" data-act="tab" data-tab="plan">خطّط ليومك في ٤ خطوات</button></div>' +
       quickAddHtml("أو أضف مهمة أو ملاحظة سريعة", "مثل: موعد طبيب الأسنان");
     var st = dayStats(d), pct = Math.min(100, Math.round(st.rate * 100));
-    var h = '<div class="progress"><span>إنجاز اليوم</span><div class="bar"><i style="width:' + pct + '%"></i></div><b>' + pct + '%</b></div>' + catSummary(items);
+    var h = shareAskHtml() + teamFilterHtml(d) + '<div class="progress"><span>إنجاز اليوم</span><div class="bar"><i style="width:' + pct + '%"></i></div><b>' + pct + '%</b></div>' + catSummary(items);
     var top = items.filter(function (i) { return i.top; });
     if (top.length) {
       var ts = streakOf(topMet);
@@ -1464,13 +1524,13 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       '<div class="time">' + (it.time ? fmt12(it.time) + '<small>إلى ' + fmt12(end) + '</small>' : '<small>' + durLabel(it.dur || 60) + '</small>') + '</div>' +
       '<button class="ttlbtn" data-act="open" data-id="' + it.id + '" aria-expanded="' + open + '"><span class="ttl">' + esc(it.title) + '</span>' +
       '<span class="meta">' + (it.id === nowId ? '<span class="nowtag">الآن</span>' : "") + (it.top ? '<span class="startag">★ من أهم ٣</span>' : "") + catChip(it.cat) +
-      (it.done && it.spent != null && it.spent !== it.dur ? '<span class="cat">فعليًا ' + fmtH(it.spent) + '</span>' : "") + (it.rid ? '<span class="fixtag">دائمة</span>' : "") + (it.focus ? '<span class="cat">⏱ ' + durLabel(it.focus) + ' تركيز</span>' : "") + goalChip(it) + '</span>' +
+      (it.done && it.spent != null && it.spent !== it.dur ? '<span class="cat">فعليًا ' + fmtH(it.spent) + '</span>' : "") + (it.rid ? '<span class="fixtag">دائمة</span>' : "") + (it.focus ? '<span class="cat">⏱ ' + durLabel(it.focus) + ' تركيز</span>' : "") + goalChip(it) + teamChip(it) + '</span>' +
       (it.note && !open ? '<span class="note">' + esc(it.note) + '</span>' : "") + '</button>' +
       '<input type="checkbox" class="check" data-act="done" data-id="' + it.id + '"' + (it.done ? " checked" : "") + ' aria-label="تم"></div>';
     if (open) {
       h += '<div class="editor"><textarea data-act="note" data-id="' + it.id + '" placeholder="ملاحظة لهذا البند…" style="min-height:70px">' + esc(it.note) + '</textarea>' +
         '<div class="timerow">الساعة <input class="field" type="time" value="' + (it.time || "") + '" data-act="time" data-id="' + it.id + '" aria-label="الوقت"> لمدة ' + durSelect('data-act="dur" data-id="' + it.id + '"', it.dur) + '</div>' +
-        '<div class="timerow">التقسيم ' + catSelect('data-act="cat" data-id="' + it.id + '"', it.cat) + '</div>' + goalSelect(it) +
+        '<div class="timerow">التقسيم ' + catSelect('data-act="cat" data-id="' + it.id + '"', it.cat) + '</div>' + goalSelect(it) + teamSelect(it) +
         (it.done ? '<div class="timerow">الوقت الفعلي ' + durSelect('data-act="spent" data-id="' + it.id + '"', it.spent != null ? it.spent : it.dur) + '</div>' : "") +
         '<div class="row-wrap">' + (!it.done && offsetOf(dk()) === 0 ? '<button class="btn" data-act="focus" data-id="' + it.id + '">▶ ركّز عليها (' + focusCfg.work + ' د)</button>' : "") +
         '<button class="ghost" data-act="top" data-id="' + it.id + '">' + (it.top ? "إزالة من أهم ٣" : "☆ اجعلها من أهم ٣") + '</button>' +
@@ -1826,6 +1886,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     var sm = sleepMins(d);
     if (sm != null && sleepOn()) h += '<p class="small">😴 نمت ' + fmtH(sm) + (d.sleep.wake ? '، واستيقظت ' + fmt12(d.sleep.wake) + (wokeEarly(d) ? ' مبكرًا ✓' : '') : '') + '.</p>';
     h += quranDayLine(d);
+    h += teamReviewHtml(d);
     h += '<div class="stats"><div class="stat"><b>' + items.filter(function (i) { return i.done; }).length + '/' + items.length + '</b><span>بنود أُنجزت</span></div>' +
       '<div class="stat"><b>' + topDone + '/' + top.length + '</b><span>من أهم ٣</span></div><div class="stat"><b>' + left.length + '</b><span>متبقٍّ</span></div></div>';
     var canMove = offsetOf(dk()) < FUTURE;
@@ -1881,7 +1942,8 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   }
   function settingsView() {
     var th = themeNow();
-    var h = '<a class="guidelink" href="guide.html">📖 دليل استخدام «يومي» <span>كل الميزات خطوة بخطوة ←</span></a>';
+    var h = '<a class="guidelink" href="guide.html">📖 دليل استخدام «يومي» <span>كل الميزات خطوة بخطوة ←</span></a>' +
+      '<button class="guidelink sharebtn" data-act="shareApp">📤 شارك «يومي» مع من تحب <span>رابط التطبيق مجانًا ←</span></button>';
     h += '<section><h2>المظهر</h2><div class="rangeseg">' + [["auto", "تلقائي"], ["light", "☀️ فاتح"], ["dark", "🌙 غامق"]].map(function (o) {
       return '<button data-act="theme" data-t="' + o[0] + '" aria-pressed="' + (th === o[0]) + '">' + o[1] + '</button>';
     }).join("") + '</div><p class="small muted">«تلقائي» يتبع إعداد جهازك.</p></section>';
@@ -1976,6 +2038,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
         }
         var devs = ui.devices || [];
         h += '<div class="sechead" style="margin-top:6px"><h3>الأجهزة المرتبطة</h3>' + (devs.length ? '<button class="linkbtn" data-act="logRefresh">تحديث</button>' : "") + '</div>';
+        if (devs.length) h += '<p class="small muted">👥 <b>وضع الفريق:</b> إن كان كل جهاز لشخص، فليكتب كل عضو اسمه في جهازه (⚙ ← اسمك)، ثم وزّع المهام: افتح المهمة في «جدولي» واختر «👤 لمن؟». ويستطيع كل عضو عرض «مهامي فقط»، وتظهر نسبة إنجاز كل عضو في «راجع».</p>';
         if (!devs.length) h += '<p class="small muted">لا توجد أجهزة ثانوية بعد.</p>';
         else h += '<ul class="list">' + devs.map(function (dv) {
           var seen = dv.last_seen ? new Date(dv.last_seen) : null;
@@ -2172,6 +2235,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       if (!al || !al.on || !st || !st.days || !st.days[k]) return;
       arr(st.days[k].items).forEach(function (it) {
         if (it.done || it.moved || !it.time || (it.important === false && it.urgent === false)) return;
+        if (mine && !isMine(it)) return; // a team task for another member
         var at = toMin(it.time) - (al.lead || 0), id = pf.id + k + it.id + it.time + al.lead;
         if (alerted[id] || nm < at || nm > at + 2) return;
         alerted[id] = true;
@@ -2382,6 +2446,9 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       case "prayOn": setPray({ on: !prayCfg().on }); break;
       case "focus": focusStart(it); break;
       case "tpl": tplApply(b.dataset.t); break;
+      case "mine": ui.mine = b.dataset.v === "1"; try { localStorage.setItem(pkey("yawmi-mine"), ui.mine ? "1" : ""); } catch (e) {} render(); break;
+      case "shareApp": shareApp(); render(); break;
+      case "shareLater": try { localStorage.setItem("yawmi-share-asked", "later"); } catch (e) {} render(); break;
       case "gPer": ui.gPer = b.dataset.v; view.querySelectorAll('[data-act="gPer"]').forEach(function (x) { x.setAttribute("aria-pressed", x.dataset.v === ui.gPer); }); break;
       case "goalAdd": var ga = goals().filter(function (g) { return g.id === id; })[0]; if (ga) { ga.prog = Math.max(0, (ga.prog || 0) + +b.dataset.v); commit(); } break;
       case "goalDel": ui.confirmGoal = id; render(); break;
@@ -2501,6 +2568,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     else if (act === "sleepWakeGoal" && t.value) { state.settings.sleep = { hours: sleepGoal().hours, wake: t.value, off: !sleepOn() }; commit(); }
     else if (act === "prayCity" && t.value !== "") { var pcy = PRAYER_CITIES[+t.value]; setPray({ name: pcy[0], lat: pcy[1], lng: pcy[2] }); }
     else if (act === "prayMethod") setPray({ method: t.value });
+    else if (act === "assign") { if (t.value) it.to = +t.value; else delete it.to; commit(); }
     else if (act === "goal") { if (t.value) it.goal = t.value; else delete it.goal; commit(); }
     else if (t.id === "gHow") ui.gHow = t.value;
     else if (act === "qSet") qChange(dk(), t.dataset.f, +t.value);
@@ -2909,6 +2977,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     rpc("devices_list", { p_code: code }).then(function (r) {
       if (r.error) return;
       ui.devices = arr(r.data);
+      teamSync(ui.devices);
       if (done) done(ui.devices);
       if (ui.tab === "settings") softRender();
     }, function () {});
@@ -3000,13 +3069,13 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       });
       var rs = row.settings, rst = rs ? (rs.updatedAt || 0) : -1, lst = state.settings.updatedAt || 0;
       if (rs && rst > lst) {
-        state.settings = { categories: arr(rs.categories).length ? rs.categories : defaultCats(), routines: arr(rs.routines), sleep: rs.sleep || state.settings.sleep, prayer: rs.prayer || state.settings.prayer, quran: rs.quran || state.settings.quran, templates: rs.templates || state.settings.templates, goals: rs.goals || state.settings.goals, updatedAt: rst };
+        state.settings = { categories: arr(rs.categories).length ? rs.categories : defaultCats(), routines: arr(rs.routines), sleep: rs.sleep || state.settings.sleep, prayer: rs.prayer || state.settings.prayer, quran: rs.quran || state.settings.quran, templates: rs.templates || state.settings.templates, goals: rs.goals || state.settings.goals, team: rs.team || state.settings.team, updatedAt: rst };
         snap._s = setJson(); changed = true;
       } else if (lst > rst) upload = true;
       fixState(); persist();
       if (changed) softRender();
       if (!upload) return;
-      var data = { base_date: todayKey, settings: { categories: state.settings.categories, routines: state.settings.routines, sleep: state.settings.sleep, prayer: state.settings.prayer || null, quran: state.settings.quran || null, templates: state.settings.templates || null, goals: state.settings.goals || null, updatedAt: state.settings.updatedAt || 0 } };
+      var data = { base_date: todayKey, settings: { categories: state.settings.categories, routines: state.settings.routines, sleep: state.settings.sleep, prayer: state.settings.prayer || null, quran: state.settings.quran || null, templates: state.settings.templates || null, goals: state.settings.goals || null, team: state.settings.team || null, updatedAt: state.settings.updatedAt || 0 } };
       windowKeys().forEach(function (k, i) { data[COLS[i]] = merged[k] ? toRemote(k, merged[k]) : null; });
       return rpc("save", { p_code: code, p_data: data }).then(function (r2) {
         if (r2.error) throw r2.error;
