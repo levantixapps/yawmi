@@ -6,7 +6,9 @@
 --      (فتح التطبيق في يوم جديد يحدّث الحساب تلقائيًا، فالمستخدم النشيط لا يُحذف أبدًا.)
 --    - الجهاز الثانوي الذي لم يظهر منذ 30 يومًا يُفصل.
 --    البيانات على أجهزة المستخدمين لا تتأثر، والسحابة للمشاركة والاسترجاع فقط.
--- ٢) دوال للمشرف (تحتاج مفتاح المشرف) تعرض الإحصاءات والحسابات والأجهزة وتحذف ما تختاره.
+-- ٢) الإشعارات بلا جدول سجل: لكل اشتراك عمود «أُرسل حتى» (sent_until)، ويُرسَل فقط ما وقع موعده
+--    بين آخر فحص والآن (حتى 3 دقائق للخلف إن تأخر الفحص)، ثم يُحذف جدول yawmi_push_sent.
+-- ٣) دوال للمشرف (تحتاج مفتاح المشرف) تعرض الإحصاءات والحسابات والأجهزة وتحذف ما تختاره.
 --    لا تعرض أي كود حساب ولا أي محتوى: كل حساب يظهر برمز مختصر غير قابل للاستعمال.
 
 -- مدة الخمول قبل الحذف (بالأيام)
@@ -23,7 +25,6 @@ begin
   delete from public.yawmi_accounts where updated_at < now() - make_interval(days => public.yawmi_idle_days());
   get diagnostics a = row_count;
   delete from public.yawmi_link_requests where created_at < now() - interval '10 minutes';
-  delete from public.yawmi_push_sent where at < now() - interval '2 days';
   -- سجل تشغيل مهام cron: مهمة الإشعارات تضيف 1440 سطرًا كل يوم ولا يُحذف وحده أبدًا
   delete from cron.job_run_details where end_time < now() - interval '2 days';
   return json_build_object('accounts_deleted', a, 'devices_deleted', d);
@@ -105,6 +106,82 @@ grant execute on function public.yawmi_admin_stats(text) to anon, authenticated;
 grant execute on function public.yawmi_admin_accounts(text) to anon, authenticated;
 grant execute on function public.yawmi_admin_devices(text, text) to anon, authenticated;
 grant execute on function public.yawmi_admin_delete(text, text, text) to anon, authenticated;
+
+-- ---------------------------------------------------------------------
+-- الإشعارات: «أُرسل حتى» بدل جدول السجل
+alter table public.yawmi_push add column if not exists sent_until timestamptz;
+
+create or replace function public.yawmi_push_due()
+returns table (endpoint text, sub jsonb, title text, body text, tag text)
+language plpgsql security definer set search_path = public as $$
+#variable_conflict use_column
+declare v_now timestamptz := now();
+begin
+  -- القفل يمنع فحصين متزامنين من إرسال الإشعار نفسه مرتين
+  perform 1 from public.yawmi_push for update;
+  return query
+  with s as (
+    select p.endpoint, p.sub, p.lead_min, p.label,
+           (v_now at time zone 'UTC') + make_interval(mins => p.tz) as t1,
+           (greatest(coalesce(p.sent_until, v_now - interval '1 minute'), v_now - interval '3 minutes') at time zone 'UTC') + make_interval(mins => p.tz) as t0,
+           array[a.day_m3, a.day_m2, a.day_m1, a.day_0, a.day_p1, a.day_p2, a.day_p3] as days
+    from public.yawmi_push p
+    join public.yawmi_accounts a on a.code = p.code
+  ), it as (
+    select s.endpoint, s.sub, s.lead_min, s.label, s.t0, s.t1, dd->>'date' as dday, i
+    from s, unnest(s.days) dd, jsonb_array_elements(coalesce(dd->'items', '[]'::jsonb)) i
+    where dd is not null and dd->>'date' in (to_char(s.t0, 'YYYY-MM-DD'), to_char(s.t1, 'YYYY-MM-DD'))
+      and coalesce(i->>'time', '') ~ '^\d{2}:\d{2}$'
+      and coalesce(i->>'done', 'false') <> 'true'
+      and coalesce(i->>'moved', 'false') <> 'true'
+      and not (coalesce(i->>'important', '') = 'false' and coalesce(i->>'urgent', '') = 'false')
+  ), due as (
+    select it.*, ((it.dday || ' ' || (it.i->>'time'))::timestamp - make_interval(mins => it.lead_min)) as at_ts
+    from it
+  )
+  select due.endpoint, due.sub,
+         (case when due.label is not null then '[' || due.label || '] ' else '' end ||
+          case when due.lead_min > 0 then 'بعد ' || due.lead_min || ' دقائق: ' else '⏰ حان الوقت: ' end ||
+          coalesce(due.i->>'title', '')) as title,
+         ('الساعة ' || (due.i->>'time')) as body,
+         (due.dday || ':' || coalesce(due.i->>'id', '') || ':' || (due.i->>'time') || ':' || due.lead_min) as tag
+  from due
+  where due.at_ts > due.t0 and due.at_ts <= due.t1;
+  update public.yawmi_push set sent_until = v_now;
+end; $$;
+revoke all on function public.yawmi_push_due() from public, anon, authenticated;
+grant execute on function public.yawmi_push_due() to service_role;
+
+-- دالة التشخيص (من v8) بعد إزالة جدول السجل
+create or replace function public.yawmi_push_status()
+returns json language plpgsql security definer set search_path = public, extensions as $$
+declare r json;
+begin
+  select json_build_object(
+    'now_utc', now(),
+    'cron_job', (select json_build_object('active', j.active, 'schedule', j.schedule) from cron.job j where j.jobname = 'yawmi-push'),
+    'cron_last_runs', (
+      select coalesce(json_agg(x order by x.start_time desc), '[]'::json) from (
+        select d.start_time, d.status, left(d.return_message, 120) as message
+        from cron.job_run_details d join cron.job j on j.jobid = d.jobid
+        where j.jobname = 'yawmi-push' order by d.start_time desc limit 5
+      ) x),
+    'http_last_responses', (
+      select coalesce(json_agg(y order by y.created desc), '[]'::json) from (
+        select h.created, h.status_code, h.timed_out, left(coalesce(h.error_msg, h.content::text), 160) as info
+        from net._http_response h order by h.created desc limit 5
+      ) y),
+    'subscriptions', (select count(*) from public.yawmi_push),
+    'per_subscription', (
+      select coalesce(json_agg(json_build_object('label', p.label, 'tz', p.tz, 'lead_min', p.lead_min, 'sent_until', p.sent_until)), '[]'::json)
+      from public.yawmi_push p)
+  ) into r;
+  return r;
+end; $$;
+revoke all on function public.yawmi_push_status() from public;
+grant execute on function public.yawmi_push_status() to anon, authenticated;
+
+drop table if exists public.yawmi_push_sent;
 
 notify pgrst, 'reload schema';
 
