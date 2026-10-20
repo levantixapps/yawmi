@@ -118,7 +118,15 @@
 2. مهمة **pg_cron** باسم `yawmi-push` تعمل **كل دقيقة** وتستدعي دالة الحافة `yawmi-push`.
 3. الدالة تسأل `yawmi_push_due()` عن المهام التي حان موعدها (بفرق توقيت كل جهاز)، وترسل الإشعار مشفّرًا (RFC 8291 + VAPID) دون مكتبات خارجية (مكتبة `web-push` كانت أثقل من الخطة المجانية).
 4. يمنع التكرار عمود `sent_until` لكل اشتراك (منذ v9): يُرسَل ما وقع موعده بين آخر فحص والآن، حتى ٣ دقائق للخلف إن تأخر الفحص. (قبل v9 كان جدول `yawmi_push_sent`.)
-- التطبيق يرسل إشعاره المحلي أيضًا بنفس المعرّف، فلا يظهر الإشعار مرتين.
+- إن كانت إشعارات الخادم مفعّلة للحساب، لا يُظهر التطبيق إشعاره المحلي (يبقى الصوت والرسالة داخله فقط)، وإلا ظهر الإشعار مرتين.
+
+### الفرق من لوحة المشرف (منذ v10)
+- كل حساب يحفظ اسم صاحبه ونوع جهازه (`yawmi_whoami`: المسؤول الأول في `yawmi_accounts.uname/label`، والثانوي في `yawmi_devices`). الموديل من `navigator.userAgentData` (أندرويد)؛ الآيفون يظهر «آيفون» فقط.
+- كتابة الاسم أول مرة تنشئ حسابًا سحابيًا تلقائيًا (`createCode(true)`).
+- المشرف يختار مسؤولًا ← «أضف تابعًا» (`yawmi_admin_link`). للمسؤول حساب فريق واحد مستقل (`yawmi_accounts.team_leader`)، والتابع جهاز ثانوي فيه (`yawmi_team_members`).
+- عند فتح التطبيق يسأل كل حساب «مسؤول أول» على الجهاز `yawmi_team_inbox`، فيُضاف حساب «فريقي» للمسؤول أو «فريق <الاسم>» للتابع، ثم `yawmi_team_ack`. إعادة الربط من اللوحة ترسله من جديد (لا يتكرر إن كان موجودًا).
+- حذف حساب المسؤول يحذف فريقه (cascade). التنظيف لا يحذف مسؤولًا فريقه نشيط. والتابع الذي لا يفتح الفريق ٣٠ يومًا يُفصل كأي جهاز ثانوي.
+- الدوال الجديدة تُستدعى بـ `sb.rpc` مباشرة لا `rpc()`، لأن `rpc()` يتحول للأسماء القديمة `planner_*` عند خطأ PGRST202.
 - الضغط على إشعار مهمة يفتحها: وسم الإشعار `<date>:<id>:<time>:<lead>`، و`sw.js` يرسل للتطبيق المفتوح رسالة `{task}` أو يفتح `#task=<date>:<id>`، و`openTask()` ينتقل إلى ذلك اليوم ويفتح البند (ويبدّل الحساب إن كانت المهمة في حساب آخر على الجهاز).
 
 ---
@@ -137,7 +145,9 @@
 | `supabase_v8_status.sql` | دالة فحص لتشخيص الإشعارات (بلا محتوى شخصي) |
 | `supabase_v9.sql` | تنظيف يومي (حساب خامل ٣٠ يومًا يُحذف مع أجهزته واشتراكاته، وجهاز ثانوي خامل ٣٠ يومًا يُفصل، وسجل cron أقدم من يومين)، ولوحة إدارة للمشرف، وإشعارات بلا جدول سجل (`sent_until`) |
 
-(لا يوجد v3، فقد دُمج في v4.) **كلها مُشغَّلة على المشروع الحالي، ما عدا v9 حتى يشغّله المالك.**
+| `supabase_v10.sql` | الفرق: اسم صاحب الحساب ونوع جهازه، وربط تابع بمسؤول من لوحة المشرف (`yawmi_team_members`) |
+
+(لا يوجد v3، فقد دُمج في v4.) **كلها مُشغَّلة على المشروع الحالي، ما عدا v9 وv10 حتى يشغّلهما المالك.**
 
 ### الجداول
 | الجدول | محتواه |
@@ -153,7 +163,7 @@
 كل الجداول مغلقة (RLS + سحب الصلاحيات)، والوصول فقط عبر دوال `yawmi_*` (security definer). من يعرف كود الحساب فقط يصل إلى صفه.
 
 ### الدوال العامة
-`yawmi_create` · `yawmi_get` · `yawmi_save` · `yawmi_invite` · `yawmi_join` · `yawmi_pair_start` · `yawmi_pair_approve` · `yawmi_pair_take` · `yawmi_devices_list` · `yawmi_device_revoke` · `yawmi_device_name` · `yawmi_log_add` · `yawmi_push_save` · `yawmi_push_unsub` · `yawmi_push_delete` · `yawmi_tip_for` · `yawmi_tip_save` · `yawmi_tip_hide` · `yawmi_admin_check` · `yawmi_push_status` · `yawmi_admin_stats` · `yawmi_admin_accounts` · `yawmi_admin_devices` · `yawmi_admin_delete`.
+`yawmi_create` · `yawmi_get` · `yawmi_save` · `yawmi_invite` · `yawmi_join` · `yawmi_pair_start` · `yawmi_pair_approve` · `yawmi_pair_take` · `yawmi_devices_list` · `yawmi_device_revoke` · `yawmi_device_name` · `yawmi_log_add` · `yawmi_push_save` · `yawmi_push_unsub` · `yawmi_push_delete` · `yawmi_tip_for` · `yawmi_tip_save` · `yawmi_tip_hide` · `yawmi_admin_check` · `yawmi_push_status` · `yawmi_admin_stats` · `yawmi_admin_accounts` · `yawmi_admin_devices` · `yawmi_admin_delete` · `yawmi_whoami` · `yawmi_team_inbox` · `yawmi_team_ack` · `yawmi_admin_link` · `yawmi_admin_unlink`.
 داخلية (لا يستدعيها التطبيق): `yawmi_rand` · `yawmi_resolve` · `yawmi_add_device` · `yawmi_push_due` · `yawmi_push_target`.
 
 ### إعدادات Supabase الأخرى

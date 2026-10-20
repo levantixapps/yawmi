@@ -1507,6 +1507,16 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       if (r.data) { toast(kind === "account" ? "حُذف الحساب من السحابة" : "فُصل الجهاز"); admLoad(); } else { toast("تعذّر الحذف"); render(); }
     });
   }
+  // Teams (supabase_v10.sql): add a member under a leader, or take them out
+  function admTeam(op, leader, member) {
+    if (!member) { toast("اختر التابع"); return; }
+    sb.rpc("yawmi_admin_" + op, { p_admin: adminKey, p_leader: leader, p_member: member }).then(function (r) {
+      if (r.error) { toast(r.error.code === "PGRST202" ? "شغّل ملف supabase_v10.sql في Supabase أولًا" : "تعذّر: " + netError(r.error)); return; }
+      if (!r.data) { toast(op === "link" ? "تعذّر الربط" : "تعذّر فك الربط"); return; }
+      toast(op === "link" ? "تم الربط ✓ يصل حساب الفريق إلى كلٍّ منهما حين يفتح التطبيق" : "فُكّ الربط");
+      admLoad();
+    }, function () { toast("تعذّر الاتصال. تأكد من الإنترنت."); });
+  }
   function adminPanelHtml() {
     var a = ui.adm, h = '<div class="admpanel"><div class="sechead"><b>📊 إدارة الحسابات والأجهزة</b>' +
       '<button class="linkbtn" data-act="admLoad">' + (a ? "تحديث" : "اعرض") + '</button></div>';
@@ -1516,18 +1526,34 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     var st = a.stats, idle = st.idle_days;
     h += '<div class="stats"><div class="stat"><b>' + st.accounts_7 + '<small>/' + st.accounts + '</small></b><span>حسابات نشيطة هذا الأسبوع</span></div>' +
       '<div class="stat"><b>' + st.devices_7 + '<small>/' + st.devices + '</small></b><span>أجهزة ثانوية نشيطة</span></div>' +
-      '<div class="stat"><b>' + st.push + '</b><span>اشتراك إشعارات</span></div></div>' +
+      '<div class="stat"><b>' + st.push + '</b><span>اشتراك إشعارات</span></div>' +
+      (st.teams != null ? '<div class="stat"><b>' + st.teams + '</b><span>فرق</span></div>' : "") + '</div>' +
       '<p class="small">الحسابات النشيطة خلال ٣٠ يومًا: <b>' + st.accounts_30 + '</b>. بيانات الحسابات: <b>' + kb(st.data_bytes) + '</b>، وحجم القاعدة كلها ' + kb(st.db_bytes) + ' من ٥٠٠ م.ب المجانية.</p>' +
       '<p class="small muted">يُحذف تلقائيًا كل يوم الحساب الذي لم يُفتح منذ ' + idle + ' يومًا، والجهاز الثانوي الذي لم يظهر منذ ' + idle + ' يومًا. بيانات المستخدمين على أجهزتهم لا تتأثر.</p>';
     h += '<ul class="list">' + a.accounts.map(function (x) {
       var days = Math.floor((Date.now() - new Date(x.updated_at).getTime()) / 86400000), devs = a.dev[x.id];
       var tag = days >= idle - 7 ? '<span class="gbad">سيُحذف قريبًا</span>' : days >= 7 ? '<span class="muted">خامل</span>' : '<span class="gok">نشيط</span>';
-      return '<li class="card"><div class="top"><span class="ttl"><span><code>' + esc(x.id) + '</code> · ' + tag + '</span>' +
-        '<span class="small muted">آخر نشاط: ' + ago(x.updated_at) + ' · أُنشئ ' + shortDate(keyOf(new Date(x.created_at))) + ' · ' + kb(x.bytes) +
-        ' · أجهزة ثانوية: ' + x.devices + (x.devices_seen ? ' (آخرها ' + ago(x.devices_seen) + ')' : "") + ' · إشعارات: ' + x.push + '</span></span></div>' +
-        '<div class="row-wrap">' + (x.devices ? '<button class="ghost" data-act="admDev" data-id="' + esc(x.id) + '">' + (devs ? "إخفاء الأجهزة" : "الأجهزة") + '</button>' : "") +
+      var mem = arr(x.members), lead = arr(x.leaders), who = function (p) { return esc(p.name || p.id); };
+      var teamH = mem.length ? '<div class="small"><b>👥 فريقه:</b><ul style="margin:2px 0;padding-inline-start:18px">' + mem.map(function (m) {
+        var k = "unlink:" + x.id + ":" + m.id;
+        return '<li>' + who(m) + ' · جهاز رقم ' + m.num + ' · ' + esc(m.label || "جهاز") + ' · ' + (m.taken ? "آخر ظهور: " + ago(m.seen) : "⏳ لم يفتح التطبيق بعد") + ' ' +
+          (a.confirm === k ? '<button class="linkbtn" data-act="admUnlinkYes" data-id="' + esc(x.id) + '" data-m="' + esc(m.id) + '">تأكيد فك الربط</button>'
+            : '<button class="linkbtn" data-act="admDel" data-k="unlink" data-id="' + esc(x.id + ":" + m.id) + '">فك الربط</button>') + '</li>';
+      }).join("") + '</ul></div>' : "";
+      if (lead.length) teamH += '<div class="small">تابع لـ: <b>' + lead.map(who).join("، ") + '</b></div>';
+      if (a.linking === x.id) {
+        var opts = a.accounts.filter(function (y) { return y.id !== x.id && !mem.some(function (m) { return m.id === y.id; }); });
+        teamH += '<div class="addform"><select class="field grow" id="admLinkSel"><option value="">اختر التابع…</option>' + opts.map(function (y) {
+          return '<option value="' + esc(y.id) + '">' + who(y) + (y.label ? " · " + esc(y.label) : "") + '</option>';
+        }).join("") + '</select><button class="btn" data-act="admLinkDo" data-id="' + esc(x.id) + '">ربط</button><button class="ghost" data-act="admLinkNo">إلغاء</button></div>';
+      }
+      return '<li class="card"><div class="top"><span class="ttl"><span><b>' + (x.name ? esc(x.name) : '<span class="muted">بلا اسم</span>') + '</b> · <code>' + esc(x.id) + '</code> · ' + tag + '</span>' +
+        '<span class="small muted">' + (x.label ? esc(x.label) + ' · ' : "") + 'آخر نشاط: ' + ago(x.updated_at) + ' · أُنشئ ' + shortDate(keyOf(new Date(x.created_at))) + ' · ' + kb(x.bytes) +
+        ' · أجهزة ثانوية: ' + x.devices + (x.devices_seen ? ' (آخرها ' + ago(x.devices_seen) + ')' : "") + ' · إشعارات: ' + x.push + '</span></span></div>' + teamH +
+        '<div class="row-wrap">' + (x.members && a.linking !== x.id ? '<button class="ghost" data-act="admLinkStart" data-id="' + esc(x.id) + '">👥 أضف تابعًا</button>' : "") +
+        (x.devices ? '<button class="ghost" data-act="admDev" data-id="' + esc(x.id) + '">' + (devs ? "إخفاء الأجهزة" : "الأجهزة") + '</button>' : "") +
         (a.confirm === "account:" + x.id
-          ? '<button class="ghost danger" data-act="admDelYes" data-k="account" data-id="' + esc(x.id) + '">تأكيد حذف الحساب من السحابة</button><button class="ghost" data-act="admDelNo">تراجع</button>'
+          ? '<button class="ghost danger" data-act="admDelYes" data-k="account" data-id="' + esc(x.id) + '">' + (mem.length ? "تأكيد حذف الحساب وفريقه من السحابة" : "تأكيد حذف الحساب من السحابة") + '</button><button class="ghost" data-act="admDelNo">تراجع</button>'
           : '<button class="ghost danger" data-act="admDel" data-k="account" data-id="' + esc(x.id) + '">حذف</button>') + '</div>' +
         (devs ? '<ul class="small" style="margin:0;padding-inline-start:18px">' + devs.map(function (dv) {
           return '<li>جهاز رقم ' + dv.num + ' · ' + esc(dv.label || "جهاز") + ' · آخر ظهور: ' + ago(dv.last_seen) + ' ' +
@@ -2535,6 +2561,10 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       case "admDel": ui.adm.confirm = b.dataset.k + ":" + id; render(); break;
       case "admDelNo": ui.adm.confirm = null; render(); break;
       case "admDelYes": admDelete(b.dataset.k, id); break;
+      case "admLinkStart": ui.adm.linking = id; ui.adm.confirm = null; render(); break;
+      case "admLinkNo": ui.adm.linking = null; render(); break;
+      case "admLinkDo": admTeam("link", id, ($("admLinkSel") || {}).value); break;
+      case "admUnlinkYes": admTeam("unlink", id, b.dataset.m); break;
       case "mine": ui.mine = b.dataset.v === "1"; try { localStorage.setItem(pkey("yawmi-mine"), ui.mine ? "1" : ""); } catch (e) {} render(); break;
       case "shareApp": shareApp(b.dataset.to); if (!b.dataset.to) render(); break;
       case "shareLater": try { localStorage.setItem("yawmi-share-asked", "later"); } catch (e) {} render(); break;
@@ -2726,6 +2756,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     } else if (f === "uname") {
       v = $("unameInput").value.trim(); if (!v) { toast("اكتب اسمك"); return; }
       setUserName(v); render(); toast("أهلًا، " + userName + " 🌷");
+      if (sb && !code && cloud.status === "nocode" && !ui.pair) createCode(true); // a cloud account in the person's name, so the admin can add them to a team
     } else if (f === "profile") {
       v = $("profInput").value.trim(); if (!v) return;
       var nid = "p" + Date.now().toString(36);
@@ -2807,8 +2838,12 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     try { if (userName) localStorage.setItem(NAME_KEY, userName); else localStorage.removeItem(NAME_KEY); } catch (e) {}
     renderProfile(); pushName();
   }
+  // The name and device model go to the server, so the admin can tell people apart (supabase_v10.sql).
+  // Called straight on sb: a missing function must not flip rpc() to the old planner_* names.
   function pushName() {
-    if (sb && code && cloud.role === "secondary" && userName) rpc("device_name", { p_code: code, p_name: userName }).then(function () {}, function () {});
+    if (!sb || !code) return;
+    var old = function () { if (cloud.role === "secondary" && userName) rpc("device_name", { p_code: code, p_name: userName }).then(function () {}, function () {}); };
+    sb.rpc("yawmi_whoami", { p_key: code, p_name: userName || null, p_label: deviceLabel() }).then(function (r) { if (r.error) old(); }, old);
   }
   function switchProfile(id) {
     if (!id || id === PROFILE) return;
@@ -2956,11 +2991,18 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     code = ""; cloud.role = ""; cloud.num = 0; cloud.chan = ""; ui.devices = null;
     saveCode(); liveInit(); cloud.status = "nocode"; cloud.msg = msg; render();
   }
+  // Android browsers report the phone model (e.g. HUAWEI P30) through client hints; older ones put it in the user agent
+  var devModel = "";
+  try {
+    var um = /Android [\d.]+; ([^;)]+?)(?: Build\/[^;)]*)?[;)]/.exec(navigator.userAgent || "");
+    if (um && um[1] !== "K") devModel = um[1].trim();
+    if (navigator.userAgentData && navigator.userAgentData.getHighEntropyValues) navigator.userAgentData.getHighEntropyValues(["model"]).then(function (v) { if (v && v.model) devModel = v.model; }, function () {});
+  } catch (e) {}
   function deviceLabel() {
     var ua = navigator.userAgent || "";
     if (/iPhone/i.test(ua)) return "آيفون";
     if (/iPad/i.test(ua)) return "آيباد";
-    if (/Android/i.test(ua)) return /Mobile/i.test(ua) ? "جوال أندرويد" : "تابلت أندرويد";
+    if (/Android/i.test(ua)) return devModel ? devModel.slice(0, 26) + " (أندرويد)" : /Mobile/i.test(ua) ? "جوال أندرويد" : "تابلت أندرويد";
     if (/Windows/i.test(ua)) return "حاسوب ويندوز";
     if (/Macintosh|Mac OS/i.test(ua)) return "ماك";
     if (/Linux/i.test(ua)) return "حاسوب لينكس";
@@ -3003,16 +3045,46 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     catch (e) { cloud.status = "off"; cloud.msg = "إعدادات Supabase في config.js غير صحيحة."; return; }
     cloud.status = code ? "ok" : "nocode";
     if (code) { liveInit(); syncNow(); }
+    teamInbox();
+  }
+  // Teams set up by the admin (supabase_v10.sql): the team account arrives by itself as a new account on this device,
+  // "فريقي" for the leader and "فريق <leader>" for a member. Each account here that is a first owner asks once per opening.
+  function teamInbox() {
+    var codes = {};
+    profiles.list.forEach(function (pf) { try { var c = localStorage.getItem(pkey("daily-planner-code", pf.id)); if (c) codes[c] = pf; } catch (e) {} });
+    Object.keys(codes).forEach(function (c) {
+      var pf = codes[c], meta = {};
+      try { meta = JSON.parse(localStorage.getItem(pkey("daily-planner-link", pf.id)) || "{}"); } catch (e) {}
+      if (meta.role === "secondary") return;
+      sb.rpc("yawmi_team_inbox", { p_key: c }).then(function (r) {
+        arr(r.data).forEach(function (t) {
+          if (!codes[t.key]) {
+            var nid = "p" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+            var nm = (t.kind === "lead" ? "فريقي" : "فريق " + (t.leader || "المسؤول")).slice(0, 30);
+            try {
+              localStorage.setItem(pkey("daily-planner-code", nid), t.key);
+              localStorage.setItem(pkey("daily-planner-link", nid), JSON.stringify({ role: t.kind === "lead" ? "primary" : "secondary", num: t.num, chan: "" }));
+              var un = localStorage.getItem(pkey("yawmi-username", pf.id));
+              if (un) localStorage.setItem(pkey("yawmi-username", nid), un);
+            } catch (e) { return; }
+            codes[t.key] = pf;
+            profiles.list.push({ id: nid, name: nm }); saveProfiles();
+            toast("👥 أُضيف حساب «" + nm + "». تجده في قائمة الحسابات أعلى الشاشة");
+          }
+          sb.rpc("yawmi_team_ack", { p_key: c, p_team: t.team }).then(function () {}, function () {});
+        });
+      }, function () {});
+    });
   }
   function netError(e) { return (e && e.message) || "تعذّر الاتصال بالخادم. تأكد من الإنترنت."; }
 
-  function createCode() {
+  function createCode(quiet) {
     cloud.msg = "";
     rpc("create").then(function (r) {
       if (r.error || !r.data) { cloud.msg = "تعذّر إنشاء الكود: " + netError(r.error); refreshCloud(); return; }
       setLink(r.data, "primary", 1);
       state.settings.updatedAt = state.settings.updatedAt || Date.now(); // upload this device's setup
-      render(); toast("أصبحت المسؤول الأول ✓"); syncNow();
+      render(); if (!quiet) toast("أصبحت المسؤول الأول ✓"); syncNow();
     }, function (e) { cloud.msg = netError(e); refreshCloud(); });
   }
   function useCode(raw) {
@@ -3175,7 +3247,10 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     }).then(function () {
       cloud.status = "ok"; cloud.msg = ""; cloud.last = Date.now();
       flushLog();
-      if (!pushRefreshed) { pushRefreshed = true; pushRefresh(); }
+      if (!pushRefreshed) {
+        pushRefreshed = true; pushRefresh(); pushName();
+        if (cloud.role === "primary") loadDevices(); // keeps the team list current without opening settings
+      }
     }, function (e) {
       if (e && e.gone) {
         syncing = false;
