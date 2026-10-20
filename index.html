@@ -77,9 +77,9 @@ section, .stack { display: flex; flex-direction: column; gap: 10px; }
 
 /* Day bar */
 /* Brand strip: app logo and name, with the Levantix mark */
-.profchip { display: inline-flex; align-items: center; gap: 4px; margin-inline-start: 4px; font-family: var(--font-body); font-size: .8rem; font-weight: 600; color: var(--accent); background: var(--accent-soft); border: 0; border-radius: 99px; padding: 3px 10px; }
+.profchip { display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-body); font-size: .8rem; font-weight: 600; color: var(--accent); background: var(--accent-soft); border: 0; border-radius: 99px; padding: 3px 10px; }
 .brandbar { position: relative; }
-.profmenu { position: absolute; top: calc(100% + 6px); inset-inline-start: 0; z-index: 20; min-width: 220px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 12px 32px rgba(0,0,0,.18); padding: 6px; display: flex; flex-direction: column; }
+.profmenu { position: absolute; top: calc(100% + 6px); inset-inline-end: 0; z-index: 20; min-width: 220px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 12px 32px rgba(0,0,0,.18); padding: 6px; display: flex; flex-direction: column; }
 .profmenu button { border: 0; background: none; text-align: start; padding: 10px 12px; border-radius: 10px; font-size: .95rem; display: flex; justify-content: space-between; gap: 10px; align-items: center; }
 .profmenu button:hover, .profmenu button:focus-visible { background: var(--bg); }
 .profmenu .cur { color: var(--accent); font-weight: 700; }
@@ -89,10 +89,13 @@ section, .stack { display: flex; flex-direction: column; gap: 10px; }
 .profrow .field { flex: 1 1 140px; }
 .profrow .now { font-size: .78rem; font-weight: 700; color: var(--done); }
 .brandbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-block: 14px 0; }
-.brandbar .app { display: flex; align-items: center; gap: 10px; font-family: var(--font-display); font-weight: 800; font-size: 1.2rem; text-decoration: none; color: var(--ink); }
-.brandbar .app img { width: 32px; height: 32px; border-radius: 9px; }
-.brandbar .by { display: flex; align-items: center; gap: 6px; font-size: .75rem; color: var(--muted); text-decoration: none; direction: ltr; }
-.brandbar .by img { width: 22px; height: 22px; border-radius: 50%; }
+.brandbar .app { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--ink); }
+.brandbar .app img { width: 40px; height: 40px; border-radius: 11px; flex: none; }
+.brandbar .bt { display: flex; flex-direction: column; line-height: 1.1; }
+.brandbar .bt b { font-family: var(--font-display); font-weight: 800; font-size: 1.3rem; }
+.brandbar .bt small { font-size: .72rem; color: var(--muted); letter-spacing: .02em; direction: ltr; text-align: right; }
+.brandbar .who { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; min-width: 0; }
+.brandbar .who .hello { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 46vw; }
 .daybar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding-block: 10px 10px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--line); }
 .daybar .title { flex: 1; min-width: 0; }
 .daybar h1 { margin: 0; font-family: var(--font-display); font-size: 1.35rem; font-weight: 700; line-height: 1.2; }
@@ -340,9 +343,15 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
 <body>
 <div class="wrap">
   <div class="brandbar">
-    <span class="app"><img src="icon.svg" alt="" width="32" height="32">يومي<button class="profchip" id="profBtn" aria-label="الحسابات"><span id="profName"></span> ▾</button><span class="hello" id="hello"></span></span>
+    <a class="app" href="https://levantixapps.github.io/" aria-label="يومي من Levantix Apps">
+      <img src="icon.svg" alt="" width="40" height="40">
+      <span class="bt"><b>يومي</b><small>levantixapps</small></span>
+    </a>
+    <div class="who">
+      <span class="hello" id="hello"></span>
+      <button class="profchip" id="profBtn" aria-label="الحسابات" aria-haspopup="menu"><span id="profName"></span> ▾</button>
+    </div>
     <div class="profmenu" id="profMenu" role="menu" hidden></div>
-    <a class="by" href="https://levantixapps.github.io/" aria-label="Levantix Apps"><img src="../logo.png" alt="" width="22" height="22" onerror="this.remove()">levantixapps</a>
   </div>
   <header class="daybar">
     <button class="iconbtn" id="prev" aria-label="اليوم السابق">→</button>
@@ -999,7 +1008,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   }
   // Sleep: minutes asleep for a day (bed time the night before, wake time that morning)
   function sleepGoal() { return state.settings.sleep || { hours: 7, wake: "05:00" }; }
-  function sleepOn() { return !(state.settings.sleep && state.settings.sleep.off); }
+  function sleepOn() { return false; } // sleep tracking removed from the app
   function sleepMins(d) {
     if (!d || !d.sleep || !d.sleep.bed || !d.sleep.wake) return null;
     var m = (toMin(d.sleep.wake) - toMin(d.sleep.bed) + 1440) % 1440;
@@ -1294,11 +1303,6 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
         '<li>المهمة يجب أن يكون لها وقت، وغير منجزة، وأن تكون المزامنة تمت (⚙ ← متزامن).</li></ul></details>' : "") + '</div>';
     h += '<p class="small muted">بدون إشعارات الخادم: يصلك صوت قصير وإشعار ما دام التطبيق مفتوحًا أو في الخلفية فقط.</p></section>';
     var sg = sleepGoal();
-    if (!sleepOn()) h += '<section><h2>متابعة النوم</h2><div><button class="ghost" data-act="sleepToggle">😴 أظهر متابعة النوم</button></div><p class="small muted">متوقفة: لا تظهر بطاقة النوم ولا قسمه في التقارير.</p></section>';
-    else h += '<section><div class="sechead"><h2>هدف النوم</h2><button class="linkbtn" data-act="sleepToggle">إيقاف متابعة النوم</button></div><div class="sleeprow"><label>ساعات النوم <select class="field" data-act="sleepHours">' +
-      [6, 6.5, 7, 7.5, 8, 8.5, 9].map(function (x) { return '<option value="' + x + '"' + (sg.hours === x ? " selected" : "") + '>' + num(x) + ' ساعات</option>'; }).join("") +
-      '</select></label><label>أستيقظ قبل <input class="field" type="time" data-act="sleepWakeGoal" value="' + sg.wake + '"></label></div>' +
-      '<p class="small muted">النوم المبكر بعد العشاء والاستيقاظ قبل الفجر يعطيك ساعات صباح مباركة، دون أن تنقص من حاجة جسمك.</p></section>';
     h += '<section><h2>اسمك</h2><input class="field" value="' + esc(userName) + '" data-act="uname" placeholder="اسمك" aria-label="اسمك"><p class="small muted">يظهر للمسؤول الأول في قائمة الأجهزة مع سجل تغييراتك.</p></section>';
     h += '<section id="accounts"><h2>الحسابات</h2><p class="small muted">لكل حساب يومه ومهامه وتقاريره وكوده السحابي المستقل، مثل حياتك الشخصية والعمل.</p><ul class="list">' +
       profiles.list.map(function (pf) {
