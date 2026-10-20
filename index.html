@@ -331,6 +331,17 @@ details.box textarea { font-size: .78rem; direction: ltr; }
 .pchip b { font-family: var(--font-mono); font-size: .86rem; font-variant-numeric: tabular-nums; font-weight: 600; }
 .pchip.next { background: var(--done-soft); box-shadow: inset 0 0 0 1px var(--done); }
 .pchip.next small { color: var(--done); font-weight: 700; }
+/* Goals */
+.goal .ttl { display: flex; flex-direction: column; gap: 2px; }
+.ghead { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.gval { font-family: var(--font-mono); font-size: 1.25rem; font-variant-numeric: tabular-nums; }
+.gval .muted { font-size: .85rem; font-family: var(--font-body, inherit); }
+.gbar { position: relative; flex: none; height: 8px; overflow: visible; }
+.gbar > i { border-radius: 99px; }
+.gbar s { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--ink); opacity: .45; border-radius: 2px; }
+.ghead .qctl { display: flex; gap: 4px; }
+.gok { color: var(--done); font-weight: 600; }
+.gbad { color: var(--q-short); font-weight: 600; }
 /* Templates */
 .tplbox { border: 1px dashed var(--line); border-radius: 14px; padding: 10px 14px; }
 .tplbox summary { cursor: pointer; font-weight: 600; color: var(--accent); }
@@ -729,7 +740,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   function itemsMap(d) { var m = {}; d.items.forEach(function (i) { m[i.id] = itemJson(i); }); return m; }
   function textJson(d) { return JSON.stringify([d.good, d.improve, d.notes, d.startAt, d.sleep || null]); }
   function daySnap(d) { return { m: itemsMap(d), t: textJson(d), a: JSON.stringify(d.applied), q: JSON.stringify(d.quran || null) }; }
-  function setJson() { return JSON.stringify([state.settings.categories, state.settings.routines, state.settings.sleep || null, state.settings.prayer || null, state.settings.quran || null, state.settings.templates || null]); }
+  function setJson() { return JSON.stringify([state.settings.categories, state.settings.routines, state.settings.sleep || null, state.settings.prayer || null, state.settings.quran || null, state.settings.templates || null, state.settings.goals || null]); }
   function isEmptyDay(d) { return !d.items.length && !d.good && !d.improve && !d.notes && !(d.sleep && (d.sleep.bed || d.sleep.wake)) && !qHas(d); }
   function takeSnap() {
     snap = { _s: setJson() };
@@ -763,7 +774,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       if (any) d.updatedAt = now;
     });
     var s = setJson();
-    if (snap._s !== s) { if (snap._s) logEvent("عدّل الإعدادات", "التقسيمات أو المهام الدائمة أو الصلاة أو القرآن أو القوالب", "", "settings"); snap._s = s; state.settings.updatedAt = now; }
+    if (snap._s !== s) { if (snap._s) logEvent("عدّل الإعدادات", "التقسيمات أو المهام الدائمة أو الصلاة أو القرآن أو القوالب أو الأهداف", "", "settings"); snap._s = s; state.settings.updatedAt = now; }
     persist();
     scheduleUpload();
   }
@@ -1309,6 +1320,82 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       (d.items.length ? ' <button class="linkbtn" data-act="tplSave">💾 احفظ بنود هذا اليوم قالبًا</button>' : "") + '</p></details>';
     return h;
   }
+  /* ---------- GOALS: monthly and yearly, measured from the tasks (state.settings.goals, synced) ---------- */
+  // { id, title, per: month|year, key: "YYYY-MM"|"YYYY", how: count|hours|manual, target, cat ("" = linked tasks only), prog (manual) }
+  // A done task counts toward a goal when its `goal` is that goal's id, or its category is the goal's category.
+  var GOAL_HOW = { count: "مهام منجزة", hours: "ساعات إنجاز", manual: "أعدّه بنفسي" };
+  function goals() { return arr(state.settings.goals); }
+  function goalKey(per, d) { d = d || today(); return per === "year" ? String(d.getFullYear()) : d.getFullYear() + "-" + pad(d.getMonth() + 1); }
+  function goalNow(g) { return g.key === goalKey(g.per); }
+  function goalRange(g) {
+    var p = g.key.split("-"), from = g.per === "year" ? new Date(+p[0], 0, 1) : new Date(+p[0], +p[1] - 1, 1);
+    var to = g.per === "year" ? new Date(+p[0], 11, 31) : new Date(+p[0], +p[1], 0);
+    return { from: from, to: to, days: Math.round((to - from) / 86400000) + 1 };
+  }
+  function goalLabel(g) {
+    if (g.per === "year") return "سنة " + g.key;
+    var r = goalRange(g);
+    try { return new Intl.DateTimeFormat("ar-SA-u-ca-gregory-nu-latn", { month: "long", year: "numeric" }).format(r.from); } catch (e) { return g.key; }
+  }
+  function goalValue(g) {
+    if (g.how === "manual") return g.prog || 0;
+    var r = goalRange(g), a = keyOf(r.from), b = keyOf(r.to), v = 0;
+    Object.keys(state.days).forEach(function (k) {
+      if (k < a || k > b) return;
+      arr(state.days[k].items).forEach(function (i) {
+        if (!i.done || i.moved || !(i.goal === g.id || (g.cat && i.cat === g.cat))) return;
+        v += g.how === "hours" ? (i.spent != null ? i.spent : i.dur || 0) / 60 : 1;
+      });
+    });
+    return Math.round(v * 10) / 10;
+  }
+  function goalsFor() { return goals().filter(function (g) { return goalNow(g) && g.how !== "manual"; }); }
+  function goalChip(it) { var g = it.goal && goals().filter(function (x) { return x.id === it.goal; })[0]; return g ? '<span class="cat">🎯 ' + esc(g.title) + '</span>' : ""; }
+  function goalSelect(it) {
+    var list = goalsFor();
+    if (!list.length && !it.goal) return "";
+    return '<div class="timerow">🎯 الهدف <select class="field" data-act="goal" data-id="' + it.id + '" aria-label="الهدف"><option value="">بلا هدف</option>' +
+      list.map(function (g) { return '<option value="' + g.id + '"' + (it.goal === g.id ? " selected" : "") + '>' + esc(g.title) + '</option>'; }).join("") + '</select></div>';
+  }
+  function goalCard(g) {
+    var v = goalValue(g), pct = g.target ? Math.min(100, Math.round(v / g.target * 100)) : 0, now = goalNow(g), r = goalRange(g);
+    var passed = now ? (Math.round((today() - r.from) / 86400000) + 1) / r.days : 1, expect = Math.round(passed * 100);
+    var few = g.target >= 3 && g.target <= 10, unit = g.how === "hours" ? (few ? "ساعات" : "ساعة") : g.how === "count" ? (few ? "مهام" : "مهمة") : "";
+    var state_ = v >= g.target ? '<span class="gok">✓ تحقق الهدف</span>' : !now ? '<span class="gbad">لم يكتمل</span>'
+      : pct >= expect - 5 ? '<span class="gok">على المسار</span>' : '<span class="gbad">' + (expect - pct > 25 ? "متأخر" : "متأخر قليلًا") + ': المتوقع حتى اليوم ' + expect + '٪</span>';
+    var link = g.how === "manual" ? "" : g.cat ? "من مهام «" + esc(catOf(g.cat).name) + "» والمهام المرتبطة به" : "من المهام التي تربطها به";
+    return '<li class="card goal"><div class="top"><span class="ttl"><b>' + esc(g.title) + '</b><span class="small muted">' + link + '</span></span>' +
+      (ui.confirmGoal === g.id ? '<button class="ghost danger" data-act="goalDelYes" data-id="' + g.id + '">تأكيد الحذف</button><button class="ghost" data-act="goalDelNo">تراجع</button>'
+        : '<button class="del" data-act="goalDel" data-id="' + g.id + '" aria-label="حذف الهدف">×</button>') + '</div>' +
+      '<div class="ghead"><b class="gval">' + num(v) + ' <span class="muted">/ ' + g.target + ' ' + unit + '</span></b>' +
+      (g.how === "manual" && now ? '<span class="qctl"><button class="qbtn" data-act="goalAdd" data-id="' + g.id + '" data-v="-1" aria-label="أنقص">−</button><button class="qbtn" data-act="goalAdd" data-id="' + g.id + '" data-v="1" aria-label="زد">+</button></span>' : "") + '</div>' +
+      '<div class="bar gbar"><i style="width:' + pct + '%"></i>' + (now && v < g.target ? '<s style="inset-inline-start:' + expect + '%"></s>' : "") + '</div>' +
+      '<p class="small">' + pct + '٪ · ' + state_ + '</p></li>';
+  }
+  function goalsView() {
+    var cur = goals().filter(goalNow), old = goals().filter(function (g) { return !goalNow(g); });
+    var month = cur.filter(function (g) { return g.per === "month"; }), year = cur.filter(function (g) { return g.per === "year"; });
+    var h = '<section><h2>🎯 أهداف ' + goalLabel({ per: "month", key: goalKey("month") }) + '</h2>' +
+      (month.length ? '<ul class="list">' + month.map(goalCard).join("") + '</ul>' : '<div class="empty">لا أهداف لهذا الشهر بعد.</div>') + '</section>';
+    h += '<section><h2>🎯 أهداف سنة ' + goalKey("year") + '</h2>' +
+      (year.length ? '<ul class="list">' + year.map(goalCard).join("") + '</ul>' : '<div class="empty">لا أهداف لهذه السنة بعد.</div>') + '</section>';
+    h += '<section><h2>هدف جديد</h2><div class="card"><form class="stack" data-form="goal" style="gap:8px">' +
+      '<input class="field" id="gTitle" type="text" placeholder="مثل: أنهي مقرر القانون المدني" autocomplete="off">' +
+      '<div class="rangeseg">' + [["month", "هذا الشهر"], ["year", "هذه السنة"]].map(function (o) {
+        return '<button type="button" data-act="gPer" data-v="' + o[0] + '" aria-pressed="' + ((ui.gPer || "month") === o[0]) + '">' + o[1] + '</button>';
+      }).join("") + '</div>' +
+      '<label class="row-wrap small">أقيسه بـ <select class="field" id="gHow">' + Object.keys(GOAL_HOW).map(function (k) {
+        return '<option value="' + k + '"' + ((ui.gHow || "hours") === k ? " selected" : "") + '>' + GOAL_HOW[k] + '</option>';
+      }).join("") + '</select> والهدف <input class="field qnum" id="gTarget" type="number" inputmode="numeric" min="1" value="' + (ui.gHow === "count" ? 20 : 30) + '"></label>' +
+      '<label class="row-wrap small">يُحسب من <select class="field" id="gCat"><option value="">المهام التي أربطها به فقط</option>' + cats().map(function (c) {
+        return '<option value="' + esc(c.id) + '">كل مهام «' + esc(c.name) + '»</option>';
+      }).join("") + '</select></label>' +
+      '<button class="btn" type="submit">أضف الهدف</button></form></div>' +
+      '<p class="small muted">لربط مهمة بهدف: افتحها في «جدولي» واختر الهدف تحتها. وكل مهمة منجزة مرتبطة به تُحسب له تلقائيًا (بعددها أو بوقتها الفعلي).</p></section>';
+    if (old.length) h += '<details class="box"><summary>أهداف سابقة (' + old.length + ')</summary><div class="inner"><ul class="list">' +
+      old.slice().reverse().map(function (g) { return goalCard(g).replace('<b>' + esc(g.title) + '</b>', '<b>' + esc(g.title) + '</b> <span class="small muted">' + goalLabel(g) + '</span>'); }).join("") + '</ul></div></details>';
+    return h;
+  }
   function quranSettingsHtml() {
     var g = qCfg();
     var h = '<section id="quran"><h2>📖 الحفظ والورد</h2><p class="muted small">عدّاد يومي لما تقرؤه وتحفظه وتراجعه بالصفحات، مع هدف لكل منها، ويتابع موضع ختمتك وعدد ما تحفظه.</p>' +
@@ -1377,13 +1464,13 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       '<div class="time">' + (it.time ? fmt12(it.time) + '<small>إلى ' + fmt12(end) + '</small>' : '<small>' + durLabel(it.dur || 60) + '</small>') + '</div>' +
       '<button class="ttlbtn" data-act="open" data-id="' + it.id + '" aria-expanded="' + open + '"><span class="ttl">' + esc(it.title) + '</span>' +
       '<span class="meta">' + (it.id === nowId ? '<span class="nowtag">الآن</span>' : "") + (it.top ? '<span class="startag">★ من أهم ٣</span>' : "") + catChip(it.cat) +
-      (it.done && it.spent != null && it.spent !== it.dur ? '<span class="cat">فعليًا ' + fmtH(it.spent) + '</span>' : "") + (it.rid ? '<span class="fixtag">دائمة</span>' : "") + (it.focus ? '<span class="cat">⏱ ' + durLabel(it.focus) + ' تركيز</span>' : "") + '</span>' +
+      (it.done && it.spent != null && it.spent !== it.dur ? '<span class="cat">فعليًا ' + fmtH(it.spent) + '</span>' : "") + (it.rid ? '<span class="fixtag">دائمة</span>' : "") + (it.focus ? '<span class="cat">⏱ ' + durLabel(it.focus) + ' تركيز</span>' : "") + goalChip(it) + '</span>' +
       (it.note && !open ? '<span class="note">' + esc(it.note) + '</span>' : "") + '</button>' +
       '<input type="checkbox" class="check" data-act="done" data-id="' + it.id + '"' + (it.done ? " checked" : "") + ' aria-label="تم"></div>';
     if (open) {
       h += '<div class="editor"><textarea data-act="note" data-id="' + it.id + '" placeholder="ملاحظة لهذا البند…" style="min-height:70px">' + esc(it.note) + '</textarea>' +
         '<div class="timerow">الساعة <input class="field" type="time" value="' + (it.time || "") + '" data-act="time" data-id="' + it.id + '" aria-label="الوقت"> لمدة ' + durSelect('data-act="dur" data-id="' + it.id + '"', it.dur) + '</div>' +
-        '<div class="timerow">التقسيم ' + catSelect('data-act="cat" data-id="' + it.id + '"', it.cat) + '</div>' +
+        '<div class="timerow">التقسيم ' + catSelect('data-act="cat" data-id="' + it.id + '"', it.cat) + '</div>' + goalSelect(it) +
         (it.done ? '<div class="timerow">الوقت الفعلي ' + durSelect('data-act="spent" data-id="' + it.id + '"', it.spent != null ? it.spent : it.dur) + '</div>' : "") +
         '<div class="row-wrap">' + (!it.done && offsetOf(dk()) === 0 ? '<button class="btn" data-act="focus" data-id="' + it.id + '">▶ ركّز عليها (' + focusCfg.work + ' د)</button>' : "") +
         '<button class="ghost" data-act="top" data-id="' + it.id + '">' + (it.top ? "إزالة من أهم ٣" : "☆ اجعلها من أهم ٣") + '</button>' +
@@ -1715,7 +1802,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     catch (e) { toast("تعذّر النسخ"); }
   }
   function reviewView() {
-    var seg = '<div class="rangeseg">' + [["day", "اليوم"], ["week", "الأسبوع"], ["month", "الشهر"]].map(function (r) {
+    var seg = '<div class="rangeseg" style="grid-template-columns:repeat(4,1fr)">' + [["day", "اليوم"], ["week", "الأسبوع"], ["month", "الشهر"], ["goals", "🎯 أهدافي"]].map(function (r) {
       return '<button data-act="range" data-r="' + r[0] + '" aria-pressed="' + ((ui.range || "day") === r[0]) + '">' + r[1] + '</button>';
     }).join("") + '</div>';
     var n = ui.range === "week" ? 7 : ui.range === "month" ? 30 : 1;
@@ -1726,6 +1813,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       '<button class="ghost" data-act="exportXlsx" data-n="' + n + '">⬇️ ملف Excel</button>' +
       '<button class="ghost" data-act="exportText" data-n="' + n + '">📋 نص للمشاركة</button></div>';
     if (cloud.role === "secondary" && code) ex = '<p class="small muted">تصدير التقارير متاح من الجهاز المسؤول الأول.</p>';
+    if (ui.range === "goals") return seg + goalsView();
     if (ui.range === "week") return seg + periodHtml(7) + ex;
     if (ui.range === "month") return seg + periodHtml(30) + ex;
     return seg + dayReviewView() + ex;
@@ -2294,6 +2382,11 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       case "prayOn": setPray({ on: !prayCfg().on }); break;
       case "focus": focusStart(it); break;
       case "tpl": tplApply(b.dataset.t); break;
+      case "gPer": ui.gPer = b.dataset.v; view.querySelectorAll('[data-act="gPer"]').forEach(function (x) { x.setAttribute("aria-pressed", x.dataset.v === ui.gPer); }); break;
+      case "goalAdd": var ga = goals().filter(function (g) { return g.id === id; })[0]; if (ga) { ga.prog = Math.max(0, (ga.prog || 0) + +b.dataset.v); commit(); } break;
+      case "goalDel": ui.confirmGoal = id; render(); break;
+      case "goalDelNo": ui.confirmGoal = null; render(); break;
+      case "goalDelYes": state.settings.goals = goals().filter(function (g) { return g.id !== id; }); ui.confirmGoal = null; commit(); toast("حُذف الهدف"); break;
       case "tplSave": tplSave(); break;
       case "tplDel":
         var tdel = tplById(b.dataset.t);
@@ -2408,6 +2501,8 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     else if (act === "sleepWakeGoal" && t.value) { state.settings.sleep = { hours: sleepGoal().hours, wake: t.value, off: !sleepOn() }; commit(); }
     else if (act === "prayCity" && t.value !== "") { var pcy = PRAYER_CITIES[+t.value]; setPray({ name: pcy[0], lat: pcy[1], lng: pcy[2] }); }
     else if (act === "prayMethod") setPray({ method: t.value });
+    else if (act === "goal") { if (t.value) it.goal = t.value; else delete it.goal; commit(); }
+    else if (t.id === "gHow") ui.gHow = t.value;
     else if (act === "qSet") qChange(dk(), t.dataset.f, +t.value);
     else if (act === "qCfg") {
       var qmax = t.dataset.f === "hifz" ? 20 : Q_PAGES, qmin = t.dataset.f === "page" ? 1 : 0, qv = Math.max(qmin, Math.min(qmax, Math.round(+t.value) || 0)), qc = {};
@@ -2448,6 +2543,13 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       ui.lastCat = $("dumpCat").value; ui.lastDur = +$("dumpDur").value;
       d.items.push({ id: uid(), title: v, cat: ui.lastCat, dur: ui.lastDur, important: null, urgent: null, top: false, time: "", done: false, spent: null, note: "" });
       commit(); $("dumpInput").focus();
+    } else if (f === "goal") {
+      v = $("gTitle").value.trim(); var gt = Math.round(+$("gTarget").value);
+      if (!v) { toast("اكتب اسم الهدف"); return; }
+      if (!(gt > 0)) { toast("اكتب رقم الهدف"); return; }
+      var gper = ui.gPer || "month", glist = goals().slice();
+      glist.push({ id: "g" + uid(), title: v.slice(0, 60), per: gper, key: goalKey(gper), how: $("gHow").value, target: gt, cat: $("gCat").value, prog: 0 });
+      state.settings.goals = glist; commit(); toast("أُضيف الهدف 🎯");
     } else if (f === "quick") {
       v = $("quickTitle").value.trim(); if (!v) return;
       ui.lastCat = $("quickCat").value;
@@ -2898,13 +3000,13 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       });
       var rs = row.settings, rst = rs ? (rs.updatedAt || 0) : -1, lst = state.settings.updatedAt || 0;
       if (rs && rst > lst) {
-        state.settings = { categories: arr(rs.categories).length ? rs.categories : defaultCats(), routines: arr(rs.routines), sleep: rs.sleep || state.settings.sleep, prayer: rs.prayer || state.settings.prayer, quran: rs.quran || state.settings.quran, templates: rs.templates || state.settings.templates, updatedAt: rst };
+        state.settings = { categories: arr(rs.categories).length ? rs.categories : defaultCats(), routines: arr(rs.routines), sleep: rs.sleep || state.settings.sleep, prayer: rs.prayer || state.settings.prayer, quran: rs.quran || state.settings.quran, templates: rs.templates || state.settings.templates, goals: rs.goals || state.settings.goals, updatedAt: rst };
         snap._s = setJson(); changed = true;
       } else if (lst > rst) upload = true;
       fixState(); persist();
       if (changed) softRender();
       if (!upload) return;
-      var data = { base_date: todayKey, settings: { categories: state.settings.categories, routines: state.settings.routines, sleep: state.settings.sleep, prayer: state.settings.prayer || null, quran: state.settings.quran || null, templates: state.settings.templates || null, updatedAt: state.settings.updatedAt || 0 } };
+      var data = { base_date: todayKey, settings: { categories: state.settings.categories, routines: state.settings.routines, sleep: state.settings.sleep, prayer: state.settings.prayer || null, quran: state.settings.quran || null, templates: state.settings.templates || null, goals: state.settings.goals || null, updatedAt: state.settings.updatedAt || 0 } };
       windowKeys().forEach(function (k, i) { data[COLS[i]] = merged[k] ? toRemote(k, merged[k]) : null; });
       return rpc("save", { p_code: code, p_data: data }).then(function (r2) {
         if (r2.error) throw r2.error;
