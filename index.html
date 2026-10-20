@@ -1051,10 +1051,18 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     Q_FIELDS.forEach(function (f) { if (g[f[0]] > 0) { any = true; if (q[f[0]] < g[f[0]]) ok = false; } });
     return any && ok;
   }
-  function qStreak() {
-    var t = today(), n = 0, i = qMet(state.days[keyOf(t)]) ? 0 : 1;
-    while (n < ARCHIVE && qMet(state.days[keyOf(addDays(t, -i - n))])) n++;
+  function qStreak() { return streakOf(qMet); }
+  // Days in a row that pass `met`, counted back from today (today counts once met, and doesn't break it before then)
+  function streakOf(met) {
+    var t = today(), n = 0, i = met(state.days[keyOf(t)]) ? 0 : 1;
+    while (n < ARCHIVE && met(state.days[keyOf(addDays(t, -i - n))])) n++;
     return n;
+  }
+  function daysWord(n) { return n === 1 ? "يوم" : n === 2 ? "يومان" : n <= 10 ? "أيام" : "يومًا"; }
+  // A day counts toward the top-3 streak when it had a top 3 and all of it was done
+  function topMet(d) {
+    var top = d ? arr(d.items).filter(function (i) { return i.top && !i.moved; }) : [];
+    return top.length > 0 && top.every(function (i) { return i.done; });
   }
   // Changing a day's count also moves the khatma position and the memorized total
   function qChange(k, field, v) {
@@ -1078,7 +1086,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     if (!g.on || o > 0) return "";
     var q = qDay(day()), st = qStreak();
     var h = '<div class="qcard"><div class="sechead"><h3>📖 وردك من القرآن' + (o < 0 ? ' <span class="small muted">لهذا اليوم</span>' : "") + '</h3>' +
-      (st ? '<span class="qstreak">🔥 ' + st + (st === 1 ? " يوم" : st === 2 ? " يومان" : st <= 10 ? " أيام" : " يومًا") + '</span>' : "") + '</div>';
+      (st ? '<span class="qstreak">🔥 ' + st + ' ' + daysWord(st) + '</span>' : "") + '</div>';
     Q_FIELDS.forEach(function (f) {
       var goal = g[f[0]], v = q[f[0]];
       if (!goal && !v) return;
@@ -1122,6 +1130,20 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       '<p class="small">أتممت وردك في <b>' + t.met + ' من ' + n + '</b> أيام' + (p.read || p.hifz || p.rev ? '، وفي ' + (n === 7 ? "الأسبوع" : "الشهر") + ' الذي قبله: ' + p.met + '.' : ".") +
       ' معدّل قراءتك ' + (t.read % n ? num(t.read / n) + ' صفحة' : pagesText(t.read / n)) + ' يوميًا.</p></section>';
   }
+  function topHtml(endKey, n) {
+    var met = 0, had = 0, prev = 0;
+    for (var i = 0; i < n; i++) {
+      var d = state.days[keyOf(addDays(parseKey(endKey), -i))], pd = state.days[keyOf(addDays(parseKey(endKey), -i - n))];
+      if (d && d.items.some(function (x) { return x.top && !x.moved; })) had++;
+      if (topMet(d)) met++;
+      if (topMet(pd)) prev++;
+    }
+    if (!had) return "";
+    var st = streakOf(topMet);
+    return '<section><h2>★ أهم ٣</h2><p class="small">أنجزت أهم ٣ كاملة في <b>' + met + ' من ' + n + '</b> أيام' +
+      (prev || met ? '، وفي ' + (n === 7 ? "الأسبوع" : "الشهر") + ' الذي قبله: ' + prev + '.' : ".") +
+      (st ? ' سلسلتك الحالية: 🔥 ' + st + ' ' + daysWord(st) + '.' : "") + '</p></section>';
+  }
   function quranSettingsHtml() {
     var g = qCfg();
     var h = '<section id="quran"><h2>📖 الحفظ والورد</h2><p class="muted small">عدّاد يومي لما تقرؤه وتحفظه وتراجعه بالصفحات، مع هدف لكل منها، ويتابع موضع ختمتك وعدد ما تحفظه.</p>' +
@@ -1158,7 +1180,8 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     var h = '<div class="progress"><span>إنجاز اليوم</span><div class="bar"><i style="width:' + pct + '%"></i></div><b>' + pct + '%</b></div>' + catSummary(items);
     var top = items.filter(function (i) { return i.top; });
     if (top.length) {
-      h += '<div class="top3"><h2>★ أهم ما في يومك</h2>' + top.map(function (it) {
+      var ts = streakOf(topMet);
+      h += '<div class="top3"><div class="sechead"><h2>★ أهم ما في يومك</h2>' + (ts ? '<span class="qstreak" title="أيام متتالية أنجزت فيها أهم ٣ كلها">🔥 ' + ts + ' ' + daysWord(ts) + '</span>' : "") + '</div>' + top.map(function (it) {
         return '<label class="row' + (it.done ? " done" : "") + '"><input type="checkbox" class="check" data-act="done" data-id="' + it.id + '"' + (it.done ? " checked" : "") + '><span class="t">' + esc(it.title) + '</span>' + (it.time ? '<span class="muted small">' + fmt12(it.time) + '</span>' : "") + '</label>';
       }).join("") + '</div>';
     }
@@ -1330,6 +1353,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     }).join("") + '</div></section>';
 
     if (sleepOn()) h += sleepHtml(endKey, n);
+    h += topHtml(endKey, n);
     h += quranHtml(endKey, n);
     // most accomplished
     var names = Object.keys(t.titles).sort(function (a, b) { return t.titles[b].n - t.titles[a].n || t.titles[b].m - t.titles[a].m; }).slice(0, 6);
@@ -2188,6 +2212,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       if (it.done) { it.doneAt = new Date().toISOString(); it.doneBy = userName || (cloud.num ? "جهاز " + cloud.num : ""); }
       else { delete it.doneAt; delete it.doneBy; }
       commit();
+      if (it.done && it.top && offsetOf(dk()) === 0 && topMet(day())) { var tsn = streakOf(topMet); toast("أنجزت أهم ٣ اليوم ✓" + (tsn > 1 ? " 🔥 " + tsn + " " + daysWord(tsn) + " متتالية" : "")); }
     }
     else if (act === "expFrom" || act === "expTo") {
       var other = act === "expFrom" ? "expTo" : "expFrom", box = view.querySelector('[data-act="' + other + '"]');
