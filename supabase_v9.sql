@@ -147,7 +147,7 @@ begin
          (due.dday || ':' || coalesce(due.i->>'id', '') || ':' || (due.i->>'time') || ':' || due.lead_min) as tag
   from due
   where due.at_ts > due.t0 and due.at_ts <= due.t1;
-  update public.yawmi_push set sent_until = v_now;
+  update public.yawmi_push set sent_until = v_now where true; -- Supabase يرفض التحديث بلا شرط
 end; $$;
 revoke all on function public.yawmi_push_due() from public, anon, authenticated;
 grant execute on function public.yawmi_push_due() to service_role;
