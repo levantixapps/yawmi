@@ -24,6 +24,8 @@ begin
   get diagnostics a = row_count;
   delete from public.yawmi_link_requests where created_at < now() - interval '10 minutes';
   delete from public.yawmi_push_sent where at < now() - interval '2 days';
+  -- سجل تشغيل مهام cron: مهمة الإشعارات تضيف 1440 سطرًا كل يوم ولا يُحذف وحده أبدًا
+  delete from cron.job_run_details where end_time < now() - interval '2 days';
   return json_build_object('accounts_deleted', a, 'devices_deleted', d);
 end; $$;
 revoke all on function public.yawmi_cleanup() from public, anon, authenticated;
@@ -108,5 +110,7 @@ notify pgrst, 'reload schema';
 
 -- للتأكد: يعرض ما سيُحذف لو جرى التنظيف الآن (لا يحذف شيئًا)
 select
+  (select count(*) from cron.job_run_details) as "أسطر سجل الجدولة الآن",
+  pg_size_pretty(pg_total_relation_size('cron.job_run_details')) as "حجمه",
   (select count(*) from public.yawmi_accounts where updated_at < now() - interval '30 days') as "حسابات خاملة ستُحذف",
   (select count(*) from public.yawmi_devices where last_seen < now() - interval '30 days') as "أجهزة خاملة ستُفصل";
