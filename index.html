@@ -292,6 +292,8 @@ details.box textarea { font-size: .78rem; direction: ltr; }
 .tipcard { background: linear-gradient(135deg, var(--accent-soft), var(--surface)); border: 1px solid var(--line); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
 .tipcard p { line-height: 1.9; }
 .pushbox { background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+.guidelink { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; text-decoration: none; color: var(--accent); font-weight: 700; background: var(--accent-soft); border-radius: 14px; padding: 12px 14px; }
+.guidelink span { font-weight: 500; font-size: .85rem; }
 /* Sleep */
 .sleepcard { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
 .sleepcard .slh { font-family: var(--font-mono); font-size: 1.1rem; color: var(--c1); }
@@ -1256,7 +1258,8 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   }
   function settingsView() {
     var th = themeNow();
-    var h = '<section><h2>المظهر</h2><div class="rangeseg">' + [["auto", "تلقائي"], ["light", "☀️ فاتح"], ["dark", "🌙 غامق"]].map(function (o) {
+    var h = '<a class="guidelink" href="guide.html">📖 دليل استخدام «يومي» <span>كل الميزات خطوة بخطوة ←</span></a>';
+    h += '<section><h2>المظهر</h2><div class="rangeseg">' + [["auto", "تلقائي"], ["light", "☀️ فاتح"], ["dark", "🌙 غامق"]].map(function (o) {
       return '<button data-act="theme" data-t="' + o[0] + '" aria-pressed="' + (th === o[0]) + '">' + o[1] + '</button>';
     }).join("") + '</div><p class="small muted">«تلقائي» يتبع إعداد جهازك.</p></section>';
     var perm = "Notification" in window ? Notification.permission : "unsupported";

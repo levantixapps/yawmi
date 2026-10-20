@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1F5FBF">
+<title>دليل «يومي»</title>
+<meta name="description" content="«يومي» في دقيقة: خطّط صباحًا، تابع خلال اليوم، راجع مساءً.">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@600;700;800&family=IBM+Plex+Sans+Arabic:wght@400;500;600&display=swap">
+<style>
+/* Layout: a short hero, then six numbered cards that wrap two-up on wide screens */
+:root {
+  --bg: #F4F6F8; --surface: #FFFFFF; --ink: #1A2230; --muted: #5B6676; --line: #DDE2E8;
+  --accent: #1F5FBF; --accent-soft: #E3ECF9; --done: #1E8A4F; --star: #D9650B;
+  --font-display: "Cairo", "IBM Plex Sans Arabic", Tahoma, sans-serif;
+  --font-body: "IBM Plex Sans Arabic", Tahoma, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg: #0F141B; --surface: #171E28; --ink: #E6EBF2; --muted: #94A0B0; --line: #283241; --accent: #6EA4F0; --accent-soft: #1A2A42; --done: #57C68A; --star: #F5A04A; color-scheme: dark; }
+}
+:root[data-theme="dark"] { --bg: #0F141B; --surface: #171E28; --ink: #E6EBF2; --muted: #94A0B0; --line: #283241; --accent: #6EA4F0; --accent-soft: #1A2A42; --done: #57C68A; --star: #F5A04A; color-scheme: dark; }
+* { box-sizing: border-box; }
+html { background: var(--bg); }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body); line-height: 1.85; }
+main { max-width: 860px; margin: 0 auto; padding-inline: 16px; padding-block: 0 56px; }
+header { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-block: 14px; }
+.brand { display: flex; align-items: center; gap: 10px; font-family: var(--font-display); font-weight: 800; font-size: 1.2rem; text-decoration: none; color: var(--ink); }
+.brand img { width: 34px; height: 34px; border-radius: 10px; }
+.open { text-decoration: none; background: var(--accent); color: #fff; font-weight: 700; border-radius: 12px; padding: 8px 16px; font-size: .92rem; }
+.hero { padding-block: 18px 8px; }
+.hero h1 { font-family: var(--font-display); font-size: clamp(1.7rem, 5vw, 2.3rem); line-height: 1.35; margin: 0 0 6px; text-wrap: balance; }
+.hero h1 b { color: var(--accent); }
+.hero p { margin: 0; color: var(--muted); font-size: 1.05rem; }
+.flow { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.flow span { background: var(--surface); border: 1px solid var(--line); border-radius: 99px; padding: 4px 14px; font-weight: 600; font-size: .92rem; }
+.flow i { font-style: normal; color: var(--muted); align-self: center; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; margin-top: 22px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 16px 18px; display: flex; flex-direction: column; gap: 6px; }
+.card h2 { margin: 0; font-family: var(--font-display); font-size: 1.15rem; display: flex; align-items: center; gap: 10px; }
+.num { width: 30px; height: 30px; flex: none; border-radius: 9px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); font-size: .95rem; }
+.card p { margin: 0; color: var(--muted); }
+.card ul { margin: 0; padding-inline-start: 20px; color: var(--muted); }
+.card b { color: var(--ink); font-weight: 600; }
+.k { display: inline-block; border: 1px solid var(--line); border-radius: 6px; padding: 0 6px; background: var(--bg); color: var(--ink); font-size: .9em; }
+.tip { margin-top: 18px; background: var(--accent-soft); border-radius: 16px; padding: 14px 18px; }
+.tip b { color: var(--accent); }
+footer { color: var(--muted); font-size: .85rem; text-align: center; margin-top: 26px; }
+footer a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+<script>try { var t = localStorage.getItem("yawmi-theme"); if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t); } catch (e) {}</script>
+</head>
+<body>
+<main>
+<header>
+  <a class="brand" href="./"><img src="icon.svg" alt="">يومي</a>
+  <a class="open" href="./">افتح التطبيق</a>
+</header>
+
+<section class="hero">
+  <h1>نظّم يومك في <b>٥ دقائق</b></h1>
+  <p>تطبيق عربي مجاني يعمل على الجوال والحاسوب، وبدون إنترنت.</p>
+  <div class="flow"><span>🌅 خطّط صباحًا</span><i>←</i><span>📋 تابع جدولك</span><i>←</i><span>🌙 راجع مساءً</span></div>
+</section>
+
+<div class="cards">
+  <article class="card">
+    <h2><span class="num">١</span>ثبّته على جهازك</h2>
+    <ul>
+      <li><b>أندرويد:</b> Chrome ← <span class="k">⋮</span> ← «تثبيت التطبيق»</li>
+      <li><b>آيفون:</b> Safari ← <span class="k">⬆</span> ← «إضافة إلى الشاشة الرئيسية»</li>
+      <li><b>الحاسوب:</b> أيقونة <span class="k">⊕</span> في شريط العنوان</li>
+    </ul>
+  </article>
+
+  <article class="card">
+    <h2><span class="num">٢</span>خطّط صباحًا</h2>
+    <p>اكتب كل ما عليك، وحدّد <b>المهم والعاجل</b>، واختر <b>أهم ٣</b>، ثم اضغط <b>«رتّب»</b> فيُوزَّع يومك على الساعات. ويمكنك الإملاء بالصوت: قل البند ثم <b>«أضف»</b>.</p>
+  </article>
+
+  <article class="card">
+    <h2><span class="num">٣</span>تابع في «جدولي»</h2>
+    <p>مهامك حسب الوقت، وعلامة <b>«الآن»</b> على ما حان وقته. اضغط <b>✓</b> عند الإنجاز، واضغط على أي بند لتعدّله أو تكتب ملاحظة.</p>
+  </article>
+
+  <article class="card">
+    <h2><span class="num">٤</span>راجع مساءً</h2>
+    <p>هل أنت <b>متقدّم ↑</b> أم <b>متراجع ↓</b>؟ تقرير لليوم والأسبوع والشهر، وانقل ما بقي إلى الغد بضغطة، وصدّر <b>ملف Excel</b> بما أُنجز وما لم يُنجز.</p>
+  </article>
+
+  <article class="card">
+    <h2><span class="num">٥</span>اربط أجهزتك</h2>
+    <p>⚙ ← <b>«ابدأ حسابًا جديدًا»</b> على جهازك الأول. ثم <b>«ربط جهاز جديد»</b>، واكتب الرمز على الجهاز الآخر. يومك متزامن على الجوال والحاسوب.</p>
+  </article>
+
+  <article class="card">
+    <h2><span class="num">٦</span>لا تفوّت موعدًا</h2>
+    <p>⚙ ← <b>«التنبيهات»</b> ← فعّلها، فيصلك إشعار في موعد كل مهمة <b>حتى والتطبيق مغلق</b>. جرّبها بزر «إرسال إشعار تجريبي».</p>
+  </article>
+</div>
+
+<p class="tip"><b>المزيد في ⚙:</b> مهام دائمة تنزل في أيامها، وتقسيمات بالساعات، وحسابات منفصلة (شخصي والعمل) مع قفل برمز، ومتابعة النوم، والمظهر الغامق.</p>
+
+<footer>© 2026 <a href="https://levantixapps.github.io/">Levantix Apps</a> · <a href="privacy.html">سياسة الخصوصية</a></footer>
+</main>
+</body>
+</html>

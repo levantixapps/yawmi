@@ -1,8 +1,8 @@
 // Offline support: the app shell is served network-first (so updates arrive),
 // fonts and the Supabase library cache-first. Personal data never passes through here;
 // it lives in the browser's localStorage.
-var CACHE = "yawmi-v24";
-var CORE = ["./", "index.html", "config.js", "manifest.webmanifest", "icon.svg", "icon-192.png", "icon-512.png"];
+var CACHE = "yawmi-v25";
+var CORE = ["./", "index.html", "guide.html", "config.js", "manifest.webmanifest", "icon.svg", "icon-192.png", "icon-512.png"];
 
 self.addEventListener("install", function (e) {
   e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(CORE); }).then(function () { return self.skipWaiting(); }));
