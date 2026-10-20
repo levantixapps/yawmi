@@ -331,6 +331,13 @@ details.box textarea { font-size: .78rem; direction: ltr; }
 .pchip b { font-family: var(--font-mono); font-size: .86rem; font-variant-numeric: tabular-nums; font-weight: 600; }
 .pchip.next { background: var(--done-soft); box-shadow: inset 0 0 0 1px var(--done); }
 .pchip.next small { color: var(--done); font-weight: 700; }
+/* Templates */
+.tplbox { border: 1px dashed var(--line); border-radius: 14px; padding: 10px 14px; }
+.tplbox summary { cursor: pointer; font-weight: 600; color: var(--accent); }
+.tplgrid { display: flex; flex-wrap: wrap; gap: 8px; margin-block: 10px 6px; }
+.tplchip { display: inline-flex; align-items: center; gap: 2px; background: var(--surface); border: 1px solid var(--line); border-radius: 99px; padding-inline-end: 4px; }
+.tplchip button[data-act="tpl"] { border: 0; background: none; padding: 7px 12px; font-weight: 500; }
+.tplchip small { color: var(--muted); font-family: var(--font-mono); }
 /* Focus timer */
 .focusbar { position: sticky; top: 8px; z-index: 5; display: grid; grid-template-columns: 1fr auto; gap: 8px 12px; align-items: center; background: var(--accent); color: var(--surface); border-radius: 16px; padding: 12px 14px; box-shadow: 0 6px 18px rgba(0,0,0,.14); }
 .focusbar.mode-break { background: var(--done); }
@@ -722,7 +729,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   function itemsMap(d) { var m = {}; d.items.forEach(function (i) { m[i.id] = itemJson(i); }); return m; }
   function textJson(d) { return JSON.stringify([d.good, d.improve, d.notes, d.startAt, d.sleep || null]); }
   function daySnap(d) { return { m: itemsMap(d), t: textJson(d), a: JSON.stringify(d.applied), q: JSON.stringify(d.quran || null) }; }
-  function setJson() { return JSON.stringify([state.settings.categories, state.settings.routines, state.settings.sleep || null, state.settings.prayer || null, state.settings.quran || null]); }
+  function setJson() { return JSON.stringify([state.settings.categories, state.settings.routines, state.settings.sleep || null, state.settings.prayer || null, state.settings.quran || null, state.settings.templates || null]); }
   function isEmptyDay(d) { return !d.items.length && !d.good && !d.improve && !d.notes && !(d.sleep && (d.sleep.bed || d.sleep.wake)) && !qHas(d); }
   function takeSnap() {
     snap = { _s: setJson() };
@@ -756,7 +763,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       if (any) d.updatedAt = now;
     });
     var s = setJson();
-    if (snap._s !== s) { if (snap._s) logEvent("عدّل الإعدادات", "التقسيمات أو المهام الدائمة أو الصلاة أو القرآن", "", "settings"); snap._s = s; state.settings.updatedAt = now; }
+    if (snap._s !== s) { if (snap._s) logEvent("عدّل الإعدادات", "التقسيمات أو المهام الدائمة أو الصلاة أو القرآن أو القوالب", "", "settings"); snap._s = s; state.settings.updatedAt = now; }
     persist();
     scheduleUpload();
   }
@@ -963,6 +970,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       '<button class="btn" type="submit">أضف</button></form>' +
       (voice.on ? '<p class="small voicehint">🔴 أستمع… قل البند ثم قل <b>«أضف»</b>، مثل: «دراسة قانون أضف». وقل <b>«توقف»</b> للإنهاء.</p>' :
         voiceSupported() ? '<p class="small muted">يمكنك الإملاء بالصوت: اضغط 🎤 وقل البند ثم «أضف».</p>' : "");
+    h += tplHtml(d);
     if (!d.items.length) h += '<div class="empty">ابدأ بأول شيء يخطر ببالك.</div>';
     else h += '<ul class="list">' + d.items.map(function (it) {
       return '<li class="card"><div class="top"><span class="ttl">' + itemTitle(it) + '</span><button class="del" data-act="del" data-id="' + it.id + '" aria-label="حذف">×</button></div></li>';
@@ -1242,6 +1250,64 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       '<span class="small muted">مدة التركيز:</span>' + seg("focusWork", focusCfg.work, [25, 45, 50]) +
       '<span class="small muted">مدة الراحة:</span>' + seg("focusBrk", focusCfg.brk, [5, 10, 15]) +
       '<p class="small muted">يرنّ وينبّهك عند انتهاء كل جولة ما دام التطبيق مفتوحًا أو في الخلفية.</p></section>';
+  }
+  /* ---------- TEMPLATES: ready-made days, plus days saved by the user (state.settings.templates, synced) ---------- */
+  var BUILTIN_TPL = [
+    { id: "study", name: "📚 يوم دراسة", items: [["مراجعة دروس الأمس", "study", 30], ["حل الواجبات", "study", 60], ["مذاكرة المادة الأصعب", "study", 90],
+      ["قراءة الدرس القادم", "study", 30], ["أذكار الصباح والمساء", "worship", 15], ["رياضة أو مشي", "health", 30], ["وقت مع الأسرة", "family", 60]] },
+    { id: "work", name: "💼 يوم عمل", items: [["مراجعة البريد والرسائل", "work", 30], ["أهم مهمة في العمل", "work", 120], ["الاجتماعات والمتابعات", "work", 60],
+      ["التخطيط لليوم التالي", "work", 15], ["أذكار الصباح والمساء", "worship", 15], ["رياضة أو مشي", "health", 30], ["وقت مع الأسرة", "family", 60]] },
+    { id: "ramadan", name: "🌙 يوم في رمضان", items: [["السحور", "family", 30], ["قراءة جزء من القرآن", "worship", 45], ["أذكار الصباح والمساء", "worship", 15],
+      ["قيلولة", "health", 30], ["تجهيز الإفطار", "family", 60], ["الدعاء قبل المغرب", "worship", 15], ["الإفطار مع الأسرة", "family", 45],
+      ["صلاة التراويح", "worship", 60], ["صدقة اليوم", "worship", 15]] },
+    { id: "friday", name: "🕌 يوم الجمعة", items: [["قراءة سورة الكهف", "worship", 30], ["الغسل والتبكير إلى الجمعة", "worship", 30],
+      ["الإكثار من الصلاة على النبي ﷺ", "worship", 15], ["الدعاء في آخر ساعة من العصر", "worship", 15], ["زيارة الأهل والأرحام", "family", 120],
+      ["ترتيب البيت", "family", 60], ["وقت للراحة", "health", 60]] },
+    { id: "travel", name: "✈️ يوم سفر", items: [["تجهيز الحقيبة", "other", 45], ["التأكد من الجواز والتذاكر والحجز", "other", 15],
+      ["الطريق إلى المطار", "other", 60], ["دعاء السفر", "worship", 15], ["طمأنة الأهل عند الوصول", "family", 15], ["ترتيب السكن", "other", 30]] }
+  ];
+  function userTpls() { return arr(state.settings.templates); }
+  function tplById(id) {
+    var b = BUILTIN_TPL.filter(function (t) { return t.id === id; })[0];
+    if (b) return { name: b.name, items: b.items.map(function (x) { return { title: x[0], cat: x[1], dur: x[2] }; }) };
+    return userTpls().filter(function (t) { return t.id === id; })[0];
+  }
+  function tplApply(id) {
+    var t = tplById(id), d = day();
+    if (!t) return;
+    var have = {}, n = 0;
+    d.items.forEach(function (i) { if (!i.moved) have[i.title.trim()] = true; });
+    arr(t.items).forEach(function (x) {
+      if (have[x.title.trim()]) return;
+      var cat = cats().some(function (c) { return c.id === x.cat; }) ? x.cat : "other";
+      d.items.push({ id: uid(), title: x.title, cat: cat, dur: x.dur || 30, important: x.important == null ? null : x.important, urgent: x.urgent == null ? null : x.urgent,
+        top: false, time: x.time || "", done: false, spent: null, note: "" });
+      n++;
+    });
+    ui.tplOpen = false; commit();
+    toast(n ? "أُضيف " + (n === 1 ? "بند واحد" : n === 2 ? "بندان" : n <= 10 ? n + " بنود" : n + " بندًا") + " من «" + t.name.replace(/^\S+\s/, "") + "». احذف ما لا يناسبك" : "كل بنود هذا القالب موجودة في يومك");
+  }
+  function tplSave() {
+    var items = day().items.filter(function (i) { return !i.moved && !i.rid; });
+    if (!items.length) { toast("أضف بنودًا أولًا (المهام الدائمة لا تدخل في القالب)"); return; }
+    var name = (prompt("اسم القالب، مثل: يوم الدوام الطويل") || "").trim().slice(0, 30);
+    if (!name) return;
+    var list = userTpls().slice();
+    list.push({ id: "u" + uid(), name: "⭐ " + name, items: items.map(function (i) {
+      return { title: i.title, cat: i.cat, dur: i.dur, important: i.important == null ? null : i.important, urgent: i.urgent == null ? null : i.urgent, time: i.time || "" };
+    }) });
+    state.settings.templates = list; commit(); toast("حُفظ القالب «" + name + "» ✓");
+  }
+  function tplHtml(d) {
+    var open = ui.tplOpen || (ui.tplOpen == null && !d.items.length);
+    var h = '<details class="tplbox"' + (open ? " open" : "") + '><summary>📋 ابدأ من قالب جاهز</summary><div class="tplgrid">' +
+      BUILTIN_TPL.concat(userTpls()).map(function (t) {
+        var mine = t.id.charAt(0) === "u";
+        return '<span class="tplchip"><button data-act="tpl" data-t="' + esc(t.id) + '">' + esc(t.name) + ' <small>' + arr(t.items).length + '</small></button>' +
+          (mine ? '<button class="del" data-act="tplDel" data-t="' + esc(t.id) + '" aria-label="حذف القالب">×</button>' : "") + '</span>';
+      }).join("") + '</div><p class="small muted">يضيف بنود القالب إلى يومك (دون تكرار ما هو موجود)، ثم احذف أو عدّل ما تشاء.' +
+      (d.items.length ? ' <button class="linkbtn" data-act="tplSave">💾 احفظ بنود هذا اليوم قالبًا</button>' : "") + '</p></details>';
+    return h;
   }
   function quranSettingsHtml() {
     var g = qCfg();
@@ -2227,6 +2293,12 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       case "theme": applyTheme(b.dataset.t); render(); break;
       case "prayOn": setPray({ on: !prayCfg().on }); break;
       case "focus": focusStart(it); break;
+      case "tpl": tplApply(b.dataset.t); break;
+      case "tplSave": tplSave(); break;
+      case "tplDel":
+        var tdel = tplById(b.dataset.t);
+        if (tdel && confirm("حذف القالب «" + tdel.name.replace(/^\S+\s/, "") + "»؟")) { state.settings.templates = userTpls().filter(function (x) { return x.id !== b.dataset.t; }); ui.tplOpen = true; commit(); }
+        break;
       case "focusPause": focusPause(); break;
       case "focusStop": focusStop(); break;
       case "focusAgain": var fit = focusItem(); if (fit) { focus.mode = "idle"; focusStart(fit); } else focusStop(); break;
@@ -2826,13 +2898,13 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       });
       var rs = row.settings, rst = rs ? (rs.updatedAt || 0) : -1, lst = state.settings.updatedAt || 0;
       if (rs && rst > lst) {
-        state.settings = { categories: arr(rs.categories).length ? rs.categories : defaultCats(), routines: arr(rs.routines), sleep: rs.sleep || state.settings.sleep, prayer: rs.prayer || state.settings.prayer, quran: rs.quran || state.settings.quran, updatedAt: rst };
+        state.settings = { categories: arr(rs.categories).length ? rs.categories : defaultCats(), routines: arr(rs.routines), sleep: rs.sleep || state.settings.sleep, prayer: rs.prayer || state.settings.prayer, quran: rs.quran || state.settings.quran, templates: rs.templates || state.settings.templates, updatedAt: rst };
         snap._s = setJson(); changed = true;
       } else if (lst > rst) upload = true;
       fixState(); persist();
       if (changed) softRender();
       if (!upload) return;
-      var data = { base_date: todayKey, settings: { categories: state.settings.categories, routines: state.settings.routines, sleep: state.settings.sleep, prayer: state.settings.prayer || null, quran: state.settings.quran || null, updatedAt: state.settings.updatedAt || 0 } };
+      var data = { base_date: todayKey, settings: { categories: state.settings.categories, routines: state.settings.routines, sleep: state.settings.sleep, prayer: state.settings.prayer || null, quran: state.settings.quran || null, templates: state.settings.templates || null, updatedAt: state.settings.updatedAt || 0 } };
       windowKeys().forEach(function (k, i) { data[COLS[i]] = merged[k] ? toRemote(k, merged[k]) : null; });
       return rpc("save", { p_code: code, p_data: data }).then(function (r2) {
         if (r2.error) throw r2.error;
