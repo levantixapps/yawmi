@@ -323,6 +323,20 @@ details.box textarea { font-size: .78rem; direction: ltr; }
 .cdot.ok { background: var(--done); }
 .calfoot { display: flex; flex-direction: column; gap: 8px; }
 /* Sleep */
+.praycard { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.praynext { margin: 0; }
+.praygrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.pchip { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px; border-radius: 12px; background: var(--bg); }
+.pchip small { color: var(--muted); font-size: .76rem; }
+.pchip b { font-family: var(--font-mono); font-size: .86rem; font-variant-numeric: tabular-nums; font-weight: 600; }
+.pchip.next { background: var(--done-soft); box-shadow: inset 0 0 0 1px var(--done); }
+.pchip.next small { color: var(--done); font-weight: 700; }
+.pslot { display: grid; grid-template-columns: 70px 1fr; gap: 10px; align-items: center; padding-block: 7px; border-bottom: 1px dashed var(--line); }
+.pslot .time { font-family: var(--font-mono); font-size: .82rem; font-variant-numeric: tabular-nums; color: var(--done); font-weight: 600; }
+.pslot span:last-child { justify-self: start; background: var(--done-soft); color: var(--done); border-radius: 99px; padding: 2px 12px; font-size: .85rem; font-weight: 600; }
+.pslot.sun .time, .pslot.sun span:last-child { color: var(--muted); }
+.pslot.sun span:last-child { background: var(--bg); }
+.pslot:last-child { border-bottom: 0; }
 .sleepcard { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
 .sleepcard .slh { font-family: var(--font-mono); font-size: 1.1rem; color: var(--c1); }
 .sleeprow { display: flex; flex-wrap: wrap; gap: 10px; }
@@ -444,6 +458,151 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     h = h % 12; if (h === 0) h = 12;
     return h + ":" + m + " " + suf;
   }
+  /* ---------- prayer times: computed on the device (standard solar method) ---------- */
+  // Methods: fajr angle; isha angle or minutes after maghrib.
+  var PRAYER_METHODS = {
+    mwl: { name: "رابطة العالم الإسلامي", fajr: 18, isha: 17 },
+    makkah: { name: "أم القرى (مكة)", fajr: 18.5, ishaMin: 90 },
+    egypt: { name: "الهيئة المصرية", fajr: 19.5, isha: 17.5 },
+    karachi: { name: "جامعة كراتشي", fajr: 18, isha: 18 },
+    kuwait: { name: "الكويت", fajr: 18, isha: 17.5 }
+  };
+  var PRAYER_CITIES = [
+    ["دمشق", 33.5138, 36.2765, "mwl"], ["حلب", 36.2021, 37.1343, "mwl"], ["حمص", 34.7324, 36.7137, "mwl"],
+    ["حماة", 35.1318, 36.7578, "mwl"], ["اللاذقية", 35.5317, 35.7915, "mwl"], ["طرطوس", 34.889, 35.8866, "mwl"],
+    ["إدلب", 35.9306, 36.6339, "mwl"], ["دير الزور", 35.3359, 40.1408, "mwl"], ["الرقة", 35.9594, 39.0079, "mwl"],
+    ["الحسكة", 36.5024, 40.7477, "mwl"], ["القامشلي", 37.0522, 41.2272, "mwl"], ["درعا", 32.6189, 36.1021, "mwl"],
+    ["السويداء", 32.709, 36.566, "mwl"], ["مكة المكرمة", 21.4225, 39.8262, "makkah"], ["المدينة المنورة", 24.4672, 39.6111, "makkah"],
+    ["الرياض", 24.7136, 46.6753, "makkah"], ["جدة", 21.4858, 39.1925, "makkah"], ["الدمام", 26.4207, 50.0888, "makkah"],
+    ["الكويت", 29.3759, 47.9774, "kuwait"], ["الدوحة", 25.2854, 51.531, "makkah"], ["دبي", 25.2048, 55.2708, "makkah"],
+    ["عمّان", 31.9539, 35.9106, "mwl"], ["بيروت", 33.8938, 35.5018, "mwl"], ["بغداد", 33.3152, 44.3661, "mwl"],
+    ["القاهرة", 30.0444, 31.2357, "egypt"], ["إسطنبول", 41.0082, 28.9784, "mwl"], ["غازي عنتاب", 37.0662, 37.3833, "mwl"],
+    ["أنقرة", 39.9334, 32.8597, "mwl"], ["برلين", 52.52, 13.405, "mwl"]
+  ];
+  var PRAYER_NAMES = { fajr: "الفجر", sunrise: "الشروق", dhuhr: "الظهر", asr: "العصر", maghrib: "المغرب", isha: "العشاء" };
+  var D2R = Math.PI / 180;
+  function dsin(d) { return Math.sin(d * D2R); } function dcos(d) { return Math.cos(d * D2R); } function dtan(d) { return Math.tan(d * D2R); }
+  function darcsin(x) { return Math.asin(x) / D2R; } function darccos(x) { return Math.acos(x) / D2R; }
+  function darctan2(y, x) { return Math.atan2(y, x) / D2R; } function darccot(x) { return Math.atan(1 / x) / D2R; }
+  function fixA(a) { a = a - 360 * Math.floor(a / 360); return a < 0 ? a + 360 : a; }
+  function fixH(h) { h = h - 24 * Math.floor(h / 24); return h < 0 ? h + 24 : h; }
+  function julianDay(y, m, d) {
+    if (m <= 2) { y -= 1; m += 12; }
+    var A = Math.floor(y / 100), B = 2 - A + Math.floor(A / 4);
+    return Math.floor(365.25 * (y + 4716)) + Math.floor(30.6001 * (m + 1)) + d + B - 1524.5;
+  }
+  function sunPos(jd) {
+    var D = jd - 2451545.0, g = fixA(357.529 + 0.98560028 * D), q = fixA(280.459 + 0.98564736 * D);
+    var L = fixA(q + 1.915 * dsin(g) + 0.020 * dsin(2 * g)), e = 23.439 - 0.00000036 * D;
+    var RA = darctan2(dcos(e) * dsin(L), dcos(L)) / 15;
+    return { decl: darcsin(dsin(e) * dsin(L)), eqt: q / 15 - fixH(RA) };
+  }
+  // Returns minutes after local midnight for each time, or null where the sun never reaches the angle.
+  function prayerTimes(date, lat, lng, methodKey, hanafi) {
+    var M = PRAYER_METHODS[methodKey] || PRAYER_METHODS.mwl;
+    var tz = -new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12).getTimezoneOffset() / 60;
+    var jd = julianDay(date.getFullYear(), date.getMonth() + 1, date.getDate()) - lng / (15 * 24);
+    var noon = function (t) { return fixH(12 - sunPos(jd + t).eqt); };
+    var angleTime = function (angle, t, ccw) {
+      var s = sunPos(jd + t), n = noon(t);
+      var c = (-dsin(angle) - dsin(s.decl) * dsin(lat)) / (dcos(s.decl) * dcos(lat));
+      if (c < -1 || c > 1) return null;
+      var T = darccos(c) / 15;
+      return n + (ccw ? -T : T);
+    };
+    var asrTime = function (factor, t) {
+      var s = sunPos(jd + t);
+      return angleTime(-darccot(factor + dtan(Math.abs(lat - s.decl))), t, false);
+    };
+    // two passes: rough guesses, then refined at those times
+    var tm = { fajr: 5, sunrise: 6, dhuhr: 12, asr: 13, sunset: 18, isha: 18 };
+    for (var pass = 0; pass < 2; pass++) {
+      var f = function (h) { return (h == null ? 12 : h) / 24; };
+      tm = {
+        fajr: angleTime(M.fajr, f(tm.fajr), true),
+        sunrise: angleTime(0.833, f(tm.sunrise), true),
+        dhuhr: noon(f(tm.dhuhr)),
+        asr: asrTime(hanafi ? 2 : 1, f(tm.asr)),
+        sunset: angleTime(0.833, f(tm.sunset), false),
+        isha: M.isha ? angleTime(M.isha, f(tm.isha), false) : null
+      };
+    }
+    // very high latitudes: when the sun never gets that low, use a share of the night (angle / 60)
+    var night = tm.sunrise != null && tm.sunset != null ? 24 - (tm.sunset - tm.sunrise) : null;
+    if (night != null) {
+      if (tm.fajr == null) tm.fajr = tm.sunrise - night * M.fajr / 60;
+      if (M.isha && tm.isha == null) tm.isha = tm.sunset + night * M.isha / 60;
+    }
+    var adj = function (h) { return h == null ? null : h + tz - lng / 15; };
+    var out = {
+      fajr: adj(tm.fajr), sunrise: adj(tm.sunrise), dhuhr: adj(tm.dhuhr) + 1 / 60, asr: adj(tm.asr),
+      maghrib: adj(tm.sunset), isha: M.ishaMin ? adj(tm.sunset) + M.ishaMin / 60 : adj(tm.isha)
+    };
+    Object.keys(out).forEach(function (k) { out[k] = out[k] == null ? null : Math.round(fixH(out[k]) * 60); });
+    return out;
+  }
+  var PRAYER_KEYS = ["fajr", "sunrise", "dhuhr", "asr", "maghrib", "isha"];
+  function prayCfg() { return state.settings.prayer || {}; }
+  function prayOn() { var p = prayCfg(); return !!(p.on && p.lat != null); }
+  function nearestCity(lat, lng) {
+    var best = null, bd = 1e9;
+    PRAYER_CITIES.forEach(function (c) {
+      var dy = (c[1] - lat) * 111, dx = (c[2] - lng) * 111 * dcos(lat), dd = Math.sqrt(dx * dx + dy * dy);
+      if (dd < bd) { bd = dd; best = c; }
+    });
+    return { c: best, km: bd };
+  }
+  function prayMethod(p) {
+    if (p.method && PRAYER_METHODS[p.method]) return p.method;
+    var n = nearestCity(p.lat, p.lng);
+    return n.km < 400 ? n.c[3] : "mwl";
+  }
+  var prayCache = {};
+  function prayList(k) {
+    if (!prayOn()) return [];
+    var p = prayCfg(), m = prayMethod(p);
+    var ck = [k, p.lat, p.lng, m, p.hanafi ? 1 : 0, new Date().getTimezoneOffset()].join("|");
+    var t = prayCache[ck] || (prayCache[ck] = prayerTimes(parseKey(k), p.lat, p.lng, m, p.hanafi));
+    return PRAYER_KEYS.filter(function (n) { return t[n] != null; }).map(function (n) { return { key: n, name: PRAYER_NAMES[n], min: t[n], time: fromMin(t[n]) }; });
+  }
+  function nextPrayer() {
+    var n = new Date(), nm = n.getHours() * 60 + n.getMinutes();
+    var x = prayList(keyOf(n)).filter(function (p) { return p.min > nm; })[0];
+    if (x) { x.left = x.min - nm; return x; }
+    x = prayList(keyOf(addDays(today(), 1)))[0];
+    if (x) { x.left = x.min + 1440 - nm; x.tomorrow = true; }
+    return x || null;
+  }
+  function leftText(m) { var h = Math.floor(m / 60), r = m % 60; return h ? h + " س" + (r ? " و" + r + " د" : "") : r + " د"; }
+  function prayCard(k) {
+    if (!prayOn()) return "";
+    var list = prayList(k), nx = offsetOf(k) === 0 ? nextPrayer() : null;
+    var h = '<div class="praycard"><div class="sechead"><h3>🕌 أوقات الصلاة</h3><span class="small muted">' + esc(prayCfg().name || "موقعي") + '</span></div>';
+    if (nx) h += '<p class="praynext">' + (nx.key === "sunrise" ? "الشروق" : "صلاة " + nx.name) + ' بعد <b>' + leftText(nx.left) + '</b> <span class="muted small">(' + fmt12(nx.time) + ')</span></p>';
+    h += '<div class="praygrid">' + list.map(function (p) {
+      return '<span class="pchip' + (nx && !nx.tomorrow && nx.key === p.key ? " next" : "") + '"><small>' + p.name + '</small><b>' + fmt12(p.time) + '</b></span>';
+    }).join("") + '</div></div>';
+    return h;
+  }
+  function prayRow(p) {
+    return '<li class="pslot' + (p.key === "sunrise" ? " sun" : "") + '"><span class="time">' + fmt12(p.time) + '</span><span>' + (p.key === "sunrise" ? "🌅 الشروق" : "🕌 صلاة " + p.name) + '</span></li>';
+  }
+  function setPray(ch) {
+    var p = {}, o = prayCfg();
+    Object.keys(o).forEach(function (k) { p[k] = o[k]; });
+    Object.keys(ch).forEach(function (k) { p[k] = ch[k]; });
+    state.settings.prayer = p; commit();
+  }
+  function prayLocate() {
+    if (!navigator.geolocation) { toast("جهازك لا يدعم تحديد الموقع، اختر مدينتك من القائمة"); return; }
+    toast("جارٍ تحديد موقعك…");
+    navigator.geolocation.getCurrentPosition(function (pos) {
+      // about 1 km of precision is plenty for prayer times, and keeps the exact location private
+      var lat = Math.round(pos.coords.latitude * 100) / 100, lng = Math.round(pos.coords.longitude * 100) / 100, n = nearestCity(lat, lng);
+      setPray({ lat: lat, lng: lng, name: n.km < 30 ? n.c[0] : "موقعي" });
+      toast("تم تحديد موقعك");
+    }, function () { toast("لم أستطع تحديد موقعك. اسمح بالموقع أو اختر مدينتك من القائمة"); }, { timeout: 15000, maximumAge: 3600000 });
+  }
   function esc(s) { var d = document.createElement("div"); d.textContent = s == null ? "" : s; return d.innerHTML; }
   function num(x) { return String(Math.round(x * 10) / 10); }
   function fmtH(m) { m = Math.round(m || 0); if (!m) return "0 س"; if (m < 60) return m + " د"; return num(m / 60) + " س"; }
@@ -533,7 +692,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   function itemsMap(d) { var m = {}; d.items.forEach(function (i) { m[i.id] = itemJson(i); }); return m; }
   function textJson(d) { return JSON.stringify([d.good, d.improve, d.notes, d.startAt, d.sleep || null]); }
   function daySnap(d) { return { m: itemsMap(d), t: textJson(d), a: JSON.stringify(d.applied) }; }
-  function setJson() { return JSON.stringify([state.settings.categories, state.settings.routines, state.settings.sleep || null]); }
+  function setJson() { return JSON.stringify([state.settings.categories, state.settings.routines, state.settings.sleep || null, state.settings.prayer || null]); }
   function isEmptyDay(d) { return !d.items.length && !d.good && !d.improve && !d.notes && !(d.sleep && (d.sleep.bed || d.sleep.wake)); }
   function takeSnap() {
     snap = { _s: setJson() };
@@ -566,7 +725,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       if (any) d.updatedAt = now;
     });
     var s = setJson();
-    if (snap._s !== s) { if (snap._s) logEvent("عدّل الإعدادات", "التقسيمات أو المهام الدائمة", "", "settings"); snap._s = s; state.settings.updatedAt = now; }
+    if (snap._s !== s) { if (snap._s) logEvent("عدّل الإعدادات", "التقسيمات أو المهام الدائمة أو الصلاة", "", "settings"); snap._s = s; state.settings.updatedAt = now; }
     persist();
     scheduleUpload();
   }
@@ -832,6 +991,8 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     d.startAt = st;
     var live = d.items.filter(function (i) { return quad(i) !== "drop" && !i.moved && !i.done; });
     var fixed = live.filter(function (i) { return i.rid && i.time; }).map(function (i) { return [toMin(i.time), toMin(i.time) + (i.dur || 60)]; });
+    var pb = prayCfg().block == null ? 20 : prayCfg().block;
+    if (pb) prayList(dk()).forEach(function (p) { if (p.key !== "sunrise") fixed.push([p.min, p.min + pb]); });
     var rank = function (i) { var q = quad(i); return q === "now" ? 0 : i.top ? 1 : q === "plan" ? 2 : q === "short" ? 3 : 4; };
     var list = live.filter(function (i) { return !(i.rid && i.time); }).sort(function (a, b) { return rank(a) - rank(b); });
     var cur = toMin(st);
@@ -860,7 +1021,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   }
   function dayView() {
     var d = day(), items = active(d);
-    if (!d.items.length) return sleepCard() + '<div class="empty"><p>لم تخطّط لهذا اليوم بعد.</p><button class="btn" data-act="tab" data-tab="plan">خطّط ليومك في ٤ خطوات</button></div>' +
+    if (!d.items.length) return sleepCard() + prayCard(dk()) + '<div class="empty"><p>لم تخطّط لهذا اليوم بعد.</p><button class="btn" data-act="tab" data-tab="plan">خطّط ليومك في ٤ خطوات</button></div>' +
       quickAddHtml("أو أضف مهمة أو ملاحظة سريعة", "مثل: موعد طبيب الأسنان");
     var st = dayStats(d), pct = Math.min(100, Math.round(st.rate * 100));
     var h = '<div class="progress"><span>إنجاز اليوم</span><div class="bar"><i style="width:' + pct + '%"></i></div><b>' + pct + '%</b></div>' + catSummary(items);
@@ -877,10 +1038,15 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       var n = new Date(), nm = n.getHours() * 60 + n.getMinutes();
       timed.forEach(function (i) { var s = toMin(i.time); if (nm >= s && nm < s + (i.dur || 60)) nowId = i.id; });
     }
-    var side = sleepCard() + h; h = "";
+    var side = sleepCard() + prayCard(dk()) + h; h = "";
     h += '<section><div class="sechead"><h2>جدول اليوم</h2><span class="muted small">اضغط على أي بند لتعديله</span></div>';
     if (!timed.length) h += '<div class="empty">لا توجد أوقات محددة. <button class="linkbtn" data-act="gostep4">حدّد الأوقات</button></div>';
-    else h += '<ul class="timeline">' + timed.map(function (it) { return slot(it, nowId); }).join("") + '</ul>';
+    else {
+      var rows = timed.map(function (it) { return { m: toMin(it.time), h: slot(it, nowId) }; });
+      prayList(dk()).forEach(function (p) { rows.push({ m: p.min, h: prayRow(p), p: 1 }); });
+      rows.sort(function (a, b) { return a.m - b.m || (b.p || 0) - (a.p || 0); });
+      h += '<ul class="timeline">' + rows.map(function (r) { return r.h; }).join("") + '</ul>';
+    }
     h += '</section>';
     if (untimed.length) h += '<section><h2>بدون وقت</h2><ul class="timeline">' + untimed.map(function (it) { return slot(it, null); }).join("") + '</ul></section>';
     var add = quickAddHtml("أضف شيئًا طرأ", "ماذا طرأ؟");
@@ -1418,6 +1584,27 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     if (cloud.msg) h += '<p class="err">' + esc(cloud.msg) + '</p>';
     h += '</div></section>';
 
+    var pc = prayCfg(), inList = PRAYER_CITIES.some(function (c) { return c[0] === pc.name; });
+    h += '<section><h2>🕌 أوقات الصلاة</h2><p class="muted small">تظهر في جدولك مع الوقت المتبقي للصلاة التالية، ويتركها الترتيب التلقائي فارغة. تُحسب على جهازك ولا تحتاج إنترنت.</p>' +
+      '<div class="row-wrap"><button class="' + (pc.on ? "btn" : "ghost") + '" data-act="prayOn" aria-pressed="' + !!pc.on + '">' + (pc.on ? "🕌 أوقات الصلاة مفعّلة" : "فعّل أوقات الصلاة") + '</button></div>';
+    if (pc.on) {
+      h += '<div class="row-wrap"><select class="field" data-act="prayCity" aria-label="المدينة">' +
+        (pc.lat == null ? '<option value="">اختر مدينتك</option>' : !inList ? '<option value="" selected>' + esc(pc.name || "موقعي") + '</option>' : "") +
+        PRAYER_CITIES.map(function (c, i) { return '<option value="' + i + '"' + (c[0] === pc.name ? " selected" : "") + '>' + c[0] + '</option>'; }).join("") +
+        '</select><button class="ghost" data-act="prayLoc">📍 موقعي</button></div>' +
+        '<label class="row-wrap small">طريقة الحساب <select class="field" data-act="prayMethod"><option value="">تلقائي حسب البلد' + (pc.lat != null ? " (" + PRAYER_METHODS[prayMethod({ lat: pc.lat, lng: pc.lng })].name + ")" : "") + '</option>' +
+        Object.keys(PRAYER_METHODS).map(function (m) { return '<option value="' + m + '"' + (pc.method === m ? " selected" : "") + '>' + PRAYER_METHODS[m].name + '</option>'; }).join("") + '</select></label>' +
+        '<div class="rangeseg">' + [["0", "العصر: الجمهور"], ["1", "العصر: الحنفي"]].map(function (o) {
+          return '<button data-act="prayAsr" data-v="' + o[0] + '" aria-pressed="' + ((pc.hanafi ? "1" : "0") === o[0]) + '">' + o[1] + '</button>';
+        }).join("") + '</div>' +
+        '<label class="row-wrap small">وقت يُترك لكل صلاة عند الترتيب <select class="field" data-act="prayBlock">' + [0, 10, 15, 20, 30, 45].map(function (v) {
+          return '<option value="' + v + '"' + ((pc.block == null ? 20 : pc.block) === v ? " selected" : "") + '>' + (v ? v + " دقيقة" : "لا شيء") + '</option>';
+        }).join("") + '</select></label>' +
+        '<div class="row-wrap"><button class="ghost" data-act="prayAlert" aria-pressed="' + !!pc.alert + '">' + (pc.alert ? "🔔 تنبيه عند دخول الوقت" : "🔕 بدون تنبيه عند دخول الوقت") + '</button></div>' +
+        (pc.alert ? '<p class="small muted">تنبيه الصلاة يعمل والتطبيق مفتوح.</p>' : "") + prayCard(keyOf(new Date()));
+    }
+    h += '</section>';
+
     h += '<section><h2>المهام الدائمة</h2><p class="muted small">تنزل تلقائيًا في الأيام التي تختارها، مثل قراءة القرآن كل يوم، أو دراسة القانون أيام الدوام.</p>' +
       '<div class="card"><form class="stack" data-form="routine" style="gap:8px">' +
       '<input class="field" id="rTitle" type="text" placeholder="اسم المهمة، مثل: حفظ صفحة" autocomplete="off">' +
@@ -1580,6 +1767,14 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
         notify(when + ": " + it.title, "الساعة " + it.time, k + ":" + it.id + ":" + it.time + ":" + (al.lead || 0));
         toast("⏰ " + when + ": " + it.title);
       });
+    });
+    if (prayOn() && prayCfg().alert) prayList(k).forEach(function (p) {
+      var id = "pray" + k + p.key;
+      if (p.key === "sunrise" || alerted[id] || nm < p.min || nm > p.min + 2) return;
+      alerted[id] = true;
+      chime();
+      notify("🕌 حان وقت صلاة " + p.name, (prayCfg().name || "") + " · " + fmt12(p.time), "yawmi-pray-" + k + p.key);
+      toast("🕌 حان وقت صلاة " + p.name);
     });
   }
   setInterval(checkAlerts, 20000);
@@ -1770,6 +1965,13 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
         break;
       case "syncNow": syncNow(); break;
       case "theme": applyTheme(b.dataset.t); render(); break;
+      case "prayOn": setPray({ on: !prayCfg().on }); break;
+      case "prayAsr": setPray({ hanafi: b.dataset.v === "1" }); break;
+      case "prayLoc": prayLocate(); break;
+      case "prayAlert":
+        setPray({ alert: !prayCfg().alert });
+        if (prayCfg().alert) { unlockAudio(); if ("Notification" in window && Notification.permission === "default") askNotify(); }
+        break;
       case "profSwitch": switchProfile(id); break;
       case "wakeNow": setSleep(dk(), "wake", nowHM()); break;
       case "sleepToggle":
@@ -1863,6 +2065,9 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     else if (act === "sleepWake") setSleep(dk(), "wake", t.value);
     else if (act === "sleepHours") { state.settings.sleep = { hours: +t.value, wake: sleepGoal().wake, off: !sleepOn() }; commit(); }
     else if (act === "sleepWakeGoal" && t.value) { state.settings.sleep = { hours: sleepGoal().hours, wake: t.value, off: !sleepOn() }; commit(); }
+    else if (act === "prayCity" && t.value !== "") { var pcy = PRAYER_CITIES[+t.value]; setPray({ name: pcy[0], lat: pcy[1], lng: pcy[2] }); }
+    else if (act === "prayMethod") setPray({ method: t.value });
+    else if (act === "prayBlock") setPray({ block: +t.value });
     else if (act === "uname") { if (t.value.trim()) { setUserName(t.value); toast("حُفظ الاسم"); } else t.value = userName; }
     else if (act === "profName") {
       var pf = profiles.list.filter(function (x) { return x.id === t.dataset.id; })[0], nv = t.value.trim();
@@ -2344,13 +2549,13 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       });
       var rs = row.settings, rst = rs ? (rs.updatedAt || 0) : -1, lst = state.settings.updatedAt || 0;
       if (rs && rst > lst) {
-        state.settings = { categories: arr(rs.categories).length ? rs.categories : defaultCats(), routines: arr(rs.routines), sleep: rs.sleep || state.settings.sleep, updatedAt: rst };
+        state.settings = { categories: arr(rs.categories).length ? rs.categories : defaultCats(), routines: arr(rs.routines), sleep: rs.sleep || state.settings.sleep, prayer: rs.prayer || state.settings.prayer, updatedAt: rst };
         snap._s = setJson(); changed = true;
       } else if (lst > rst) upload = true;
       fixState(); persist();
       if (changed) softRender();
       if (!upload) return;
-      var data = { base_date: todayKey, settings: { categories: state.settings.categories, routines: state.settings.routines, sleep: state.settings.sleep, updatedAt: state.settings.updatedAt || 0 } };
+      var data = { base_date: todayKey, settings: { categories: state.settings.categories, routines: state.settings.routines, sleep: state.settings.sleep, prayer: state.settings.prayer || null, updatedAt: state.settings.updatedAt || 0 } };
       windowKeys().forEach(function (k, i) { data[COLS[i]] = merged[k] ? toRemote(k, merged[k]) : null; });
       return rpc("save", { p_code: code, p_data: data }).then(function (r2) {
         if (r2.error) throw r2.error;
