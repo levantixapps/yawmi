@@ -331,6 +331,18 @@ details.box textarea { font-size: .78rem; direction: ltr; }
 .pchip b { font-family: var(--font-mono); font-size: .86rem; font-variant-numeric: tabular-nums; font-weight: 600; }
 .pchip.next { background: var(--done-soft); box-shadow: inset 0 0 0 1px var(--done); }
 .pchip.next small { color: var(--done); font-weight: 700; }
+/* Focus timer */
+.focusbar { position: sticky; top: 8px; z-index: 5; display: grid; grid-template-columns: 1fr auto; gap: 8px 12px; align-items: center; background: var(--accent); color: var(--surface); border-radius: 16px; padding: 12px 14px; box-shadow: 0 6px 18px rgba(0,0,0,.14); }
+.focusbar.mode-break { background: var(--done); }
+.focusbar.mode-idle { background: var(--surface); color: var(--ink); border: 1px solid var(--line); box-shadow: none; }
+.focusbar.paused { opacity: .85; }
+.focusbar .fbt { display: flex; flex-direction: column; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
+.focusbar .fbt .small { opacity: .9; }
+.fclock { font-family: var(--font-mono); font-size: 1.7rem; font-weight: 700; font-variant-numeric: tabular-nums; direction: ltr; }
+.focusbar .row-wrap { grid-column: 1 / -1; }
+.focusbar button { border: 0; border-radius: 10px; padding: 7px 14px; font-weight: 600; background: rgba(255,255,255,.2); color: inherit; }
+.focusbar.mode-idle button { background: var(--bg); }
+.focusbar.mode-idle button:first-child { background: var(--accent); color: var(--surface); }
 /* Quran */
 .qcard { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
 .qstreak { font-size: .82rem; font-weight: 700; color: var(--star); }
@@ -625,7 +637,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   function num(x) { return String(Math.round(x * 10) / 10); }
   function fmtH(m) { m = Math.round(m || 0); if (!m) return "0 س"; if (m < 60) return m + " د"; return num(m / 60) + " س"; }
   function durLabel(m) {
-    if (m < 60) return m + " دقيقة";
+    if (m < 60) return m === 1 ? "دقيقة واحدة" : m === 2 ? "دقيقتان" : m >= 3 && m <= 10 ? m + " دقائق" : m + " دقيقة";
     var h = m / 60;
     return h === 1 ? "ساعة" : h === 2 ? "ساعتان" : h <= 10 && h % 1 === 0 ? h + " ساعات" : num(h) + " ساعة";
   }
@@ -901,7 +913,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     if (applyRoutines(dk())) save();
     if (!ui.tab) ui.tab = defaultTab();
     renderHeader();
-    var html = "";
+    var html = ui.tab === "settings" ? "" : focusBar();
     if (ui.tab === "day" || ui.tab === "plan") html += tipHtml();
     if (!userName && ui.tab !== "settings") {
       html += '<form class="namecard" data-form="uname"><b>أهلًا بك في «يومي» 👋 ما اسمك؟</b>' +
@@ -1144,6 +1156,93 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       (prev || met ? '، وفي ' + (n === 7 ? "الأسبوع" : "الشهر") + ' الذي قبله: ' + prev + '.' : ".") +
       (st ? ' سلسلتك الحالية: 🔥 ' + st + ' ' + daysWord(st) + '.' : "") + '</p></section>';
   }
+  /* ---------- FOCUS TIMER (Pomodoro) ---------- */
+  // One timer per device, shared by all accounts: { pid, k, id, title, mode: work|break|idle, len, end, paused, left, rounds, owed }
+  // Focused minutes are added to the item's `focus`, which becomes its actual time when it's ticked done.
+  var FOCUS_KEY = "yawmi-focus", FOCUS_CFG_KEY = "yawmi-focus-cfg";
+  var focus = null, focusCfg = { work: 25, brk: 5 };
+  try { focus = JSON.parse(localStorage.getItem(FOCUS_KEY)); } catch (e) {}
+  try { var fc0 = JSON.parse(localStorage.getItem(FOCUS_CFG_KEY)); if (fc0) focusCfg = { work: fc0.work || 25, brk: fc0.brk || 5 }; } catch (e) {}
+  function saveFocus() { try { if (focus) localStorage.setItem(FOCUS_KEY, JSON.stringify(focus)); else localStorage.removeItem(FOCUS_KEY); } catch (e) {} }
+  function focusMine() { return !!focus && focus.pid === PROFILE; }
+  function focusLeft() { return !focus ? 0 : focus.paused ? focus.left : focus.end - Date.now(); }
+  function focusItem() { var d = focus && state.days[focus.k]; return d ? arr(d.items).filter(function (i) { return i.id === focus.id; })[0] : null; }
+  function clock(ms) { var s = Math.max(0, Math.ceil(ms / 1000)); return pad(Math.floor(s / 60)) + ":" + pad(s % 60); }
+  // Minutes go to the item now if this account is open, otherwise they wait in `owed` until it is
+  function focusCredit(min) {
+    if (!focus || min < 1) return;
+    if (!focusMine()) { focus.owed = (focus.owed || 0) + min; return; }
+    var it = focusItem();
+    if (!it) return;
+    it.focus = (it.focus || 0) + min;
+    if (it.done) it.spent = it.focus;
+    save();
+  }
+  function focusStart(it) {
+    if (focus && focus.mode !== "idle" && focus.id !== it.id && !confirm("يوجد مؤقت يعمل على «" + focus.title + "». أنهيه وابدأ هذه؟")) return;
+    if (focus && focus.id !== it.id) focusStop(true);
+    unlockAudio();
+    if ("Notification" in window && Notification.permission === "default") askNotify();
+    var same = focus && focus.id === it.id;
+    focus = { pid: PROFILE, k: same ? focus.k : dk(), id: it.id, title: it.title, mode: "work", len: focusCfg.work, end: Date.now() + focusCfg.work * 60000,
+      rounds: same ? focus.rounds : 0 };
+    saveFocus(); ui.open = null; render(); window.scrollTo(0, 0);
+  }
+  function focusPause() {
+    if (!focus || focus.mode === "idle") return;
+    if (focus.paused) { focus.end = Date.now() + focus.left; focus.paused = false; delete focus.left; }
+    else { focus.left = focusLeft(); focus.paused = true; }
+    saveFocus(); render();
+  }
+  function focusStop(quiet) {
+    if (!focus) return;
+    var min = focus.mode === "work" ? Math.floor((focus.len * 60000 - focusLeft()) / 60000) : 0;
+    focusCredit(min);
+    var it = focusMine() ? focusItem() : null;
+    focus = null; saveFocus();
+    if (quiet) return;
+    render();
+    toast(min >= 1 ? "سُجّلت " + durLabel(min) + " تركيز" + (it && it.focus ? "، ومجموعها " + durLabel(it.focus) : "") : "أُنهي المؤقت");
+  }
+  function focusTick() {
+    if (!focus) return;
+    if (focus.owed && focusMine()) { var ow = focus.owed; delete focus.owed; focusCredit(ow); saveFocus(); }
+    var left = focusLeft(), el = $("focusClock");
+    if (focus.mode !== "idle" && !focus.paused && left <= 0) {
+      var stale = left < -90000; // the app was closed when it ended: update quietly
+      if (focus.mode === "work") {
+        focusCredit(focus.len); focus.rounds = (focus.rounds || 0) + 1;
+        focus.mode = "break"; focus.len = focusCfg.brk; focus.end += focusCfg.brk * 60000;
+        if (!stale) { var s0 = alerts.sound; alerts.sound = true; chime(); alerts.sound = s0; notify("انتهى وقت التركيز ⏱", "«" + focus.title + "»: خذ راحة " + durLabel(focusCfg.brk), "yawmi-focus"); }
+      } else {
+        focus.mode = "idle";
+        if (!stale) { var s1 = alerts.sound; alerts.sound = true; chime(); alerts.sound = s1; notify("انتهت الراحة ☕", "جاهز لجولة أخرى على «" + focus.title + "»؟", "yawmi-focus"); }
+      }
+      saveFocus(); softRender(); return;
+    }
+    if (el) el.textContent = focus.mode === "idle" ? "" : clock(left);
+  }
+  function focusBar() {
+    if (!focusMine()) return "";
+    var it = focusItem(), total = it && it.focus ? it.focus : 0, idle = focus.mode === "idle";
+    var label = idle ? "✓ أتممت " + (focus.rounds || 1) + (focus.rounds > 1 ? " جولات" : " جولة") : focus.mode === "work" ? "⏱ تركيز · الجولة " + ((focus.rounds || 0) + 1) : "☕ راحة";
+    return '<div class="focusbar mode-' + focus.mode + (focus.paused ? " paused" : "") + '"><div class="fbt"><span class="small">' + label + (focus.paused ? " · موقوف" : "") + '</span>' +
+      '<b>' + esc(focus.title) + '</b>' + (total ? '<span class="small">مجموع تركيزك عليها: ' + durLabel(total) + '</span>' : "") + '</div>' +
+      '<span class="fclock" id="focusClock">' + (idle ? "" : clock(focusLeft())) + '</span><div class="row-wrap">' +
+      (idle ? '<button data-act="focusAgain">▶ جولة أخرى (' + focusCfg.work + ' د)</button>'
+            : '<button data-act="focusPause">' + (focus.paused ? "▶ استئناف" : "⏸ إيقاف مؤقت") + '</button>' +
+              (focus.mode === "break" ? '<button data-act="focusAgain">تخطَّ الراحة</button>' : "")) +
+      '<button data-act="focusStop">' + (idle ? "إغلاق" : "■ إنهاء") + '</button></div></div>';
+  }
+  function focusSettingsHtml() {
+    var seg = function (act, cur, list) {
+      return '<div class="rangeseg">' + list.map(function (v) { return '<button data-act="' + act + '" data-v="' + v + '" aria-pressed="' + (cur === v) + '">' + v + ' دقيقة</button>'; }).join("") + '</div>';
+    };
+    return '<section id="focus"><h2>⏱ مؤقت التركيز</h2><p class="muted small">افتح أي بند في «جدولي» واضغط «▶ ركّز عليها»: تعمل بتركيز ثم ترتاح، وتُسجَّل دقائق التركيز على البند، فتصبح وقته الفعلي عند إنجازه.</p>' +
+      '<span class="small muted">مدة التركيز:</span>' + seg("focusWork", focusCfg.work, [25, 45, 50]) +
+      '<span class="small muted">مدة الراحة:</span>' + seg("focusBrk", focusCfg.brk, [5, 10, 15]) +
+      '<p class="small muted">يرنّ وينبّهك عند انتهاء كل جولة ما دام التطبيق مفتوحًا أو في الخلفية.</p></section>';
+  }
   function quranSettingsHtml() {
     var g = qCfg();
     var h = '<section id="quran"><h2>📖 الحفظ والورد</h2><p class="muted small">عدّاد يومي لما تقرؤه وتحفظه وتراجعه بالصفحات، مع هدف لكل منها، ويتابع موضع ختمتك وعدد ما تحفظه.</p>' +
@@ -1212,7 +1311,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       '<div class="time">' + (it.time ? fmt12(it.time) + '<small>إلى ' + fmt12(end) + '</small>' : '<small>' + durLabel(it.dur || 60) + '</small>') + '</div>' +
       '<button class="ttlbtn" data-act="open" data-id="' + it.id + '" aria-expanded="' + open + '"><span class="ttl">' + esc(it.title) + '</span>' +
       '<span class="meta">' + (it.id === nowId ? '<span class="nowtag">الآن</span>' : "") + (it.top ? '<span class="startag">★ من أهم ٣</span>' : "") + catChip(it.cat) +
-      (it.done && it.spent != null && it.spent !== it.dur ? '<span class="cat">فعليًا ' + fmtH(it.spent) + '</span>' : "") + (it.rid ? '<span class="fixtag">دائمة</span>' : "") + '</span>' +
+      (it.done && it.spent != null && it.spent !== it.dur ? '<span class="cat">فعليًا ' + fmtH(it.spent) + '</span>' : "") + (it.rid ? '<span class="fixtag">دائمة</span>' : "") + (it.focus ? '<span class="cat">⏱ ' + durLabel(it.focus) + ' تركيز</span>' : "") + '</span>' +
       (it.note && !open ? '<span class="note">' + esc(it.note) + '</span>' : "") + '</button>' +
       '<input type="checkbox" class="check" data-act="done" data-id="' + it.id + '"' + (it.done ? " checked" : "") + ' aria-label="تم"></div>';
     if (open) {
@@ -1220,7 +1319,8 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
         '<div class="timerow">الساعة <input class="field" type="time" value="' + (it.time || "") + '" data-act="time" data-id="' + it.id + '" aria-label="الوقت"> لمدة ' + durSelect('data-act="dur" data-id="' + it.id + '"', it.dur) + '</div>' +
         '<div class="timerow">التقسيم ' + catSelect('data-act="cat" data-id="' + it.id + '"', it.cat) + '</div>' +
         (it.done ? '<div class="timerow">الوقت الفعلي ' + durSelect('data-act="spent" data-id="' + it.id + '"', it.spent != null ? it.spent : it.dur) + '</div>' : "") +
-        '<div class="row-wrap"><button class="ghost" data-act="top" data-id="' + it.id + '">' + (it.top ? "إزالة من أهم ٣" : "☆ اجعلها من أهم ٣") + '</button>' +
+        '<div class="row-wrap">' + (!it.done && offsetOf(dk()) === 0 ? '<button class="btn" data-act="focus" data-id="' + it.id + '">▶ ركّز عليها (' + focusCfg.work + ' د)</button>' : "") +
+        '<button class="ghost" data-act="top" data-id="' + it.id + '">' + (it.top ? "إزالة من أهم ٣" : "☆ اجعلها من أهم ٣") + '</button>' +
         '<button class="ghost danger" data-act="del" data-id="' + it.id + '">حذف</button><button class="ghost" data-act="open" data-id="' + it.id + '">إغلاق</button></div></div>';
     }
     return h + '</li>';
@@ -1762,6 +1862,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     }
     h += '</section>';
     h += quranSettingsHtml();
+    h += focusSettingsHtml();
 
     h += '<section><h2>المهام الدائمة</h2><p class="muted small">تنزل تلقائيًا في الأيام التي تختارها، مثل قراءة القرآن كل يوم، أو دراسة القانون أيام الدوام.</p>' +
       '<div class="card"><form class="stack" data-form="routine" style="gap:8px">' +
@@ -1936,6 +2037,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     });
   }
   setInterval(checkAlerts, 20000);
+  setInterval(focusTick, 1000);
   // Server push: notifications even when the app is closed (needs a cloud code and supabase_v6.sql)
   var PUSH_KEY = pkey("yawmi-push-on");
   var pushOn = false;
@@ -2124,6 +2226,12 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       case "syncNow": syncNow(); break;
       case "theme": applyTheme(b.dataset.t); render(); break;
       case "prayOn": setPray({ on: !prayCfg().on }); break;
+      case "focus": focusStart(it); break;
+      case "focusPause": focusPause(); break;
+      case "focusStop": focusStop(); break;
+      case "focusAgain": var fit = focusItem(); if (fit) { focus.mode = "idle"; focusStart(fit); } else focusStop(); break;
+      case "focusWork": focusCfg.work = +b.dataset.v; try { localStorage.setItem(FOCUS_CFG_KEY, JSON.stringify(focusCfg)); } catch (e) {} render(); break;
+      case "focusBrk": focusCfg.brk = +b.dataset.v; try { localStorage.setItem(FOCUS_CFG_KEY, JSON.stringify(focusCfg)); } catch (e) {} render(); break;
       case "qOn": setQuran({ on: !qCfg().on }); commit(); break;
       case "qAdd": qChange(dk(), b.dataset.f, qDay(d)[b.dataset.f] + +b.dataset.v); break;
       case "prayAsr": setPray({ hanafi: b.dataset.v === "1" }); break;
@@ -2208,7 +2316,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   view.addEventListener("change", function (e) {
     var t = e.target, act = t.dataset.act, it = t.dataset.id ? find(t.dataset.id) : null;
     if (act === "done") {
-      it.done = t.checked; it.spent = it.done ? it.dur : null;
+      it.done = t.checked; it.spent = it.done ? (it.focus || it.dur) : null;
       if (it.done) { it.doneAt = new Date().toISOString(); it.doneBy = userName || (cloud.num ? "جهاز " + cloud.num : ""); }
       else { delete it.doneAt; delete it.doneBy; }
       commit();
