@@ -800,7 +800,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   var pendingLog = {};
   try { pendingLog = JSON.parse(localStorage.getItem(LOG_KEY) || "{}") || {}; } catch (e) {}
   function logEvent(action, title, dayKey, key) {
-    if (typeof code !== "string" || !code || cloud.role !== "secondary") return;
+    if (typeof code !== "string" || !code || cloud.role !== "secondary" || (currentProfile() || {}).shared) return;
     var n = new Date(), dm = function (d) { return d.getDate() + "/" + (d.getMonth() + 1); };
     var line = dm(n) + " " + pad(n.getHours()) + ":" + pad(n.getMinutes()) + " — " + action +
       (title ? " «" + String(title).slice(0, 120) + "»" : "") + (dayKey && dayKey !== keyOf(n) ? " (ليوم " + dm(parseKey(dayKey)) + ")" : "");
@@ -1193,7 +1193,9 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   // Settings: state.settings.kids = { list: [{ id, name }], qs: [{ id, text }] }; every question is asked of every child each day.
   // Each day: d.kids = { <kidId>: { a: { <qId>: "s" | "f" }, ev: [{ id, t: "s" | "f", note, at }] } } with its own edit time d.ku
   function kCfg() { var k = state.settings.kids || {}; return { list: arr(k.list), qs: arr(k.qs) }; }
-  function kidsOn() { return kCfg().list.length > 0; }
+  function kidsOn() { return kCfg().list.length > 0 && !isTeamOnly(); }
+  // A team (not a shared family account) has no kids section
+  function isTeamOnly() { var pf = currentProfile(); return !!(pf && pf.team && !pf.shared); }
   function kDay(d, id) { var x = (d && d.kids && d.kids[id]) || {}; return { a: x.a || {}, ev: arr(x.ev) }; }
   function kHas(d) { return !!(d && d.kids && Object.keys(d.kids).length); }
   function kCount(d, id) {
@@ -2133,9 +2135,10 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       }).join("") + '</ul>' +
       '<h3 style="margin-top:8px">حساب جديد</h3>' +
       '<p class="small muted"><b>👤 شخصي:</b> لك وحدك، ويظهر على كل أجهزتك.' +
-      (sb ? '<br><b>👥 فريق:</b> تكون أنت مسؤوله، ويدخله الأعضاء برابط دعوة ترسله لهم.' : "") + '</p>' +
-      '<form class="addform" data-form="profile"><input class="field grow" id="profInput" type="text" maxlength="40" placeholder="اسم الحساب، مثل: العمل أو فريق المبيعات" autocomplete="off">' +
-      '<button class="btn" type="submit">👤 حساب شخصي</button>' + (sb ? '<button class="ghost" type="button" data-act="profTeam">👥 حساب فريق</button>' : "") + '</form>' +
+      (sb ? '<br><b>👨‍👩‍👧 مشترك:</b> للعائلة. ترسل رابطًا لمن تريد فيدخله، وكلكم فيه سواء، وفيه «أبنائي».' +
+        '<br><b>👥 فريق:</b> للعمل. تكون أنت مسؤوله وتوزّع المهام، ويدخله الأعضاء برابط، وترى سجل تغييرات كل عضو.' : "") + '</p>' +
+      '<form class="addform" data-form="profile"><input class="field grow" id="profInput" type="text" maxlength="40" placeholder="اسم الحساب، مثل: العمل أو عائلتي أو فريق المبيعات" autocomplete="off">' +
+      '<button class="btn" type="submit">👤 شخصي</button>' + (sb ? '<button class="ghost" type="button" data-act="profTeam" data-k="shared">👨‍👩‍👧 مشترك</button><button class="ghost" type="button" data-act="profTeam" data-k="team">👥 فريق</button>' : "") + '</form>' +
       '</section>';
     h += '<section><h2>الحفظ السحابي <span class="small muted">(' + esc(profileName()) + ')</span></h2><div class="status">';
     if (cloud.status === "off") {
@@ -2158,12 +2161,13 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
         h += '<p><b>هذا الجهاز: جهاز ثانوي رقم ' + (cloud.num || "") + '</b>، مرتبط بالمسؤول الأول.</p>' +
           '<div class="row-wrap"><button class="btn" data-act="syncNow">مزامنة الآن</button><button class="ghost" data-act="forget">فصل هذا الجهاز</button></div>';
       } else {
-        h += '<p><b>' + (ui.teamInfo ? "أنت مسؤول هذا الفريق" : "هذا حسابك، ويظهر على كل أجهزتك") + '</b></p>' +
+        var shr = ui.teamInfo && ui.teamInfo.tk === "shared";
+        h += '<p><b>' + (shr ? "أنت منشئ هذا الحساب المشترك" : ui.teamInfo ? "أنت مسؤول هذا الفريق" : "هذا حسابك، ويظهر على كل أجهزتك") + '</b></p>' +
           '<div class="row-wrap"><button class="btn" data-act="syncNow">مزامنة الآن</button></div>';
         if (ui.teamInfo) h += teamLinkHtml(ui.teamInfo);
         var devs = ui.devices || [];
-        if (ui.teamInfo || devs.length) h += '<div class="sechead" style="margin-top:6px"><h3>' + (ui.teamInfo ? "أعضاء الفريق" : "أجهزة مربوطة بالطريقة القديمة") + '</h3>' + (devs.length ? '<button class="linkbtn" data-act="logRefresh">تحديث</button>' : "") + '</div>';
-        if (devs.length && ui.teamInfo) h += '<p class="small muted">👥 <b>وضع الفريق:</b> إن كان كل جهاز لشخص، فليكتب كل عضو اسمه في جهازه (⚙ ← اسمك)، ثم وزّع المهام: افتح المهمة في «جدولي» واختر «👤 لمن؟». ويستطيع كل عضو عرض «مهامي فقط»، وتظهر نسبة إنجاز كل عضو في «راجع».</p>';
+        if (ui.teamInfo || devs.length) h += '<div class="sechead" style="margin-top:6px"><h3>' + (shr ? "الأعضاء" : ui.teamInfo ? "أعضاء الفريق" : "أجهزة مربوطة بالطريقة القديمة") + '</h3>' + (devs.length ? '<button class="linkbtn" data-act="logRefresh">تحديث</button>' : "") + '</div>';
+        if (devs.length && ui.teamInfo && !shr) h += '<p class="small muted">👥 <b>وضع الفريق:</b> إن كان كل جهاز لشخص، فليكتب كل عضو اسمه في جهازه (⚙ ← اسمك)، ثم وزّع المهام: افتح المهمة في «جدولي» واختر «👤 لمن؟». ويستطيع كل عضو عرض «مهامي فقط»، وتظهر نسبة إنجاز كل عضو في «راجع».</p>';
         if (!devs.length && ui.teamInfo) h += '<p class="small muted">لا يوجد أعضاء بعد. أرسل لهم رابط الدعوة.</p>';
         else if (devs.length && !ui.teamInfo) h += '<p class="small muted">أُلغيت مشاركة الحساب الشخصي. هذه الأجهزة تبقى تعمل حتى تلغي ربطها.</p>';
         else h += '<ul class="list">' + devs.map(function (dv) {
@@ -2173,7 +2177,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
             (ui.confirmRevoke === dv.token
               ? '<button class="ghost danger" data-act="revokeYes" data-tok="' + esc(dv.token) + '">تأكيد الإلغاء</button><button class="ghost" data-act="revokeNo">تراجع</button>'
               : '<button class="ghost danger" data-act="revoke" data-tok="' + esc(dv.token) + '">إلغاء الربط</button>') + '</div>' +
-            changesHtml(dv) + '</li>';
+            (shr ? "" : changesHtml(dv)) + '</li>';
         }).join("") + '</ul>';
         if (PROFILE === "main") h += '<details class="box"><summary>الكود الرئيسي (للاستعادة فقط)</summary><div class="inner">' +
           '<p>احتفظ به في مكان آمن ولا تعطه لأحد. تحتاجه فقط إن ضاعت كل أجهزتك. لربط جهاز آخر استعمل «📱 أجهزتي».</p>' +
@@ -2206,7 +2210,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     }
     h += '</section>';
     h += quranSettingsHtml();
-    h += kidsSettingsHtml();
+    if (!isTeamOnly()) h += kidsSettingsHtml();
     h += focusSettingsHtml();
 
     h += '<section><h2>المهام الدائمة</h2><p class="muted small">تنزل تلقائيًا في الأيام التي تختارها، مثل قراءة القرآن كل يوم، أو دراسة القانون أيام الدوام.</p>' +
@@ -2563,14 +2567,14 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       case "reqCancel": ui.req = null; render(); break;
       case "profTeam":
         var ptn = $("profInput").value.trim();
-        if (!ptn) { toast("اكتب اسم الفريق أولًا"); break; }
-        teamCreate(ptn); break;
+        if (!ptn) { toast(b.dataset.k === "shared" ? "اكتب اسم الحساب المشترك أولًا، مثل: عائلتي" : "اكتب اسم الفريق أولًا"); break; }
+        teamCreate(ptn, b.dataset.k); break;
       case "teamInvCopy":
         try { navigator.clipboard.writeText(teamUrl(id)).then(function () { toast("نُسخ الرابط، الصقه في واتساب"); }, function () { toast("انسخ الرابط يدويًا"); }); }
         catch (err) { toast("انسخ الرابط يدويًا"); }
         break;
       case "teamInvShare":
-        var itxt = "انضم إلى «" + b.dataset.n + "» في تطبيق «يومي»: افتح الرابط واكتب اسمك.";
+        var itxt = "انضم إلى «" + b.dataset.n + "» في تطبيق «يومي»: افتح الرابط.";
         if (navigator.share) navigator.share({ title: "يومي", text: itxt, url: teamUrl(id) }).catch(function () {});
         else try { navigator.clipboard.writeText(itxt + "\n" + teamUrl(id)).then(function () { toast("نُسخت الدعوة، الصقها في واتساب"); }, function () {}); } catch (err) {}
         break;
@@ -3141,7 +3145,9 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       var un = localStorage.getItem(pkey("yawmi-username", fromId));
       if (un) localStorage.setItem(pkey("yawmi-username", nid), un);
     } catch (e) { return ""; }
-    profiles.list.push(t.kind === "own" ? { id: nid, name: (t.name || "حساب").slice(0, 30), own: 1 } : { id: nid, name: teamTitle(t), team: 1 }); saveProfiles();
+    var np = t.kind === "own" ? { id: nid, name: (t.name || "حساب").slice(0, 30), own: 1 } : { id: nid, name: teamTitle(t), team: 1 };
+    if (t.tk === "shared") np.shared = 1;
+    profiles.list.push(np); saveProfiles();
     return nid;
   }
   /* ---------- LIMITS (supabase_v13.sql): one personal account and two teams each; more by asking the admin ---------- */
@@ -3160,7 +3166,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       var old = limits;
       limits = r.data;
       try { localStorage.setItem(LIMITS_KEY, JSON.stringify(limits)); } catch (e) {}
-      if (old && (limits.max_personal > old.max_personal || limits.max_teams > old.max_teams || limits.max_devices > (old.max_devices || 3))) toast("✓ وافق المشرف على طلبك");
+      if (old && (limits.max_personal > old.max_personal || limits.max_teams > old.max_teams || limits.max_devices > (old.max_devices || 3) || limits.max_shared > (old.max_shared || 1))) toast("✓ وافق المشرف على طلبك");
       if (ui.tab === "settings") softRender();
     }, function () {});
   }
@@ -3172,7 +3178,8 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       try { return (JSON.parse(localStorage.getItem(pkey("daily-planner-link", pf.id)) || "{}").role || "") !== "secondary"; } catch (e) { return true; }
     }).length;
   }
-  function reqAsk(kind, name) { ui.req = { kind: kind, name: name || "" }; ui.tab = "settings"; render(); window.scrollTo(0, 0); }
+  // name: the team or shared account the person couldn't join; make: the one they wanted to create (made on approval)
+  function reqAsk(kind, name, make) { ui.req = { kind: kind, name: name || "", make: make || "" }; ui.tab = "settings"; render(); window.scrollTo(0, 0); }
   function reqCardHtml() {
     var r = ui.req;
     if (!r) return "";
@@ -3180,19 +3187,21 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     var why = {
       personal: "لكل شخص حساب شخصي واحد.",
       teams: "لكل شخص فريقان على الأكثر، بين ما يكون مسؤوله وما ينضم إليه" + (r.name ? "، فلا يمكن الانضمام إلى «" + esc(r.name) + "» الآن." : "."),
-      shared: "لكل شخص حساب مشترك واحد ينضم إليه (حساب شاركه معه غيره).",
+      shared: "لكل شخص حساب مشترك واحد، بين ما ينشئه وما ينضم إليه" + (r.name ? "، فلا يمكن الانضمام إلى «" + esc(r.name) + "» الآن." : "."),
       devices: "لكل شخص " + ((limits && limits.max_devices) || 3) + " أجهزة على الأكثر، تظهر عليها كل حساباته."
     }[r.kind];
-    var need = { personal: "حسابًا آخر", teams: "فريقًا آخر", shared: "الانضمام إلى حساب مشترك آخر", devices: "جهازًا آخر" }[r.kind];
-    var h = '<section class="card"><h2>📩 اطلب من المشرف</h2><p class="small">' + why + ' إن احتجت ' + need + '، فاطلبه من المشرف.</p>';
-    if (pending) return h + '<p class="small"><b>⏳ طلبك قيد المراجعة.</b> حين يوافق المشرف تصلك رسالة عند فتح التطبيق' + (r.kind === "teams" ? "، ثم افتح رابط الفريق من جديد" : "") + '.</p><div><button class="ghost" data-act="reqCancel">إغلاق</button></div></section>';
+    var need = { personal: "حسابًا آخر", teams: "فريقًا آخر", shared: "حسابًا مشتركًا آخر", devices: "جهازًا آخر" }[r.kind];
+    var h = '<section class="card"><h2>📩 اطلب من المشرف</h2><p class="small">' + why + ' إن احتجت ' + need + '، فاطلبه من المشرف.' +
+      (r.make ? ' وحين يوافق يُنشأ «' + esc(r.make) + '» تلقائيًا ويظهر في حساباتك.' : "") + '</p>';
+    if (pending) return h + '<p class="small"><b>⏳ طلبك قيد المراجعة.</b> حين يوافق المشرف تصلك رسالة عند فتح التطبيق' + (r.name ? "، ثم افتح الرابط من جديد" : "") + '.</p><div><button class="ghost" data-act="reqCancel">إغلاق</button></div></section>';
     if (!mainKey()) return h + '<p class="small muted">يحتاج الطلب حسابًا سحابيًا: اكتب اسمك في حسابك الأول، أو فعّل الحفظ السحابي فيه.</p><div><button class="ghost" data-act="reqCancel">إغلاق</button></div></section>';
     return h + '<textarea class="field" id="reqNote" rows="2" maxlength="200" placeholder="السبب باختصار، مثل: حساب لعملي"></textarea>' +
       '<div class="row-wrap"><button class="btn" data-act="reqSend">📩 أرسل الطلب</button><button class="ghost" data-act="reqCancel">إلغاء</button></div></section>';
   }
   function reqSend() {
     var r = ui.req, note = ($("reqNote") || {}).value || "";
-    sb.rpc("yawmi_request", { p_key: mainKey(), p_kind: r.kind, p_note: note }).then(function (x) {
+    var args = { p_key: mainKey(), p_kind: r.kind, p_note: note };
+    (r.make ? sb.rpc("yawmi_request", { p_key: args.p_key, p_kind: r.kind, p_note: note, p_name: r.make }).then(function (x) { return x.error && x.error.code === "PGRST202" ? sb.rpc("yawmi_request", args) : x; }) : sb.rpc("yawmi_request", args)).then(function (x) {
       if (x.error || !x.data) { toast(x.error && x.error.code === "PGRST202" ? "الطلبات غير مفعّلة بعد على الخادم" : "تعذّر إرسال الطلب"); return; }
       limits = limits || {}; limits.pending = arr(limits.pending).concat([r.kind]);
       toast("📩 أُرسل الطلب إلى المشرف"); render(); limitsLoad();
@@ -3242,7 +3251,12 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       if (!r.data) return;
       if (r.data.revoked) { meRevoked(); return; }
       var keys = {}, added = 0;
-      arr(r.data.accounts).forEach(function (t) { keys[t.key] = 1; if (addTeamProfile(t, "main")) added++; });
+      arr(r.data.accounts).forEach(function (t) {
+        keys[t.key] = 1;
+        if (addTeamProfile(t, "main")) { added++; return; }
+        var pf = profiles.list.filter(function (x) { return profCode(x.id) === t.key; })[0], sh = t.tk === "shared";
+        if (pf && t.kind !== "own" && !!pf.shared !== sh) { if (sh) pf.shared = 1; else delete pf.shared; saveProfiles(); }
+      });
       var gone = profiles.list.filter(function (pf) { var c = profCode(pf.id); return pf.id !== "main" && (pf.team || pf.own) && c && !keys[c]; });
       gone.forEach(dropProfile);
       try { if (r.data.uname && !localStorage.getItem(pkey("yawmi-username", "main"))) { localStorage.setItem(pkey("yawmi-username", "main"), r.data.uname); if (PROFILE === "main") setUserName(r.data.uname); } } catch (e) {}
@@ -3411,17 +3425,18 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     }, function () { toast("تعذّر الاتصال. تأكد من الإنترنت."); });
   }
   // Anyone can start a team (supabase_v12.sql): the team account is added here with this person as its leader
-  function teamCreate(name) {
+  function teamCreate(name, kind) {
+    kind = kind === "shared" ? "shared" : "team";
     var c = "", meta = {};
     try { c = localStorage.getItem(pkey("daily-planner-code", "main")) || ""; meta = JSON.parse(localStorage.getItem(pkey("daily-planner-link", "main")) || "{}"); } catch (e) {}
     if (!c || meta.role === "secondary") { toast("فعّل الحفظ السحابي لحسابك الأول أولًا (⚙ ← الحفظ السحابي ← ابدأ حسابًا جديدًا)"); return; }
     if (!online()) return;
-    sb.rpc("yawmi_team_create", { p_key: c, p_name: name }).then(function (r) {
-      if (r.error) { toast(r.error.code === "PGRST202" ? "إنشاء الفرق غير مفعّل بعد على الخادم" : "تعذّر: " + netError(r.error)); return; }
-      if (r.data && r.data.err === "limit") { reqAsk("teams"); return; }
-      if (!r.data || r.data.err) { toast("تعذّر إنشاء الفريق"); return; }
+    sb.rpc("yawmi_team_create", { p_key: c, p_name: name, p_kind: kind }).then(function (r) {
+      if (r.error) { toast(r.error.code === "PGRST202" ? "هذا النوع غير مفعّل بعد على الخادم" : "تعذّر: " + netError(r.error)); return; }
+      if (r.data && r.data.err === "limit") { reqAsk(kind === "shared" ? "shared" : "teams", "", name); return; }
+      if (!r.data || r.data.err) { toast("تعذّر الإنشاء"); return; }
       var nid = addTeamProfile(r.data, "main");
-      toast("👥 أُنشئ «" + teamTitle(r.data) + "». أنشئ له رابط دعوة من ⚙");
+      toast((kind === "shared" ? "👨‍👩‍👧" : "👥") + " أُنشئ «" + teamTitle(r.data) + "». أنشئ له رابط دعوة من ⚙");
       if (nid) setTimeout(function () { switchProfile(nid); }, 1200);
     }, function () { toast("تعذّر الاتصال. تأكد من الإنترنت."); });
   }
@@ -3434,11 +3449,11 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     }, function () { toast("تعذّر الاتصال. تأكد من الإنترنت."); });
   }
   function teamLinkHtml(t) {
-    var h = '<div class="card"><h3>🔗 دعوة أعضاء إلى «' + esc(t.name) + '»</h3>';
-    if (t.invite) return h + '<p class="small">أرسل هذا الرابط لأعضاء فريقك. من فتحه وكتب اسمه انضم إلى الفريق. ينتهي ' + untilText(t.invite_until) + '.</p>' +
+    var h = '<div class="card"><h3>🔗 دعوة إلى «' + esc(t.name) + '»</h3>';
+    if (t.invite) return h + '<p class="small">أرسل هذا الرابط ' + (t.tk === "shared" ? "لمن تريد مشاركته الحساب" : "لأعضاء فريقك") + ' عبر واتساب أو غيره. من فتحه دخل مباشرة. ينتهي ' + untilText(t.invite_until) + '.</p>' +
       '<div class="tip ltr small" style="user-select:all;word-break:break-all">' + esc(teamUrl(t.invite)) + '</div>' +
-      '<div class="row-wrap"><button class="btn" data-act="admInvShare" data-id="' + esc(t.invite) + '" data-n="' + esc(t.name) + '">📤 أرسله</button>' +
-      '<button class="ghost" data-act="admInvCopy" data-id="' + esc(t.invite) + '">📋 انسخ</button><button class="ghost danger" data-act="teamLinkStop">إيقاف الرابط</button></div></div>';
+      '<div class="row-wrap"><button class="btn" data-act="teamInvShare" data-id="' + esc(t.invite) + '" data-n="' + esc(t.name) + '">📤 أرسله</button>' +
+      '<button class="ghost" data-act="teamInvCopy" data-id="' + esc(t.invite) + '">📋 انسخ</button><button class="ghost danger" data-act="teamLinkStop">إيقاف الرابط</button></div></div>';
     return h + '<p class="small muted">الرابط ينتهي بعد المدة التي تختارها، وتستطيع إيقافه متى شئت.</p><div class="addform"><span class="small">صالح لمدة</span>' +
       '<select class="field" id="teamLinkHrs">' + INVITE_HOURS.map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === 24 ? " selected" : "") + '>' + o[1] + '</option>'; }).join("") + '</select>' +
       '<button class="btn" data-act="teamLinkNew">🔗 أنشئ رابطًا</button></div></div>';
@@ -3461,9 +3476,9 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     sb.rpc("yawmi_team_join", { p_key: c, p_token: tk, p_label: deviceLabel() }).then(function (r) {
       if (r.error) { toast(r.error.code === "PGRST202" ? "الانضمام بالرابط غير مفعّل بعد على الخادم" : "تعذّر الانضمام: " + netError(r.error)); return; }
       if (!r.data) { toast("رابط الفريق غير صحيح أو انتهت صلاحيته. اطلب رابطًا جديدًا."); return; }
-      if (r.data.err === "limit") { reqAsk("teams", r.data.name); return; }
+      if (r.data.err === "limit") { reqAsk(r.data.tk === "shared" ? "shared" : "teams", r.data.name); return; }
       var nid = addTeamProfile(r.data, "main");
-      toast("👥 انضممت إلى «" + teamTitle(r.data) + "» ✓");
+      toast((r.data.tk === "shared" ? "👨‍👩‍👧" : "👥") + " انضممت إلى «" + teamTitle(r.data) + "» ✓");
       if (nid) setTimeout(function () { switchProfile(nid); }, 1500);
     }, function () { try { localStorage.setItem(TEAM_PENDING, tk); } catch (e) {} toast("تعذّر الاتصال. سننضم إلى الفريق عند عودة الإنترنت."); });
   }
