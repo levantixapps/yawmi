@@ -1,7 +1,7 @@
 // Offline support: the app shell is served network-first (so updates arrive),
 // fonts and the Supabase library cache-first. Personal data never passes through here;
 // it lives in the browser's localStorage.
-var CACHE = "yawmi-v53";
+var CACHE = "yawmi-v54";
 var CORE = ["./", "index.html", "guide.html", "config.js", "manifest.webmanifest", "icon.svg", "icon-192.png", "icon-512.png"];
 
 self.addEventListener("install", function (e) {
@@ -65,10 +65,11 @@ self.addEventListener("push", function (e) {
 self.addEventListener("notificationclick", function (e) {
   e.notification.close();
   var m = /^(\d{4}-\d{2}-\d{2}):([^:]+):/.exec(e.notification.tag || ""), task = m ? m[1] + ":" + m[2] : "";
+  var flow = /^flow:/.test(e.notification.tag || ""); // a transaction reached this person: open the transactions tab
   e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(function (list) {
     for (var i = 0; i < list.length; i++) {
-      if ("focus" in list[i]) { if (task) list[i].postMessage({ task: task }); return list[i].focus(); }
+      if ("focus" in list[i]) { if (task) list[i].postMessage({ task: task }); if (flow) list[i].postMessage({ flows: 1 }); return list[i].focus(); }
     }
-    return self.clients.openWindow("./" + (task ? "#task=" + encodeURIComponent(task).replace("%3A", ":") : ""));
+    return self.clients.openWindow("./" + (task ? "#task=" + encodeURIComponent(task).replace("%3A", ":") : flow ? "#flows" : ""));
   }));
 });

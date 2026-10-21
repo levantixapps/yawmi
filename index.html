@@ -111,7 +111,13 @@ section, .stack { display: flex; flex-direction: column; gap: 10px; }
 
 /* Tab bar */
 .tabbar { position: fixed; inset-inline: 0; bottom: 0; z-index: 6; background: var(--surface); border-top: 1px solid var(--line); padding: 6px 12px calc(6px + env(safe-area-inset-bottom, 0px)); display: flex; justify-content: center; }
-.tabbar .in { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; width: 100%; max-width: 560px; }
+.tabbar .in { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px; width: 100%; max-width: 560px; }
+.flowpath { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; font-size: .8rem; margin-top: 6px; }
+.flowpath span { padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+.flowpath span.done { color: var(--done); background: var(--done-soft); border-color: transparent; }
+.flowpath span.cur { color: var(--accent); background: var(--accent-soft); border-color: var(--accent); font-weight: 700; }
+.flowpath i { font-style: normal; color: var(--muted); }
+.flowcard.late { border-color: var(--q-now); }
 .tab { border: 0; background: none; border-radius: 12px; padding: 6px 4px; display: flex; flex-direction: column; align-items: center; color: var(--muted); font-size: .8rem; }
 .tab b { font-family: var(--font-display); font-size: 1rem; font-weight: 600; }
 .tab[aria-current="true"] { background: var(--accent-soft); color: var(--accent); }
@@ -472,6 +478,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     <button class="tab" data-tab="plan"><b>خطّط</b><span>صباحًا</span></button>
     <button class="tab" data-tab="day"><b>جدولي</b><span>تابع</span></button>
     <button class="tab" data-tab="review"><b>راجع</b><span>التقرير</span></button>
+    <button class="tab" data-tab="flows" hidden><b>المعاملات</b><span>📨</span></button>
   </div>
 </nav>
 <div class="toast" id="toast" hidden></div>
@@ -753,7 +760,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   function itemsMap(d) { var m = {}; d.items.forEach(function (i) { m[i.id] = itemJson(i); }); return m; }
   function textJson(d) { return JSON.stringify([d.good, d.improve, d.notes, d.startAt, d.sleep || null]); }
   function daySnap(d) { return { m: itemsMap(d), t: textJson(d), a: JSON.stringify(d.applied), q: JSON.stringify(d.quran || null), k: JSON.stringify(d.kids || null) }; }
-  function setJson() { return JSON.stringify([state.settings.categories, state.settings.routines, state.settings.sleep || null, state.settings.prayer || null, state.settings.quran || null, state.settings.templates || null, state.settings.goals || null, state.settings.team || null, state.settings.kids || null, state.settings.tcfg || null]); }
+  function setJson() { return JSON.stringify([state.settings.categories, state.settings.routines, state.settings.sleep || null, state.settings.prayer || null, state.settings.quran || null, state.settings.templates || null, state.settings.goals || null, state.settings.team || null, state.settings.kids || null, state.settings.tcfg || null, state.settings.roles || null, state.settings.paths || null, state.settings.rejecters || null]); }
   function isEmptyDay(d) { return !d.items.length && !d.good && !d.improve && !d.notes && !(d.sleep && (d.sleep.bed || d.sleep.wake)) && !qHas(d) && !kHas(d); }
   function takeSnap() {
     snap = { _s: setJson() };
@@ -797,7 +804,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     });
     if (snap._s) {
       var was = JSON.parse(snap._s), now = JSON.parse(setJson());
-      [[0, "categories"], [1, "routines"], [5, "templates"], [6, "goals"], [9, "tcfg"]].forEach(function (x) {
+      [[0, "categories"], [1, "routines"], [5, "templates"], [6, "goals"], [9, "tcfg"], [10, "roles"], [11, "paths"], [12, "rejecters"]].forEach(function (x) {
         if (JSON.stringify(now[x[0]]) === JSON.stringify(was[x[0]])) return;
         state.settings[x[1]] = was[x[0]]; blocked = true;
       });
@@ -979,6 +986,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     $("prev").disabled = diff <= -ARCHIVE;
     $("next").disabled = diff >= FUTURE;
     document.querySelectorAll(".tab").forEach(function (b) { b.setAttribute("aria-current", b.dataset.tab === ui.tab ? "true" : "false"); });
+    var ftab = document.querySelector('.tab[data-tab="flows"]'); if (ftab) ftab.hidden = !flowsOn();
     var dot = $("cloudDot");
     dot.hidden = cloud.status === "off" || cloud.status === "nocode";
     dot.className = "dot" + (cloud.status === "error" || cloud.status === "offline" ? " warn" : "");
@@ -1014,7 +1022,10 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       html += '<div class="banner"><span>هذا يوم مثال يوضّح طريقة الاستخدام.</span><button class="linkbtn" data-act="clearSample">احذف المثال وابدأ</button></div>';
     }
     html += linkHereHtml();
-    html += ui.tab === "settings" ? settingsView() : ui.tab === "plan" ? planView() : ui.tab === "day" ? dayView() : reviewView();
+    if (flowsOn() && (ui.tab === "flows" ? Date.now() - flowsAt > 20000 : ui.tab === "day" && Date.now() - flowsAt > 120000)) flowsLoad();
+    if (ui.tab === "day" && flowsOn() && myFlows().length) html += '<div class="banner"><span>📨 عندك ' + myFlows().length + ' معاملة تنتظرك</span><button class="linkbtn" data-act="tab" data-tab="flows">افتحها</button></div>';
+    if (ui.tab === "flows" && !flowsOn()) ui.tab = "day";
+    html += ui.tab === "flows" ? flowsView() : ui.tab === "settings" ? settingsView() : ui.tab === "plan" ? planView() : ui.tab === "day" ? dayView() : reviewView();
     view.innerHTML = '<div class="stack" style="gap:20px;padding-top:16px">' + html + '</div>';
     drawQr();
   }
@@ -2299,6 +2310,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     }).join("") + '</ul><form class="addform" data-form="cat"><input class="field grow" id="catInput" type="text" placeholder="تقسيم جديد، مثل: القراءة" autocomplete="off"><button class="btn" type="submit">أضف</button></form></section>';
 
     }
+    h += flowSettingsHtml();
     h += resetHtml();
     var archived = Object.keys(state.days).filter(function (k) { return offsetOf(k) < -SPAN; }).length;
     h += '<section><h2>الأرشيف</h2><p class="small muted">السحابة تحفظ ٧ أيام فقط، وهذا الجهاز يحتفظ بالأيام السابقة لمدة سنة. المحفوظ الآن: <b>' + archived + '</b> يومًا قديمًا. لتصفّحها اضغط على التاريخ في الأعلى. الأرشيف لا يُرفع إلى السحابة، فخذ منه نسخة احتياطية بين حين وآخر.</p></section>';
@@ -2643,6 +2655,21 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       case "teamLinkNew": teamLink(+($("teamLinkHrs") || {}).value || 24); break;
       case "teamLinkStop": teamLink(0); break;
       case "teamLinkGo": ui.tab = "settings"; ui.open = null; render(); window.scrollTo(0, 0); loadDevices(); myDevLoad(); break;
+      case "flowStart": ui.flowForm = true; ui.flowSteps = []; render(); break;
+      case "flowClose": ui.flowForm = false; render(); break;
+      case "flowNew": flowNew(); break;
+      case "flowStep": keepFlowForm(); ui.flowSteps = arr(ui.flowSteps).concat([b.dataset.r]); render(); break;
+      case "flowPop": keepFlowForm(); ui.flowSteps = arr(ui.flowSteps).slice(0, -1); render(); break;
+      case "flowsLoad": flowsLoad(); break;
+      case "flowAct": flowAct(id, b.dataset.a); break;
+      case "flowOpen": ui.flowOpen = ui.flowOpen === id ? null : id; render(); break;
+      case "rejToggle":
+        var rjl = rejecters().slice(), rji = rjl.indexOf(b.dataset.r);
+        if (rji >= 0) rjl.splice(rji, 1); else rjl.push(b.dataset.r);
+        state.settings.rejecters = rjl; commit(); break;
+      case "pathStep": ui.pathName = ($("pathName") || {}).value || ""; ui.pathSteps = arr(ui.pathSteps).concat([b.dataset.r]); render(); break;
+      case "pathPop": ui.pathName = ($("pathName") || {}).value || ""; ui.pathSteps = arr(ui.pathSteps).slice(0, -1); render(); break;
+      case "pathDel": state.settings.paths = paths().filter(function (x) { return x.id !== id; }); commit(); break;
       case "tcfgAdd": state.settings.tcfg = { add: !membersAdd() }; commit(); toast(membersAdd() ? "يستطيع الأعضاء إضافة مهامهم" : "لا يضيف المهام إلا أنت"); break;
       case "reqSend": reqSend(); break;
       case "reqCancel": ui.req = null; render(); break;
@@ -2791,6 +2818,8 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     }
     else if (act === "prayBlock") setPray({ block: +t.value });
     else if (act === "resetSetBox") ui.resetSet = t.checked;
+    else if (act === "roleSet") { var rs2 = Object.assign({}, roles()); if (t.value.trim()) rs2[t.dataset.n] = t.value.trim().slice(0, 30); else delete rs2[t.dataset.n]; state.settings.roles = rs2; commit(); }
+    else if (act === "flowPath") { keepFlowForm(); var fp = paths().filter(function (x) { return x.id === t.value; })[0]; ui.flowSteps = fp ? arr(fp.steps).slice() : []; render(); }
     else if (act === "uname") { if (t.value.trim()) { setUserName(t.value); toast("حُفظ الاسم"); } else t.value = userName; }
     else if (act === "profName") {
       var pf = profiles.list.filter(function (x) { return x.id === t.dataset.id; })[0], nv = t.value.trim();
@@ -2865,6 +2894,12 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       var nid = "p" + Date.now().toString(36);
       profiles.list.push({ id: nid, name: v.slice(0, 30) });
       saveProfiles(); toast("أُضيف حساب «" + v + "»"); switchProfile(nid);
+    } else if (f === "path") {
+      v = $("pathName").value.trim();
+      if (!v) { toast("اكتب اسم المسار"); return; }
+      if (!arr(ui.pathSteps).length) { toast("اضغط الأدوار بالترتيب"); return; }
+      state.settings.paths = paths().concat([{ id: "w" + uid(), name: v.slice(0, 40), steps: arr(ui.pathSteps).slice() }]);
+      ui.pathSteps = []; ui.pathName = ""; commit(); toast("حُفظ المسار «" + v + "»");
     } else if (f === "paste") {
       pasteLink($("pasteInput").value.trim());
     } else if (f === "cat") {
@@ -3168,7 +3203,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     if (!sb || !code || !cloud.chan) return;
     try {
       chan = sb.channel("yawmi-" + cloud.chan, { config: { broadcast: { self: false } } });
-      chan.on("broadcast", { event: "changed" }, function () { syncNow(); }).subscribe(function (st) { live = st === "SUBSCRIBED"; });
+      chan.on("broadcast", { event: "changed" }, function () { syncNow(); if (flowsOn()) flowsLoad(); }).subscribe(function (st) { live = st === "SUBSCRIBED"; });
     } catch (e) { chan = null; }
   }
   function nudge() { try { if (chan) chan.send({ type: "broadcast", event: "changed", payload: {} }); } catch (e) {} }
@@ -3731,6 +3766,142 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       del: del, tu: Math.max(L.tu || 0, R.tu || 0), updatedAt: Math.max(L.updatedAt || 0, R.updatedAt || 0) });
   }
 
+  /* ---------- TRANSACTIONS (supabase_v20.sql): a team's paper that passes from role to role, e.g. الديوان ← مدير المكتب ← المالية ← المدير ---------- */
+  // Roles, saved paths and who may reject live in the team's settings (the leader edits them):
+  // settings.roles = { "<num>": "المالية" }, settings.paths = [{ id, name, steps: [role…] }], settings.rejecters = [role…].
+  // The flows themselves live on the server; the holder of the current step (or the leader) moves them on.
+  function flowsOn() { return isTeamOnly() && !!sb && !!code; }
+  function roles() { return state.settings.roles || {}; }
+  function roleList() { var seen = {}, out = []; Object.keys(roles()).sort().forEach(function (n) { var r = (roles()[n] || "").trim(); if (r && !seen[r]) { seen[r] = 1; out.push(r); } }); return out; }
+  function myRole() { return (roles()[String(myNum())] || "").trim(); }
+  function roleHolders(r) { return Object.keys(roles()).filter(function (n) { return (roles()[n] || "").trim() === r; }).map(function (n) { return memberName(+n); }).join("، "); }
+  function paths() { return arr(state.settings.paths); }
+  function rejecters() { return arr(state.settings.rejecters); }
+  function isLeader() { return cloud.role === "primary"; }
+  function canAct(f) { return f.status === "open" && (isLeader() || (myRole() && f.steps[f.pos] === myRole())); }
+  function flowLate(f) { return f.status === "open" && f.days && Date.now() - Date.parse(f.step_at) > f.days * 86400000; }
+  function sinceText(iso) {
+    var m = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60000));
+    if (m < 60) return m <= 1 ? "الآن" : "منذ " + m + " دقيقة";
+    var h = Math.round(m / 60); if (h < 24) return "منذ " + (h === 1 ? "ساعة" : h === 2 ? "ساعتين" : h + " ساعات");
+    var d = Math.round(h / 24); return "منذ " + (d === 1 ? "يوم" : d === 2 ? "يومين" : d + " أيام");
+  }
+  function spanText(a, b) {
+    var h = Math.max(0, (Date.parse(b) - Date.parse(a)) / 3600000);
+    return h < 1 ? "أقل من ساعة" : h < 24 ? Math.round(h) + " ساعة" : Math.round(h / 24) + " يوم";
+  }
+  var flowsAt = 0;
+  function flowsLoad() {
+    if (!flowsOn()) return;
+    flowsAt = Date.now();
+    sb.rpc("yawmi_flows_list", { p_key: code }).then(function (r) {
+      if (r.error) { if (r.error.code === "PGRST202") ui.flowsOff = true; return; }
+      var was = JSON.stringify(ui.flows || null);
+      ui.flows = arr(r.data);
+      if (was !== JSON.stringify(ui.flows) && (ui.tab === "flows" || ui.tab === "day")) softRender();
+    }, function () {});
+  }
+  function myFlows() { return arr(ui.flows).filter(function (f) { return f.status === "open" && myRole() && f.steps[f.pos] === myRole(); }); }
+  function keepFlowForm() { ui.fTitle = ($("fTitle") || {}).value || ui.fTitle || ""; ui.fRef = ($("fRef") || {}).value || ui.fRef || ""; }
+  function flowNew() {
+    var title = ($("fTitle") || {}).value || "", steps = arr(ui.flowSteps);
+    if (!title.trim()) { toast("اكتب عنوان المعاملة"); return; }
+    if (!steps.length) { toast("اختر مسار المعاملة"); return; }
+    if (!online()) return;
+    sb.rpc("yawmi_flow_new", { p_key: code, p_title: title.trim(), p_ref: ($("fRef") || {}).value || "", p_steps: steps, p_days: +($("fDays") || {}).value || 0 }).then(function (r) {
+      if (r.error || !r.data) { toast("تعذّر تسجيل المعاملة: " + netError(r.error)); return; }
+      ui.flowSteps = []; ui.flowForm = false; ui.fTitle = ui.fRef = ""; toast("📨 سُجّلت المعاملة"); flowsLoad(); nudge();
+    }, function () { toast("تعذّر الاتصال. تأكد من الإنترنت."); });
+  }
+  function flowAct(id, act) {
+    var note = ($("fnote-" + id) || {}).value || "", role = act === "route" ? ($("froute-" + id) || {}).value || "" : "";
+    if (act === "route" && !role) { toast("اختر الدور الذي تحوّلها إليه"); return; }
+    if ((act === "back" || act === "reject") && !note.trim()) { toast("اكتب السبب في الملاحظة"); return; }
+    if (!online()) return;
+    sb.rpc("yawmi_flow_act", { p_key: code, p_id: +id, p_act: act, p_note: note, p_role: role }).then(function (r) {
+      var msg = { ok: { next: "✓ أُرسلت", back: "↩ أُرجعت", route: "↪ حُوّلت", reject: "✗ رُفضت" }[act], notyours: "هذه الخطوة ليست عندك", norej: "دورك لا يملك الرفض", first: "هذه أول خطوة", gone: "انتهت هذه المعاملة أو حُذفت" }[r.data];
+      if (r.error) { toast("تعذّر: " + netError(r.error)); return; }
+      toast(msg || "تعذّر"); flowsLoad(); nudge();
+    }, function () { toast("تعذّر الاتصال. تأكد من الإنترنت."); });
+  }
+  var FLOW_ACT = { start: "سجّلها", next: "أرسلها", back: "أرجعها", route: "حوّلها", reject: "رفضها" };
+  function pathLine(f) {
+    return '<div class="flowpath">' + f.steps.map(function (r, i) {
+      var cls = f.status !== "open" || i < f.pos ? "done" : i === f.pos ? "cur" : "";
+      return '<span class="' + cls + '">' + esc(r) + '</span>';
+    }).join('<i>←</i>') + '</div>';
+  }
+  function flowCard(f, mine) {
+    var cur = f.steps[f.pos], late = flowLate(f), last = f.pos >= f.steps.length - 1;
+    var res = f.status === "done" ? "✅ مُنجزة" : f.status === "rejected" ? "❌ مرفوضة" : "";
+    var h = '<li class="card flowcard' + (late ? " late" : "") + '"><div class="top"><span class="ttl"><span><b>' + esc(f.title) + '</b></span>' +
+      '<span class="small muted">رقم ' + f.no + (f.ref ? ' · ' + esc(f.ref) : "") + '</span>' +
+      (res ? '<span class="small"><b>' + res + '</b> · استغرقت ' + spanText(f.created_at, f.updated_at) + '</span>'
+        : '<span class="small">عند <b>' + esc(cur) + '</b>' + (roleHolders(cur) ? ' (' + esc(roleHolders(cur)) + ')' : "") + ' · الخطوة ' + (f.pos + 1) + ' من ' + f.steps.length + ' · ' + sinceText(f.step_at) +
+          (late ? ' · <b class="err">⏰ متأخرة</b>' : "") + '</span>') + '</span></div>' + pathLine(f);
+    if (canAct(f) && (mine || ui.flowOpen === "a" + f.id)) {
+      var others = roleList().filter(function (r) { return r !== cur; });
+      h += '<div class="editor"><textarea id="fnote-' + f.id + '" placeholder="ملاحظة (ضرورية عند الإرجاع أو الرفض)" style="min-height:56px"></textarea>' +
+        '<div class="row-wrap"><button class="btn" data-act="flowAct" data-a="next" data-id="' + f.id + '">' + (last ? "✓ أنهِ المعاملة" : "✓ أرسلها إلى «" + esc(f.steps[f.pos + 1]) + "»") + '</button>' +
+        (f.pos > 0 ? '<button class="ghost" data-act="flowAct" data-a="back" data-id="' + f.id + '">↩ أرجعها إلى «' + esc(f.steps[f.pos - 1]) + '»</button>' : "") +
+        (isLeader() || rejecters().indexOf(myRole()) >= 0 ? '<button class="ghost danger" data-act="flowAct" data-a="reject" data-id="' + f.id + '">✗ ارفضها</button>' : "") + '</div>' +
+        (others.length ? '<div class="addform"><span class="small">↪ حوّلها إلى</span><select class="field" id="froute-' + f.id + '"><option value="">اختر دورًا</option>' +
+          others.map(function (r) { return '<option>' + esc(r) + '</option>'; }).join("") + '</select><button class="ghost" data-act="flowAct" data-a="route" data-id="' + f.id + '">حوّلها</button></div>' : "") + '</div>';
+    } else if (canAct(f)) h += '<div><button class="linkbtn" data-act="flowOpen" data-id="a' + f.id + '">تصرّف فيها (أنت المسؤول)</button></div>';
+    h += '<details class="changes"><summary>سجل المعاملة (' + arr(f.log).length + ')</summary><ul class="loglist">' + arr(f.log).map(function (e) {
+      var t = new Date(e.at);
+      return '<li><span>' + shortDate(keyOf(t)) + ' ' + stamp(t.getTime()) + ' — <b>' + esc(e.who || "") + '</b>' + (e.role ? ' (' + esc(e.role) + ')' : "") + ' ' + (FLOW_ACT[e.act] || "") +
+        (e.act === "route" && e.to ? ' إلى «' + esc(e.to) + '»' : "") + (e.note ? ': «' + esc(e.note) + '»' : "") + '</span></li>';
+    }).join("") + '</ul></details></li>';
+    return h;
+  }
+  function flowsView() {
+    if (!flowsOn()) return '<section><p class="muted">المعاملات متاحة في حسابات الفرق.</p></section>';
+    if (ui.flowsOff) return '<section><h2>📨 المعاملات</h2><p class="small muted">المعاملات غير مفعّلة بعد على الخادم (supabase_v20.sql).</p></section>';
+    var rl = roleList(), h = '<section><h2>📨 المعاملات</h2>';
+    if (!rl.length) return h + '<p class="small muted">' + (isLeader() ? "حدّد أولًا دور كل عضو (مثل: الديوان، المالية، المدير) من ⚙ ← «📨 المعاملات: الأدوار والمسارات»." : "ينتظر أن يحدد مسؤول الفريق أدوار الأعضاء.") + '</p></section>';
+    h += '<p class="small muted">' + (myRole() ? "دورك: <b>" + esc(myRole()) + "</b>" : "ليس لك دور بعد في المعاملات") + '</p>';
+    if (ui.flowForm) {
+      var steps = arr(ui.flowSteps);
+      h += '<div class="card"><h3>➕ معاملة جديدة</h3><input class="field" id="fTitle" type="text" maxlength="120" placeholder="عنوان المعاملة، مثل: طلب صرف مكافأة" autocomplete="off" value="' + esc(ui.fTitle || "") + '">' +
+        '<input class="field" id="fRef" type="text" maxlength="40" placeholder="رقمها أو مرجعها (اختياري)" autocomplete="off" style="margin-top:6px" value="' + esc(ui.fRef || "") + '">' +
+        (paths().length ? '<div class="addform"><span class="small">المسار</span><select class="field" data-act="flowPath"><option value="">مسار جديد</option>' +
+          paths().map(function (p) { return '<option value="' + esc(p.id) + '">' + esc(p.name) + '</option>'; }).join("") + '</select></div>' : "") +
+        '<p class="small">المسار: ' + (steps.length ? esc(steps.join(" ← ")) + ' <button class="del" data-act="flowPop" aria-label="احذف آخر خطوة">⌫</button>' : '<span class="muted">اضغط الأدوار بالترتيب</span>') + '</p>' +
+        '<div class="row-wrap">' + rl.map(function (r) { return '<button class="ghost" data-act="flowStep" data-r="' + esc(r) + '">+ ' + esc(r) + '</button>'; }).join("") + '</div>' +
+        '<div class="addform"><span class="small">مهلة كل خطوة</span><select class="field" id="fDays"><option value="0">بلا مهلة</option>' +
+          [1, 2, 3, 5, 7].map(function (d) { return '<option value="' + d + '">' + (d === 1 ? "يوم" : d === 2 ? "يومان" : d + " أيام") + '</option>'; }).join("") + '</select></div>' +
+        '<div class="row-wrap"><button class="btn" data-act="flowNew">📨 سجّلها وأرسلها</button><button class="ghost" data-act="flowClose">إلغاء</button></div></div>';
+    } else h += '<div class="row-wrap"><button class="btn" data-act="flowStart">➕ معاملة جديدة</button><button class="ghost" data-act="flowsLoad">تحديث</button></div>';
+    h += '</section>';
+    var all = arr(ui.flows), mine = myFlows(), open = all.filter(function (f) { return f.status === "open" && mine.indexOf(f) < 0; }), closed = all.filter(function (f) { return f.status !== "open"; });
+    h += '<section><h2>📥 عندي الآن' + (mine.length ? " (" + mine.length + ")" : "") + '</h2>' + (mine.length ? '<ul class="list">' + mine.map(function (f) { return flowCard(f, true); }).join("") + '</ul>' : '<p class="small muted">لا توجد معاملات عندك الآن.</p>') + '</section>';
+    h += '<section><h2>🔄 أين وصلت المعاملات' + (open.length ? " (" + open.length + ")" : "") + '</h2>' + (open.length ? '<ul class="list">' + open.map(function (f) { return flowCard(f, false); }).join("") + '</ul>' : '<p class="small muted">لا توجد معاملات أخرى مفتوحة.</p>') + '</section>';
+    if (closed.length) h += '<section><details class="box"><summary>المنتهية في آخر ٣٠ يومًا (' + closed.length + ')</summary><div class="inner"><ul class="list">' + closed.map(function (f) { return flowCard(f, false); }).join("") + '</ul></div></details></section>';
+    return h;
+  }
+  // The leader's settings: each member's role, the saved paths, and which roles may reject
+  function flowSettingsHtml() {
+    if (!isTeamOnly() || !isLeader() || !code) return "";
+    var rl = roleList(), ps = arr(ui.pathSteps);
+    var h = '<section id="flowset"><h2>📨 المعاملات: الأدوار والمسارات</h2><p class="small muted">اكتب دور كل عضو، مثل: الديوان، مدير المكتب، المالية، المدير. ثم احفظ المسارات المتكررة.</p><ul class="list">' +
+      team().concat(team().length ? [] : [{ num: 1, name: userName || "أنت" }]).map(function (m) {
+        return '<li class="catedit"><span class="grow">' + esc(m.name) + (m.num === 1 ? " (أنت)" : "") + '</span><input class="field" style="flex:1" value="' + esc(roles()[String(m.num)] || "") + '" data-act="roleSet" data-n="' + m.num + '" placeholder="الدور" maxlength="30"></li>';
+      }).join("") + '</ul>';
+    if (!rl.length) return h + '</section>';
+    h += '<h3>من يرفض المعاملات</h3><div class="row-wrap">' + rl.map(function (r) {
+      var on = rejecters().indexOf(r) >= 0;
+      return '<button class="ghost" data-act="rejToggle" data-r="' + esc(r) + '" aria-pressed="' + on + '">' + (on ? "✓ " : "") + esc(r) + '</button>';
+    }).join("") + '</div><p class="small muted">وأنت (المسؤول) تستطيع دائمًا الرفض والتصرّف في أي معاملة.</p>';
+    h += '<h3>المسارات المحفوظة</h3>' + (paths().length ? '<ul class="list">' + paths().map(function (p) {
+      return '<li class="card"><div class="top"><span class="ttl"><b>' + esc(p.name) + '</b><span class="small muted">' + esc(arr(p.steps).join(" ← ")) + '</span></span><button class="del" data-act="pathDel" data-id="' + esc(p.id) + '" aria-label="حذف">×</button></div></li>';
+    }).join("") + '</ul>' : '<p class="small muted">لا توجد مسارات بعد.</p>') +
+      '<div class="card"><form class="stack" data-form="path" style="gap:8px"><input class="field" id="pathName" type="text" maxlength="40" placeholder="اسم المسار، مثل: طلب صرف" autocomplete="off" value="' + esc(ui.pathName || "") + '">' +
+      '<p class="small">' + (ps.length ? esc(ps.join(" ← ")) + ' <button type="button" class="del" data-act="pathPop" aria-label="احذف آخر خطوة">⌫</button>' : '<span class="muted">اضغط الأدوار بالترتيب:</span>') + '</p>' +
+      '<div class="row-wrap">' + rl.map(function (r) { return '<button type="button" class="ghost" data-act="pathStep" data-r="' + esc(r) + '">+ ' + esc(r) + '</button>'; }).join("") + '</div>' +
+      '<div><button class="btn" type="submit">احفظ المسار</button></div></form></div></section>';
+    return h;
+  }
   /* ---------- START OVER (supabase_v19.sql): the account's days, tasks and reports go on every device; settings too if chosen ---------- */
   function applyReset(withSet) {
     state.days = {}; state.dirtyDays = {}; delete state.sample;
@@ -3809,13 +3980,13 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       });
       var rs = row.settings, rst = rs ? (rs.updatedAt || 0) : -1, lst = state.settings.updatedAt || 0;
       if (rs && rst > lst) {
-        state.settings = { categories: arr(rs.categories).length ? rs.categories : defaultCats(), routines: arr(rs.routines), sleep: rs.sleep || state.settings.sleep, prayer: rs.prayer || state.settings.prayer, quran: rs.quran || state.settings.quran, templates: rs.templates || state.settings.templates, goals: rs.goals || state.settings.goals, team: rs.team || state.settings.team, kids: rs.kids || state.settings.kids, tcfg: rs.tcfg || state.settings.tcfg, updatedAt: rst };
+        state.settings = { categories: arr(rs.categories).length ? rs.categories : defaultCats(), routines: arr(rs.routines), sleep: rs.sleep || state.settings.sleep, prayer: rs.prayer || state.settings.prayer, quran: rs.quran || state.settings.quran, templates: rs.templates || state.settings.templates, goals: rs.goals || state.settings.goals, team: rs.team || state.settings.team, kids: rs.kids || state.settings.kids, tcfg: rs.tcfg || state.settings.tcfg, roles: rs.roles || state.settings.roles, paths: rs.paths || state.settings.paths, rejecters: rs.rejecters || state.settings.rejecters, updatedAt: rst };
         snap._s = setJson(); changed = true;
       } else if (lst > rst) upload = true;
       fixState(); persist();
       if (changed) softRender();
       if (!upload) { cloud.stamp = typeof row.stamp === "string" ? row.stamp : ""; cloud.sbase = base; saveCode(); return; }
-      var data = { base_date: todayKey, settings: { categories: state.settings.categories, routines: state.settings.routines, sleep: state.settings.sleep, prayer: state.settings.prayer || null, quran: state.settings.quran || null, templates: state.settings.templates || null, goals: state.settings.goals || null, team: state.settings.team || null, kids: state.settings.kids || null, tcfg: state.settings.tcfg || null, updatedAt: state.settings.updatedAt || 0 } };
+      var data = { base_date: todayKey, settings: { categories: state.settings.categories, routines: state.settings.routines, sleep: state.settings.sleep, prayer: state.settings.prayer || null, quran: state.settings.quran || null, templates: state.settings.templates || null, goals: state.settings.goals || null, team: state.settings.team || null, kids: state.settings.kids || null, tcfg: state.settings.tcfg || null, roles: state.settings.roles || null, paths: state.settings.paths || null, rejecters: state.settings.rejecters || null, updatedAt: state.settings.updatedAt || 0 } };
       windowKeys().forEach(function (k, i) { data[COLS[i]] = merged[k] ? toRemote(k, merged[k]) : null; });
       return rpc("save", { p_code: code, p_data: data }).then(function (r2) {
         if (r2.error) throw r2.error;
@@ -3883,7 +4054,14 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       '<p class="small">إن كان تطبيق «يومي» مثبّتًا على جوالك، فانسخ الرابط، ثم افتح التطبيق ← ⚙ ← الحسابات ← «🔗 عندي رابط»، والصقه هناك.</p>' +
       '<div class="row-wrap"><button class="btn" data-act="linkCopy" data-u="' + esc(url) + '">📋 انسخ الرابط</button><button class="ghost" data-act="linkHere">تابع هنا في المتصفح</button></div></section>';
   }
+  // A transaction notification: the transactions tab of the team account here (the first team, if this isn't one)
+  function openFlows() {
+    if (flowsOn()) { ui.tab = "flows"; render(); window.scrollTo(0, 0); flowsLoad(); return; }
+    var tp = profiles.list.filter(function (pf) { return pf.team && !pf.shared; })[0];
+    if (tp) { profiles.active = tp.id; saveProfiles(); location.hash = "flows"; location.reload(); }
+  }
   function handleLink() {
+    if (location.hash === "#flows") { try { history.replaceState(null, "", appUrl()); } catch (e) {} openFlows(); return; }
     var t = /^#task=(\d{4}-\d{2}-\d{2}):(.+)$/.exec(location.hash || "");
     if (t) { try { history.replaceState(null, "", appUrl()); } catch (e) {} openTask(t[1], decodeURIComponent(t[2])); return; }
     var m = /^#(pair|join|team|mine|add)=([a-z0-9-]+)$/i.exec(location.hash || "");
@@ -3908,6 +4086,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   window.addEventListener("online", syncNow);
   window.addEventListener("offline", function () { if (code && sb) { cloud.status = "offline"; refreshCloud(); } });
   if (navigator.serviceWorker) navigator.serviceWorker.addEventListener("message", function (e) {
+    if (e.data && e.data.flows) { openFlows(); return; }
     var t = e.data && e.data.task && /^(\d{4}-\d{2}-\d{2}):(.+)$/.exec(e.data.task);
     if (t) openTask(t[1], t[2]);
   });
@@ -3928,6 +4107,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   setInterval(function () {
     if (document.hidden) return;
     if (Date.now() - meAt > 180000 - 2000) meLoad(); // accounts added or deleted on this person's other devices
+    if (ui.tab === "flows" && flowsOn()) flowsLoad();
     if (Date.now() - lastPoll < (live ? 600000 : 60000) - 2000) return;
     lastPoll = Date.now(); syncNow();
   }, 60000);
