@@ -954,7 +954,8 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       html += '<form class="namecard" data-form="uname"><b>أهلًا بك في «يومي» 👋 ما اسمك؟</b>' +
         (teamPending() ? '<span class="small"><b>👥 بعد كتابة اسمك تنضم إلى الفريق تلقائيًا.</b></span>' : "") +
         '<span class="small muted">يظهر اسمك في أعلى التطبيق، ويعرف به المسؤول من أجرى كل تغيير إن شاركت الحساب.</span>' +
-        '<div class="addform"><input class="field grow" id="unameInput" type="text" placeholder="اسمك" autocomplete="given-name"><button class="btn" type="submit">حفظ</button></div></form>';
+        '<div class="addform"><input class="field grow" id="unameInput" type="text" placeholder="اسمك" autocomplete="given-name"><button class="btn" type="submit">حفظ</button></div>' +
+        (sb && PROFILE === "main" ? '<button class="linkbtn" type="button" data-act="mineStart">🔗 عندي حساب على جهاز آخر</button>' : "") + '</form>';
     }
     if (offsetOf(dk()) > SPAN && ui.tab !== "settings") {
       html += '<div class="banner"><span>📌 يوم قادم: ما تكتبه هنا محفوظ على هذا الجهاز فقط، ويُزامَن مع أجهزتك تلقائيًا قبل موعده بـ٣ أيام.</span><button class="linkbtn" data-act="goToday">ارجع إلى اليوم</button></div>';
@@ -2113,7 +2114,8 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
         '<li>المهمة يجب أن يكون لها وقت، وغير منجزة، وأن تكون المزامنة تمت (⚙ ← متزامن).</li></ul></details>' : "") + '</div>';
     h += '<p class="small muted">بدون إشعارات الخادم: يصلك صوت قصير وإشعار ما دام التطبيق مفتوحًا أو في الخلفية فقط.</p></section>';
     var sg = sleepGoal();
-    h += '<section><h2>اسمك</h2><input class="field" value="' + esc(userName) + '" data-act="uname" placeholder="اسمك" aria-label="اسمك"><p class="small muted">يظهر للمسؤول الأول في قائمة الأجهزة مع سجل تغييراتك.</p></section>';
+    h += '<section><h2>اسمك</h2><input class="field" value="' + esc(userName) + '" data-act="uname" placeholder="اسمك" aria-label="اسمك"><p class="small muted">يظهر لمسؤول الفريق مع سجل تغييراتك.</p></section>';
+    if (sb) h += myDevicesHtml();
     h += '<section id="accounts"><h2>الحسابات</h2><p class="small muted">لكل حساب يومه ومهامه وتقاريره وكوده السحابي المستقل، مثل حياتك الشخصية والعمل.</p><ul class="list">' +
       profiles.list.map(function (pf) {
         var isNow = pf.id === PROFILE;
@@ -2127,37 +2129,26 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
           (isNow ? (pf.pin
             ? '<div class="pinrow"><button class="ghost" data-act="pinRemove">إزالة الرمز</button><span class="small muted">يُطلب الرمز كلما فُتح هذا الحساب.</span></div>'
             : '<div class="pinrow"><input class="field" id="pinNew" type="password" inputmode="numeric" maxlength="8" placeholder="٤–٨ أرقام" aria-label="رمز القفل"><button class="ghost" data-act="pinSet">قفل الحساب برمز</button></div>') : "") +
-          (ui.confirmProfile === pf.id ? '<p class="small err">سيُحذف هذا الحساب وبياناته من هذا الجهاز. إن كان مربوطًا بالسحابة فبياناته هناك تبقى، ويمكنك استرجاعها بكوده.</p>' : "") + '</li>';
+          (ui.confirmProfile === pf.id ? '<p class="small err">' + PROF_DEL_TEXT[profKind(pf)] + '</p>' : "") + '</li>';
       }).join("") + '</ul>' +
       '<h3 style="margin-top:8px">حساب جديد</h3>' +
-      '<p class="small muted"><b>👤 شخصي:</b> لك، وتستطيع مشاركته مع أهلك (مثل زوجتك) من «الحفظ السحابي» ← «شارك حسابك».' +
+      '<p class="small muted"><b>👤 شخصي:</b> لك وحدك، ويظهر على كل أجهزتك.' +
       (sb ? '<br><b>👥 فريق:</b> تكون أنت مسؤوله، ويدخله الأعضاء برابط دعوة ترسله لهم.' : "") + '</p>' +
       '<form class="addform" data-form="profile"><input class="field grow" id="profInput" type="text" maxlength="40" placeholder="اسم الحساب، مثل: العمل أو فريق المبيعات" autocomplete="off">' +
       '<button class="btn" type="submit">👤 حساب شخصي</button>' + (sb ? '<button class="ghost" type="button" data-act="profTeam">👥 حساب فريق</button>' : "") + '</form>' +
-      (sb ? '<div><button class="linkbtn" data-act="profJoin">🔗 انضم إلى حساب شاركه معك أحد (مثل حساب زوجك أو زوجتك)</button></div>' : "") +
       '</section>';
     h += '<section><h2>الحفظ السحابي <span class="small muted">(' + esc(profileName()) + ')</span></h2><div class="status">';
     if (cloud.status === "off") {
       h += led("", "الحفظ السحابي غير مفعّل بعد، والبيانات محفوظة على هذا الجهاز فقط.") +
         '<p class="small muted">لتفعيله ضع رابط مشروع Supabase ومفتاحه في ملف config.js (التفاصيل في SUPABASE_SETUP.md).</p>';
     } else if (cloud.status === "nocode") {
-      if (ui.pair) {
-        h += '<h3>امسح الرمز بكاميرا الجهاز المسؤول</h3>' +
-          '<p class="small">افتح الكاميرا على الجهاز المسؤول الأول ووجّهها نحو الرمز، ثم افتح الرابط الذي يظهر. سيرتبط هذا الجهاز تلقائيًا ويأخذ رقمًا ثانويًا.</p>' +
-          '<div class="qrbox" id="qrBox" data-qr="' + esc(appUrl() + "#pair=" + ui.pair.token) + '"></div>' +
-          '<p class="small muted">ينتهي الرمز بعد ١٠ دقائق.</p><div><button class="ghost" data-act="pairCancel">إلغاء</button></div>';
-      } else {
-        h += ((currentProfile() || {}).join ? '<p class="small"><b>🔗 هذا الحساب ينتظر الربط:</b> اطلب من صاحب الحساب أن يفتح ⚙ ← «شارك حسابك»، ثم اكتب الرمز الذي يظهر له هنا.</p>'
-          : '<h3>أول مرة؟</h3><p class="small">ابدأ حسابًا جديدًا، فتصبح أنت <b>المسؤول الأول</b>، ثم تربط أجهزتك الأخرى.</p>' +
-          '<div><button class="btn" data-act="newCode">ابدأ حسابًا جديدًا</button></div>') +
-          '<h3 style="margin-top:8px">عندي حساب على جهاز آخر</h3>' +
-          '<p class="small muted">على الجهاز المسؤول: ⚙ ← «ربط جهاز جديد»، ثم اكتب الرمز الذي يظهر هنا، أو امسح رمز QR الظاهر عليه بكاميرا هذا الجهاز.</p>' +
-          '<div class="addform"><input class="field grow ltr" id="joinInput" type="text" placeholder="xxxx-xxxx" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="ghost" data-act="join">اربط</button></div>' +
-          '<div><button class="linkbtn" data-act="pairStart">أو اعرض رمز QR ليمسحه الجهاز المسؤول</button></div>' +
-          '<details class="box"><summary>استعادة حساب المسؤول الأول بالكود الرئيسي</summary><div class="inner">' +
-          '<p>إن ضاع الجهاز المسؤول، اكتب الكود الرئيسي هنا، فيصبح هذا الجهاز هو المسؤول الأول.</p>' +
-          '<div class="addform"><input class="field grow ltr" id="codeInput" type="text" placeholder="xxxx-xxxx-xxxx" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="ghost" data-act="useCode">استعادة</button></div></div></details>';
-      }
+      h += ((currentProfile() || {}).join ? '<p class="small"><b>🔗 هذا الحساب كان ينتظر رمز ربط من صاحبه.</b> أُلغيت مشاركة الحسابات الشخصية، فاحذف هذا الحساب من «الحسابات» أعلاه.</p>'
+        : '<h3>أول مرة؟</h3><p class="small">ابدأ حسابًا جديدًا، فتُحفظ بياناتك في السحابة وتظهر على كل أجهزتك.</p>' +
+        '<div><button class="btn" data-act="newCode">ابدأ حسابًا جديدًا</button></div>' +
+        (PROFILE === "main" ? '<h3 style="margin-top:8px">عندي حساب على جهاز آخر</h3><p class="small muted">من «📱 أجهزتي» أعلاه: «هذا جهاز جديد»، فيظهر رمز تمسحه أو تكتبه على جهازك الآخر.</p>' +
+        '<details class="box"><summary>استعادة حسابي بالكود الرئيسي</summary><div class="inner">' +
+        '<p>إن ضاعت كل أجهزتك، اكتب الكود الرئيسي هنا فتعود حساباتك إلى هذا الجهاز.</p>' +
+        '<div class="addform"><input class="field grow ltr" id="codeInput" type="text" placeholder="xxxx-xxxx-xxxx" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="ghost" data-act="useCode">استعادة</button></div></div></details>' : ""));
     } else {
       var map = { ok: ["on", "متزامن"], syncing: ["warn", "جارٍ المزامنة…"], offline: ["warn", "لا يوجد إنترنت، وسيُرفع ما تكتبه عند الاتصال"], error: ["warn", "تعذّرت المزامنة"] };
       var m = map[cloud.status] || map.ok;
@@ -2167,21 +2158,14 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
         h += '<p><b>هذا الجهاز: جهاز ثانوي رقم ' + (cloud.num || "") + '</b>، مرتبط بالمسؤول الأول.</p>' +
           '<div class="row-wrap"><button class="btn" data-act="syncNow">مزامنة الآن</button><button class="ghost" data-act="forget">فصل هذا الجهاز</button></div>';
       } else {
-        h += '<p><b>هذا الجهاز: المسؤول الأول</b></p>' +
-          '<div class="row-wrap"><button class="btn" data-act="syncNow">مزامنة الآن</button>' + (ui.teamInfo ? "" : '<button class="ghost" data-act="invite">👨‍👩‍👧 شارك حسابك / اربط جهازًا</button>') + '<button class="ghost" data-act="forget">فصل هذا الجهاز</button></div>';
-        if (ui.invite) {
-          h += '<div class="card"><h3>👨‍👩‍👧 شارك حسابك أو اربط جهازًا</h3>' +
-            '<p class="small">على الجهاز الجديد: ⚙ ← اكتب هذا الرمز ← «اربط». أو امسح رمز QR بكاميرته.</p>' +
-            '<div class="tip ltr" style="font-family:var(--font-mono);font-size:1.6rem;text-align:center;user-select:all">' + esc(prettyCode(ui.invite.token)) + '</div>' +
-            '<div class="qrbox" id="qrBox" data-qr="' + esc(appUrl() + "#join=" + ui.invite.token) + '"></div>' +
-            '<p class="small muted">صالح لمرة واحدة ولمدة ١٠ دقائق. سيأخذ الجهاز الجديد رقمًا ثانويًا خاصًا به، ولن يرى الكود الرئيسي.</p>' +
-            '<div><button class="ghost" data-act="inviteCancel">إغلاق</button></div></div>';
-        }
+        h += '<p><b>' + (ui.teamInfo ? "أنت مسؤول هذا الفريق" : "هذا حسابك، ويظهر على كل أجهزتك") + '</b></p>' +
+          '<div class="row-wrap"><button class="btn" data-act="syncNow">مزامنة الآن</button></div>';
         if (ui.teamInfo) h += teamLinkHtml(ui.teamInfo);
         var devs = ui.devices || [];
-        h += '<div class="sechead" style="margin-top:6px"><h3>' + (ui.teamInfo ? "أعضاء الفريق" : "الأجهزة المرتبطة") + '</h3>' + (devs.length ? '<button class="linkbtn" data-act="logRefresh">تحديث</button>' : "") + '</div>';
-        if (devs.length) h += '<p class="small muted">👥 <b>وضع الفريق:</b> إن كان كل جهاز لشخص، فليكتب كل عضو اسمه في جهازه (⚙ ← اسمك)، ثم وزّع المهام: افتح المهمة في «جدولي» واختر «👤 لمن؟». ويستطيع كل عضو عرض «مهامي فقط»، وتظهر نسبة إنجاز كل عضو في «راجع».</p>';
-        if (!devs.length) h += '<p class="small muted">لا توجد أجهزة ثانوية بعد.</p>';
+        if (ui.teamInfo || devs.length) h += '<div class="sechead" style="margin-top:6px"><h3>' + (ui.teamInfo ? "أعضاء الفريق" : "أجهزة مربوطة بالطريقة القديمة") + '</h3>' + (devs.length ? '<button class="linkbtn" data-act="logRefresh">تحديث</button>' : "") + '</div>';
+        if (devs.length && ui.teamInfo) h += '<p class="small muted">👥 <b>وضع الفريق:</b> إن كان كل جهاز لشخص، فليكتب كل عضو اسمه في جهازه (⚙ ← اسمك)، ثم وزّع المهام: افتح المهمة في «جدولي» واختر «👤 لمن؟». ويستطيع كل عضو عرض «مهامي فقط»، وتظهر نسبة إنجاز كل عضو في «راجع».</p>';
+        if (!devs.length && ui.teamInfo) h += '<p class="small muted">لا يوجد أعضاء بعد. أرسل لهم رابط الدعوة.</p>';
+        else if (devs.length && !ui.teamInfo) h += '<p class="small muted">أُلغيت مشاركة الحساب الشخصي. هذه الأجهزة تبقى تعمل حتى تلغي ربطها.</p>';
         else h += '<ul class="list">' + devs.map(function (dv) {
           var seen = dv.last_seen ? new Date(dv.last_seen) : null;
           return '<li class="card"><div class="left"><span class="t"><b>' + esc(dv.uname || ("جهاز رقم " + dv.num)) + '</b> · جهاز رقم ' + dv.num + ' · ' + esc(dv.label || "جهاز") +
@@ -2191,8 +2175,8 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
               : '<button class="ghost danger" data-act="revoke" data-tok="' + esc(dv.token) + '">إلغاء الربط</button>') + '</div>' +
             changesHtml(dv) + '</li>';
         }).join("") + '</ul>';
-        h += '<details class="box"><summary>الكود الرئيسي (للاستعادة فقط)</summary><div class="inner">' +
-          '<p>احتفظ به في مكان آمن ولا تعطه لأحد. تحتاجه فقط إن ضاع هذا الجهاز. لربط أجهزتك استعمل «ربط جهاز جديد».</p>' +
+        if (PROFILE === "main") h += '<details class="box"><summary>الكود الرئيسي (للاستعادة فقط)</summary><div class="inner">' +
+          '<p>احتفظ به في مكان آمن ولا تعطه لأحد. تحتاجه فقط إن ضاعت كل أجهزتك. لربط جهاز آخر استعمل «📱 أجهزتي».</p>' +
           '<div class="tip ltr" style="font-family:var(--font-mono);font-size:1.3rem;text-align:center;user-select:all">' + esc(prettyCode(code)) + '</div>' +
           '<div><button class="ghost" data-act="copyCode">نسخ الكود الرئيسي</button></div></div></details>';
       }
@@ -2553,9 +2537,14 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       case "newCode": createCode(); break;
       case "useCode": useCode($("codeInput").value); break;
       case "forget": forgetDevice(""); toast("فُصل الجهاز، وبياناتك باقية عليه وفي السحابة"); break;
-      case "join": joinWith($("joinInput").value); break;
-      case "invite": invite(); break;
-      case "inviteCancel": inviteStop(); render(); break;
+      case "mineStart": if (mainKey() && !ui.mineAsk) { ui.mineAsk = true; ui.tab = "settings"; render(); break; } mineStart(); break;
+      case "mineCancel": mineStop(); ui.mineAsk = false; ui.mineAdd = false; render(); break;
+      case "mineAdd": ui.mineAdd = true; render(); break;
+      case "mineApprove": mineApprove($("mineInput").value); break;
+      case "mineScan": scanQr(); break;
+      case "myDevDel": ui.confirmDev = b.dataset.dev; render(); break;
+      case "myDevNo": ui.confirmDev = null; render(); break;
+      case "myDevYes": myDevRemove(b.dataset.dev); break;
       case "revoke": ui.confirmRevoke = b.dataset.tok; render(); break;
       case "revokeNo": ui.confirmRevoke = null; render(); break;
       case "revokeYes": revoke(b.dataset.tok); break;
@@ -2572,13 +2561,6 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       case "teamLinkStop": teamLink(0); break;
       case "reqSend": reqSend(); break;
       case "reqCancel": ui.req = null; render(); break;
-      case "profJoin":
-        if (ownShared() >= maxShared()) { reqAsk("shared"); break; }
-        // An empty account that only waits for a link code; it doesn't count as one of this person's own accounts
-        var pjn = $("profInput").value.trim() || "حساب مشترك", pjid = "p" + Date.now().toString(36);
-        profiles.list.push({ id: pjid, name: pjn.slice(0, 30), join: 1 }); saveProfiles();
-        try { localStorage.setItem("yawmi-open-settings", "1"); } catch (e) {}
-        switchProfile(pjid); break;
       case "profTeam":
         var ptn = $("profInput").value.trim();
         if (!ptn) { toast("اكتب اسم الفريق أولًا"); break; }
@@ -2666,8 +2648,6 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       case "bar": ui.barSel = ui.barSel === b.dataset.k ? null : b.dataset.k; render(); break;
       case "openDay": ui.range = "day"; goTo(parseKey(b.dataset.k)); ui.tab = "review"; render(); break;
       case "goToday": goTo(today()); break;
-      case "pairStart": pairStart(); break;
-      case "pairCancel": pairStop(); render(); break;
       case "copy":
         var ta = $("backupText"); ta.value = JSON.stringify(state);
         var fb = function () { ta.focus(); ta.select(); toast("تم تحديد النص، انسخه يدويًا"); };
@@ -2725,7 +2705,10 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     else if (act === "uname") { if (t.value.trim()) { setUserName(t.value); toast("حُفظ الاسم"); } else t.value = userName; }
     else if (act === "profName") {
       var pf = profiles.list.filter(function (x) { return x.id === t.dataset.id; })[0], nv = t.value.trim();
-      if (pf && nv) { pf.name = nv.slice(0, 30); saveProfiles(); renderProfile(); } else if (pf) t.value = pf.name;
+      if (pf && nv) {
+        pf.name = nv.slice(0, 30); saveProfiles(); renderProfile();
+        if (pf.own && sb && mainKey()) sb.rpc("yawmi_own_claim", { p_key: mainKey(), p_code: profCode(pf.id), p_name: pf.name }).then(function () {}, function () {});
+      } else if (pf) t.value = pf.name;
     }
     else if (act === "catName") { var c = catOf(t.dataset.id), v = t.value.trim(); if (v) { c.name = v; commit(); } else t.value = c.name; }
     else if (t.id === "startAt") { day().startAt = t.value; save(); }
@@ -2779,7 +2762,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     } else if (f === "uname") {
       v = $("unameInput").value.trim(); if (!v) { toast("اكتب اسمك"); return; }
       setUserName(v); render(); toast("أهلًا، " + userName + " 🌷");
-      if (sb && !code && cloud.status === "nocode" && !ui.pair && !(currentProfile() || {}).join) createCode(true); // a cloud account in the person's name, so the admin can add them to a team
+      if (sb && !code && cloud.status === "nocode" && !ui.mine && !(currentProfile() || {}).join) createCode(true); // a cloud account in the person's name, so the admin can add them to a team
     } else if (f === "kid") {
       v = $("kidName").value.trim(); if (!v) { toast("اكتب الاسم"); return; }
       setKids({ list: kCfg().list.concat([{ id: uid(), name: v.slice(0, 30) }]) }); toast("أُضيف «" + v + "» ⭐");
@@ -2788,6 +2771,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       setKids({ qs: kCfg().qs.concat([{ id: uid(), text: v.slice(0, 60) }]) });
     } else if (f === "profile") {
       v = $("profInput").value.trim(); if (!v) return;
+      if (sb) { ownCreate(v); return; }
       if (ownPersonal() >= maxPersonal()) { reqAsk("personal"); return; }
       var nid = "p" + Date.now().toString(36);
       profiles.list.push({ id: nid, name: v.slice(0, 30) });
@@ -2881,11 +2865,34 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     profiles.active = id; saveProfiles();
     location.reload();
   }
+  // Deleting an account removes it from the platform too (supabase_v16.sql), so this device and the cloud stay the same:
+  // a team its leader deletes goes for every member; a member who deletes it leaves it. Needs the internet.
+  var PROF_DEL_TEXT = {
+    lead: "سيُحذف هذا الفريق من المنصة لك ولكل أعضائه، ولا يمكن التراجع.",
+    member: "ستخرج من هذا الفريق، ويُحذف من كل أجهزتك. يبقى الفريق لأعضائه.",
+    own: "سيُحذف هذا الحساب وبياناته من كل أجهزتك ومن السحابة، ولا يمكن التراجع.",
+    shared: "ستخرج من هذا الحساب، وتبقى بياناته لصاحبه.",
+    local: "سيُحذف هذا الحساب وبياناته من هذا الجهاز."
+  };
+  var PROF_DEL_DONE = { lead: "حُذف الفريق من المنصة", member: "خرجت من الفريق", own: "حُذف الحساب من كل أجهزتك", shared: "خرجت من الحساب", local: "حُذف الحساب من هذا الجهاز" };
+  function profKind(pf) {
+    if (!profCode(pf.id)) return "local";
+    var sec = profMeta(pf.id).role === "secondary";
+    return pf.team ? (sec ? "member" : "lead") : sec ? "shared" : "own";
+  }
   function deleteProfile(id) {
-    if (id === PROFILE || id === "main") return;
-    ["daily-planner-v3", "daily-planner-code", "daily-planner-link"].forEach(function (b) { try { localStorage.removeItem(pkey(b, id)); } catch (e) {} });
-    profiles.list = profiles.list.filter(function (x) { return x.id !== id; });
-    ui.confirmProfile = null; saveProfiles(); render(); toast("حُذف الحساب من هذا الجهاز");
+    var pf = profiles.list.filter(function (x) { return x.id === id; })[0];
+    if (!pf || id === PROFILE || id === "main") return;
+    var kind = profKind(pf), c = profCode(id);
+    var done = function (k) { dropProfile(pf); ui.confirmProfile = null; render(); toast(PROF_DEL_DONE[k]); };
+    if (kind === "local" || !sb) { done("local"); return; }
+    if (!online()) return;
+    pushEndpoint(function (ep) {
+      sb.rpc("yawmi_remove", { p_key: c, p_endpoint: ep }).then(function (r) {
+        if (r.error && r.error.code !== "PGRST202") { toast("تعذّر الحذف: " + netError(r.error)); return; }
+        done(r.error || r.data === false ? "local" : kind); // an old server, or an account that isn't this person's: this device only
+      }, function () { toast("تعذّر الاتصال. تأكد من الإنترنت."); });
+    });
   }
   // Account menu: switch directly from the top bar
   function closeProfMenu() { $("profMenu").hidden = true; $("profBtn").setAttribute("aria-expanded", "false"); }
@@ -2912,7 +2919,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeProfMenu(); });
   renderProfile();
   showLock();
-  $("setBtn").addEventListener("click", function () { ui.tab = "settings"; ui.open = null; render(); window.scrollTo(0, 0); loadDevices(); });
+  $("setBtn").addEventListener("click", function () { ui.tab = "settings"; ui.open = null; render(); window.scrollTo(0, 0); loadDevices(); myDevLoad(); });
   function goTo(nd) {
     var o = offsetOf(keyOf(nd));
     if (o < -ARCHIVE || o > FUTURE) { toast(o > FUTURE ? "يمكنك التخطيط حتى سنة قادمة" : "الأرشيف يحفظ سنة واحدة"); return; }
@@ -3017,7 +3024,6 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     cloud.status = "ok"; cloud.msg = ""; saveCode(); liveInit(); pushName();
   }
   function forgetDevice(msg) {
-    inviteStop(); pairStop();
     code = ""; cloud.role = ""; cloud.num = 0; cloud.chan = ""; cloud.stamp = ""; ui.devices = null;
     saveCode(); liveInit(); cloud.status = "nocode"; cloud.msg = msg; render();
   }
@@ -3081,7 +3087,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     catch (e) { cloud.status = "off"; cloud.msg = "إعدادات Supabase في config.js غير صحيحة."; return; }
     cloud.status = code ? "ok" : "nocode";
     if (code) { liveInit(); syncNow(); }
-    teamInbox(); limitsLoad(); pruneGone();
+    meLoad(); limitsLoad(); pruneGone();
     if (PROFILE === "main" && teamPending()) teamJoin(teamPending());
   }
   // Teams set up by the admin (supabase_v10.sql): the team account arrives by itself as a new account on this device,
@@ -3117,28 +3123,25 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       if (!c || !(pf.team || meta.role === "secondary")) return;
       sb.rpc("yawmi_stamp", { p_key: c }).then(function (r) {
         if (r.error || r.data) return; // only a clear "not found" removes it
-        ["daily-planner-v3", "daily-planner-code", "daily-planner-link", "yawmi-username", "yawmi-alerts", "yawmi-push-on", "yawmi-pendinglog", "yawmi-mine", "yawmi-dirty"].forEach(function (b) { try { localStorage.removeItem(pkey(b, pf.id)); } catch (e) {} });
-        profiles.list = profiles.list.filter(function (x) { return x.id !== pf.id; });
-        if (PROFILE === pf.id) profiles.active = "main";
-        saveProfiles();
+        dropProfile(pf);
         toast("حُذف حساب «" + pf.name + "» من هذا الجهاز، فلم يعد موجودًا");
         if (PROFILE === pf.id) setTimeout(function () { location.reload(); }, 1500);
       }, function () {});
     });
   }
   function teamTitle(t) { return (t.name || (t.kind === "lead" ? "فريقي" : "فريق " + (t.leader || "المسؤول"))).slice(0, 30); }
-  // A team account becomes a new account on this device, named after the team; returns its id
+  // A team account (or another personal account of this person) becomes a new account on this device; returns its id
   function addTeamProfile(t, fromId) {
     var have = profiles.list.filter(function (pf) { try { return localStorage.getItem(pkey("daily-planner-code", pf.id)) === t.key; } catch (e) { return false; } })[0];
     if (have) return "";
     var nid = "p" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
     try {
       localStorage.setItem(pkey("daily-planner-code", nid), t.key);
-      localStorage.setItem(pkey("daily-planner-link", nid), JSON.stringify({ role: t.kind === "lead" ? "primary" : "secondary", num: t.num, chan: "" }));
+      localStorage.setItem(pkey("daily-planner-link", nid), JSON.stringify({ role: t.kind === "member" ? "secondary" : "primary", num: t.num, chan: "" }));
       var un = localStorage.getItem(pkey("yawmi-username", fromId));
       if (un) localStorage.setItem(pkey("yawmi-username", nid), un);
     } catch (e) { return ""; }
-    profiles.list.push({ id: nid, name: teamTitle(t), team: 1 }); saveProfiles();
+    profiles.list.push(t.kind === "own" ? { id: nid, name: (t.name || "حساب").slice(0, 30), own: 1 } : { id: nid, name: teamTitle(t), team: 1 }); saveProfiles();
     return nid;
   }
   /* ---------- LIMITS (supabase_v13.sql): one personal account and two teams each; more by asking the admin ---------- */
@@ -3157,7 +3160,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       var old = limits;
       limits = r.data;
       try { localStorage.setItem(LIMITS_KEY, JSON.stringify(limits)); } catch (e) {}
-      if (old && (limits.max_personal > old.max_personal || limits.max_teams > old.max_teams)) toast("✓ وافق المشرف على طلبك");
+      if (old && (limits.max_personal > old.max_personal || limits.max_teams > old.max_teams || limits.max_devices > (old.max_devices || 3))) toast("✓ وافق المشرف على طلبك");
       if (ui.tab === "settings") softRender();
     }, function () {});
   }
@@ -3169,15 +3172,6 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       try { return (JSON.parse(localStorage.getItem(pkey("daily-planner-link", pf.id)) || "{}").role || "") !== "secondary"; } catch (e) { return true; }
     }).length;
   }
-  // Someone else's accounts joined on this device (and empty ones waiting for a link code), not counting `except`
-  function ownShared(except) {
-    return profiles.list.filter(function (pf) {
-      if (pf.team || pf.id === except) return false;
-      if (pf.join) return true;
-      try { return JSON.parse(localStorage.getItem(pkey("daily-planner-link", pf.id)) || "{}").role === "secondary"; } catch (e) { return false; }
-    }).length;
-  }
-  function maxShared() { return (limits && limits.max_shared) || 1; }
   function reqAsk(kind, name) { ui.req = { kind: kind, name: name || "" }; ui.tab = "settings"; render(); window.scrollTo(0, 0); }
   function reqCardHtml() {
     var r = ui.req;
@@ -3187,7 +3181,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       personal: "لكل شخص حساب شخصي واحد.",
       teams: "لكل شخص فريقان على الأكثر، بين ما يكون مسؤوله وما ينضم إليه" + (r.name ? "، فلا يمكن الانضمام إلى «" + esc(r.name) + "» الآن." : "."),
       shared: "لكل شخص حساب مشترك واحد ينضم إليه (حساب شاركه معه غيره).",
-      devices: "يُشارَك كل حساب مع ٣ أجهزة على الأكثر."
+      devices: "لكل شخص " + ((limits && limits.max_devices) || 3) + " أجهزة على الأكثر، تظهر عليها كل حساباته."
     }[r.kind];
     var need = { personal: "حسابًا آخر", teams: "فريقًا آخر", shared: "الانضمام إلى حساب مشترك آخر", devices: "جهازًا آخر" }[r.kind];
     var h = '<section class="card"><h2>📩 اطلب من المشرف</h2><p class="small">' + why + ' إن احتجت ' + need + '، فاطلبه من المشرف.</p>';
@@ -3204,11 +3198,224 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       toast("📩 أُرسل الطلب إلى المشرف"); render(); limitsLoad();
     }, function () { toast("تعذّر الاتصال. تأكد من الإنترنت."); });
   }
+  /* ---------- MY DEVICES (supabase_v16.sql): an account belongs to its person, so every account opens on each of their devices ---------- */
+  // The new device shows a one-time code (QR + 8 letters); the person's other device scans or types it, then the new one takes the person's key.
+  var DEV_KEY = "yawmi-dev";
+  function devId() {
+    var d = "";
+    try { d = localStorage.getItem(DEV_KEY) || ""; if (!d) { d = uid() + uid(); localStorage.setItem(DEV_KEY, d); } } catch (e) {}
+    return d;
+  }
+  // Adding or deleting an account happens on the server and here together, so it needs the internet
+  function online() {
+    if (sb && navigator.onLine) return true;
+    toast("تحتاج اتصالًا بالإنترنت، حتى يبقى جهازك والمنصة متطابقين"); return false;
+  }
+  function profCode(id) { try { return localStorage.getItem(pkey("daily-planner-code", id)) || ""; } catch (e) { return ""; } }
+  function profMeta(id) { try { return JSON.parse(localStorage.getItem(pkey("daily-planner-link", id)) || "{}"); } catch (e) { return {}; } }
+  function dropProfile(pf) {
+    ["daily-planner-v3", "daily-planner-code", "daily-planner-link", "yawmi-username", "yawmi-alerts", "yawmi-push-on", "yawmi-pendinglog", "yawmi-mine", "yawmi-dirty"].forEach(function (b) { try { localStorage.removeItem(pkey(b, pf.id)); } catch (e) {} });
+    profiles.list = profiles.list.filter(function (x) { return x.id !== pf.id; });
+    if (PROFILE === pf.id) profiles.active = "main";
+    saveProfiles();
+  }
+  function pushEndpoint(cb) {
+    var sent = false, once = function (ep) { if (!sent) { sent = true; cb(ep || null); } };
+    setTimeout(once, 1500);
+    if (!pushSupported()) { once(null); return; }
+    navigator.serviceWorker.ready.then(function (reg) { return reg.pushManager.getSubscription(); }).then(function (sub) { once(sub && sub.endpoint); }, function () { once(null); });
+  }
+  // Each opening: this device checks in, and this person's accounts from their other devices appear here
+  // (teams, other personal accounts); the ones deleted elsewhere go away
+  function meLoad() {
+    var mk = mainKey();
+    if (!sb) return;
+    if (!mk) { teamInbox(); return; }
+    profiles.list.forEach(function (pf) { // personal accounts made before this update become this person's
+      if (pf.id === "main" || pf.team || pf.join || pf.own) return;
+      var c = profCode(pf.id);
+      if (!c || profMeta(pf.id).role === "secondary") return;
+      sb.rpc("yawmi_own_claim", { p_key: mk, p_code: c, p_name: pf.name }).then(function (r) { if (!r.error && r.data) { pf.own = 1; saveProfiles(); } }, function () {});
+    });
+    sb.rpc("yawmi_me", { p_key: mk, p_dev: devId(), p_label: deviceLabel() }).then(function (r) {
+      if (r.error) { if (r.error.code === "PGRST202") teamInbox(); return; }
+      if (!r.data) return;
+      if (r.data.revoked) { meRevoked(); return; }
+      var keys = {}, added = 0;
+      arr(r.data.accounts).forEach(function (t) { keys[t.key] = 1; if (addTeamProfile(t, "main")) added++; });
+      var gone = profiles.list.filter(function (pf) { var c = profCode(pf.id); return pf.id !== "main" && (pf.team || pf.own) && c && !keys[c]; });
+      gone.forEach(dropProfile);
+      try { if (r.data.uname && !localStorage.getItem(pkey("yawmi-username", "main"))) { localStorage.setItem(pkey("yawmi-username", "main"), r.data.uname); if (PROFILE === "main") setUserName(r.data.uname); } } catch (e) {}
+      if (gone.some(function (pf) { return pf.id === PROFILE; })) { toast("حُذف هذا الحساب من المنصة"); setTimeout(function () { location.reload(); }, 1500); return; }
+      if (added) toast("📱 أُضيفت حساباتك من أجهزتك الأخرى. تجدها في قائمة الحسابات أعلى الشاشة");
+      if (added || gone.length) { renderProfile(); softRender(); }
+    }, function () {});
+  }
+  // Removed from "my devices" elsewhere: this person's accounts leave this device; what is written here stays here, unlinked
+  function meRevoked() {
+    profiles.list.filter(function (pf) { return pf.id !== "main" && (pf.team || pf.own); }).forEach(dropProfile);
+    var msg = "أُزيل هذا الجهاز من أجهزتك، فلم تعد حساباتك تُزامَن عليه. اربطه من جديد من ⚙ ← 📱 أجهزتي.";
+    if (PROFILE === "main") { forgetDevice(msg); toast(msg); return; }
+    try { localStorage.removeItem(pkey("daily-planner-code", "main")); localStorage.removeItem(pkey("daily-planner-link", "main")); } catch (e) {}
+    profiles.active = "main"; saveProfiles(); toast(msg);
+    setTimeout(function () { location.reload(); }, 2000);
+  }
+  function myDevLoad() {
+    var mk = mainKey();
+    if (!sb || !mk) return;
+    sb.rpc("yawmi_my_devices_list", { p_key: mk }).then(function (r) {
+      if (r.error || !r.data) return;
+      ui.myDevs = arr(r.data);
+      if (ui.tab === "settings") softRender();
+    }, function () {});
+  }
+  function myDevRemove(dev) {
+    ui.confirmDev = null;
+    if (!online()) { render(); return; }
+    sb.rpc("yawmi_my_device_remove", { p_key: mainKey(), p_dev: dev }).then(function (r) {
+      if (r.error || !r.data) { toast("تعذّرت الإزالة: " + netError(r.error)); return; }
+      toast("أُزيل الجهاز، وتُحذف حساباتك منه عند فتحه"); myDevLoad();
+    }, function () { toast("تعذّر الاتصال. تأكد من الإنترنت."); });
+  }
+  var mineTimer = null;
+  function mineStop() { clearTimeout(mineTimer); ui.mine = null; }
+  function mineStart() {
+    if (!online()) return;
+    sb.rpc("yawmi_mine_start").then(function (r) {
+      if (r.error || !r.data) { toast(r.error && r.error.code === "PGRST202" ? "ربط الأجهزة غير مفعّل بعد على الخادم" : "تعذّر إنشاء الرمز: " + netError(r.error)); return; }
+      ui.mine = { token: r.data, until: Date.now() + 10 * 60000 }; ui.mineAsk = false; ui.tab = "settings";
+      render(); var sec = $("mydevs"); if (sec) sec.scrollIntoView({ block: "start" });
+      minePoll();
+    }, function () { toast("تعذّر الاتصال. تأكد من الإنترنت."); });
+  }
+  function minePoll() {
+    clearTimeout(mineTimer);
+    if (!ui.mine) return;
+    if (Date.now() > ui.mine.until) { mineStop(); toast("انتهت صلاحية الرمز. اطلب رمزًا جديدًا"); refreshCloud(); return; }
+    mineTimer = setTimeout(function () {
+      if (!ui.mine) return;
+      sb.rpc("yawmi_mine_take", { p_token: ui.mine.token, p_dev: devId(), p_label: deviceLabel() }).then(function (r) {
+        if (!r.error && r.data && r.data.key) { mineStop(); adoptPerson(r.data); } else minePoll();
+      }, minePoll);
+    }, 2500);
+  }
+  // This device now carries the person's key in its first account; what was written here merges into it.
+  // The other accounts arrive on reload (meLoad).
+  function adoptPerson(p) {
+    try {
+      if (p.uname && !localStorage.getItem(pkey("yawmi-username", "main"))) localStorage.setItem(pkey("yawmi-username", "main"), p.uname);
+      if (profCode("main") !== p.key) {
+        var st = JSON.parse(localStorage.getItem(pkey("daily-planner-v3", "main")) || "null");
+        if (st && st.settings) { st.settings.updatedAt = 0; localStorage.setItem(pkey("daily-planner-v3", "main"), JSON.stringify(st)); } // the account's own setup wins
+        localStorage.setItem(pkey("daily-planner-code", "main"), p.key);
+        localStorage.setItem(pkey("daily-planner-link", "main"), JSON.stringify({ role: "primary", num: 1, chan: "" }));
+      }
+    } catch (e) {}
+    toast("تم الربط ✓ جارٍ فتح حساباتك");
+    profiles.active = "main"; saveProfiles();
+    setTimeout(function () { location.reload(); }, 1200);
+  }
+  // On the person's device that already has the account: approve the code the new device shows
+  function mineApprove(raw) {
+    var t = cleanCode(raw);
+    if (t.length !== 8) { toast("الرمز ٨ أحرف وأرقام، كما يظهر على الجهاز الجديد"); return; }
+    if (!mainKey()) { toast("هذا الجهاز ليس فيه حسابك بعد"); return; }
+    if (!online()) return;
+    sb.rpc("yawmi_mine_approve", { p_token: t, p_key: mainKey() }).then(function (r) {
+      if (r.error) { toast(r.error.code === "PGRST202" ? "ربط الأجهزة غير مفعّل بعد على الخادم" : "تعذّر: " + netError(r.error)); return; }
+      if (r.data === "limit") { reqAsk("devices"); return; }
+      if (r.data !== "ok") { toast("الرمز غير صحيح أو انتهت صلاحيته. اطلب رمزًا جديدًا من الجهاز الجديد"); return; }
+      ui.mineAdd = false; render(); toast("تم ✓ تظهر حساباتك على الجهاز الجديد خلال ثوانٍ");
+      setTimeout(myDevLoad, 5000);
+    }, function () { toast("تعذّر الاتصال. تأكد من الإنترنت."); });
+  }
+  function myDevicesHtml() {
+    var h = '<section id="mydevs"><h2>📱 أجهزتي</h2>';
+    if (ui.mine) {
+      return h + '<p class="small">على جهازك الآخر الذي فيه حسابك: ⚙ ← 📱 أجهزتي ← «أضف جهازًا لي»، ثم امسح هذا الرمز أو اكتبه.</p>' +
+        '<div class="tip ltr" style="font-family:var(--font-mono);font-size:1.6rem;text-align:center;user-select:all">' + esc(prettyCode(ui.mine.token)) + '</div>' +
+        '<div class="qrbox" id="qrBox" data-qr="' + esc(appUrl() + "#mine=" + ui.mine.token) + '"></div>' +
+        '<p class="small muted">صالح لمرة واحدة ولمدة ١٠ دقائق. ينتظر هذا الجهاز حتى توافق عليه.</p>' +
+        '<div><button class="ghost" data-act="mineCancel">إلغاء</button></div></section>';
+    }
+    if (ui.mineAsk) {
+      return h + '<p class="small"><b>هذا الجهاز فيه حساب الآن.</b> إن ربطته بحسابك على جهاز آخر، يصبح حسابه الأول هو حسابك الآخر، وتُدمج فيه مهام هذا الجهاز.</p>' +
+        '<div class="row-wrap"><button class="btn" data-act="mineStart">متابعة</button><button class="ghost" data-act="mineCancel">إلغاء</button></div></section>';
+    }
+    if (mainKey()) {
+      var me = devId(), list = ui.myDevs || [];
+      h += '<p class="small muted">كل حساباتك (الشخصي والفرق) تظهر على كل أجهزتك' + (limits && limits.max_devices ? '، حتى ' + limits.max_devices + ' أجهزة' : "") + '.</p>';
+      if (list.length) h += '<ul class="list">' + list.map(function (dv) {
+        var seen = dv.last_seen ? new Date(dv.last_seen) : null, mine = dv.dev === me;
+        return '<li class="card"><div class="left"><span class="t"><b>' + esc(dv.label || "جهاز") + '</b>' + (mine ? ' · <span class="now">● هذا الجهاز</span>' : "") +
+          (seen && !mine ? '<br><span class="small muted">آخر ظهور: ' + (keyOf(seen) === keyOf(new Date()) ? "اليوم " : shortDate(keyOf(seen)) + " ") + stamp(seen.getTime()) + '</span>' : "") + '</span>' +
+          (mine ? "" : ui.confirmDev === dv.dev
+            ? '<button class="ghost danger" data-act="myDevYes" data-dev="' + esc(dv.dev) + '">تأكيد الإزالة</button><button class="ghost" data-act="myDevNo">تراجع</button>'
+            : '<button class="ghost danger" data-act="myDevDel" data-dev="' + esc(dv.dev) + '">إزالة</button>') + '</div></li>';
+      }).join("") + '</ul>';
+      h += ui.mineAdd
+        ? '<div class="card"><h3>➕ أضف جهازًا لي</h3><p class="small">على الجهاز الجديد افتح «يومي» ← ⚙ ← 📱 أجهزتي ← «هذا جهاز جديد»، فيظهر رمز. امسحه أو اكتبه هنا:</p>' +
+          '<div class="addform"><input class="field grow ltr" id="mineInput" type="text" placeholder="xxxx-xxxx" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="btn" data-act="mineApprove">اربط</button></div>' +
+          '<div class="row-wrap"><button class="ghost" data-act="mineScan">📷 امسح الرمز</button><button class="ghost" data-act="mineCancel">إلغاء</button></div></div>'
+        : '<div class="row-wrap"><button class="btn" data-act="mineAdd">➕ أضف جهازًا لي</button></div>';
+    }
+    return h + '<div><button class="linkbtn" data-act="mineStart">🔗 هذا جهاز جديد، وحسابي على جهاز آخر</button></div></section>';
+  }
+  // In-app QR scanner: the phone's own camera app may open the link outside the installed app (iPhone)
+  function scanQr() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { toast("الكاميرا غير متاحة هنا. اكتب الرمز بدلًا من ذلك"); return; }
+    var el = document.createElement("div");
+    el.className = "lock"; el.id = "scanBox";
+    el.innerHTML = '<div class="box2"><h2>📷 وجّه الكاميرا نحو الرمز</h2><video id="scanVid" playsinline muted style="width:100%;max-width:320px;border-radius:12px;background:#000"></video>' +
+      '<button class="ghost" type="button" id="scanX">إلغاء</button></div>';
+    document.body.appendChild(el);
+    var vid = $("scanVid"), stream = null, over = false, det = null, cv = document.createElement("canvas"), cx = cv.getContext("2d", { willReadFrequently: true });
+    function stop() { over = true; if (stream) stream.getTracks().forEach(function (tr) { tr.stop(); }); el.remove(); }
+    function found(txt) {
+      var m = /#mine=([a-z0-9-]+)/i.exec(txt || ""), t = cleanCode(m ? m[1] : txt);
+      if (t.length !== 8) return false;
+      stop(); mineApprove(t); return true;
+    }
+    function tick() {
+      if (over) return;
+      if (vid.readyState >= 2 && vid.videoWidth) {
+        if (det) { det.detect(vid).then(function (c) { if (!(c[0] && found(c[0].rawValue))) setTimeout(tick, 250); }, function () { setTimeout(tick, 250); }); return; }
+        if (window.jsQR) {
+          cv.width = vid.videoWidth; cv.height = vid.videoHeight; cx.drawImage(vid, 0, 0);
+          var q = window.jsQR(cx.getImageData(0, 0, cv.width, cv.height).data, cv.width, cv.height);
+          if (q && found(q.data)) return;
+        }
+      }
+      setTimeout(tick, 250);
+    }
+    $("scanX").addEventListener("click", stop);
+    if ("BarcodeDetector" in window) { try { det = new window.BarcodeDetector({ formats: ["qr_code"] }); } catch (e) { det = null; } }
+    if (!det && !window.jsQR) { var sc = document.createElement("script"); sc.src = "https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"; document.head.appendChild(sc); }
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }).then(function (st) {
+      if (over) { st.getTracks().forEach(function (tr) { tr.stop(); }); return; }
+      stream = st; vid.srcObject = st; vid.play(); tick();
+    }, function () { stop(); toast("لم يُسمح باستعمال الكاميرا. اكتب الرمز بدلًا من ذلك"); });
+  }
+  // Another personal account, made on the server in this person's name so it opens on all their devices
+  function ownCreate(name) {
+    var mk = mainKey();
+    if (!mk) { toast("اكتب اسمك أولًا في حسابك الأول، فيُنشأ حسابك السحابي"); return; }
+    if (!online()) return;
+    sb.rpc("yawmi_own_create", { p_key: mk, p_name: name }).then(function (r) {
+      if (r.error) { toast(r.error.code === "PGRST202" ? "إضافة الحسابات غير مفعّلة بعد على الخادم" : "تعذّر: " + netError(r.error)); return; }
+      if (r.data && r.data.err === "limit") { reqAsk("personal"); return; }
+      if (!r.data || !r.data.key) { toast("تعذّر إنشاء الحساب"); return; }
+      var nid = addTeamProfile(r.data, "main");
+      toast("أُضيف حساب «" + name + "»");
+      if (nid) setTimeout(function () { switchProfile(nid); }, 800);
+    }, function () { toast("تعذّر الاتصال. تأكد من الإنترنت."); });
+  }
   // Anyone can start a team (supabase_v12.sql): the team account is added here with this person as its leader
   function teamCreate(name) {
     var c = "", meta = {};
     try { c = localStorage.getItem(pkey("daily-planner-code", "main")) || ""; meta = JSON.parse(localStorage.getItem(pkey("daily-planner-link", "main")) || "{}"); } catch (e) {}
     if (!c || meta.role === "secondary") { toast("فعّل الحفظ السحابي لحسابك الأول أولًا (⚙ ← الحفظ السحابي ← ابدأ حسابًا جديدًا)"); return; }
+    if (!online()) return;
     sb.rpc("yawmi_team_create", { p_key: c, p_name: name }).then(function (r) {
       if (r.error) { toast(r.error.code === "PGRST202" ? "إنشاء الفرق غير مفعّل بعد على الخادم" : "تعذّر: " + netError(r.error)); return; }
       if (r.data && r.data.err === "limit") { reqAsk("teams"); return; }
@@ -3268,8 +3475,8 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       if (r.error || !r.data) { cloud.msg = "تعذّر إنشاء الكود: " + netError(r.error); refreshCloud(); return; }
       setLink(r.data, "primary", 1);
       state.settings.updatedAt = state.settings.updatedAt || Date.now(); // upload this device's setup
-      render(); if (!quiet) toast("أصبحت المسؤول الأول ✓"); syncNow();
-      if (PROFILE === "main" && teamPending()) teamJoin(teamPending());
+      render(); if (!quiet) toast("أُنشئ حسابك ✓"); syncNow();
+      if (PROFILE === "main") { meLoad(); if (teamPending()) teamJoin(teamPending()); }
     }, function (e) { cloud.msg = netError(e); refreshCloud(); });
   }
   function useCode(raw) {
@@ -3279,49 +3486,8 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     rpc("get", { p_code: c }).then(function (r) {
       if (r.error) { cloud.msg = netError(r.error); refreshCloud(); return; }
       if (!r.data || r.data.role === "secondary") { cloud.msg = "هذا ليس كودًا رئيسيًا صحيحًا. تأكد منه وأعد المحاولة."; refreshCloud(); return; }
-      setLink(c, "primary", 1); render(); toast("استُعيد حساب المسؤول الأول، جارٍ جلب بياناتك"); syncNow();
+      setLink(c, "primary", 1); render(); toast("استُعيد حسابك، جارٍ جلب بياناتك"); syncNow(); if (PROFILE === "main") meLoad();
     }, function (e) { cloud.msg = netError(e); refreshCloud(); });
-  }
-  // A new device joins with the one-time link code the first owner shows
-  function joinWith(raw) {
-    var t = cleanCode(raw);
-    if (t.length !== 8) { toast("رمز الربط ٨ أحرف وأرقام، كما يظهر على الجهاز المسؤول"); return; }
-    if (ownShared(PROFILE) >= maxShared()) { reqAsk("shared"); return; }
-    cloud.msg = "";
-    rpc("join", { p_token: t, p_label: deviceLabel() }).then(function (r) {
-      if (r.error) { cloud.msg = netError(r.error); refreshCloud(); return; }
-      if (!r.data) { cloud.msg = "رمز الربط غير صحيح أو انتهت صلاحيته. اطلب رمزًا جديدًا من الجهاز المسؤول."; refreshCloud(); return; }
-      if (r.data.err === "limit") { cloud.msg = "وصل هذا الحساب إلى حد الأجهزة المرتبطة به. اطلب من صاحبه أن يطلب رفع الحد من المشرف (⚙ ← شارك حسابك)."; refreshCloud(); return; }
-      setLink(r.data.token, "secondary", r.data.num); render(); toast("تم الربط ✓ هذا الجهاز رقم " + r.data.num); syncNow();
-    }, function (e) { cloud.msg = netError(e); refreshCloud(); });
-  }
-  // First owner: one-time link code, device list, revoke
-  var inviteTimer = null, devCount = -1;
-  function inviteStop() { clearTimeout(inviteTimer); ui.invite = null; }
-  function invite() {
-    var md = PROFILE === "main" && limits && limits.max_devices ? limits.max_devices : 3;
-    if (!ui.teamInfo && (ui.devices || []).length >= md) { reqAsk("devices"); return; }
-    cloud.msg = "";
-    rpc("invite", { p_code: code }).then(function (r) {
-      if (r.error || !r.data) { cloud.msg = "تعذّر إنشاء رمز الربط: " + netError(r.error); refreshCloud(); return; }
-      ui.invite = { token: r.data, until: Date.now() + 10 * 60000 };
-      devCount = (ui.devices || []).length;
-      render(); invitePoll();
-    }, function (e) { cloud.msg = netError(e); refreshCloud(); });
-  }
-  function invitePoll() {
-    clearTimeout(inviteTimer);
-    if (!ui.invite) return;
-    if (Date.now() > ui.invite.until) { inviteStop(); refreshCloud(); return; }
-    inviteTimer = setTimeout(function () {
-      loadDevices(function (list) {
-        if (!ui.invite) return;
-        if (list.length > devCount) {
-          var nd = list[list.length - 1];
-          inviteStop(); render(); toast("تم ربط جهاز رقم " + nd.num + " ✓");
-        } else invitePoll();
-      });
-    }, 3000);
   }
   function loadDevices(done) {
     if (!sb || !code || cloud.role === "secondary") return;
@@ -3477,37 +3643,8 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   }
 
 
-  /* ---------- pairing by QR, like WhatsApp Web ---------- */
-  // The device without a code shows a QR of a one-time link; the phone that has the code opens it
-  // and hands its code over through Supabase; the waiting device picks it up.
-  var pairTimer = null;
   function appUrl() { return location.origin + location.pathname; }
-  function pairStop() { clearTimeout(pairTimer); ui.pair = null; }
-  function pairStart() {
-    if (ownShared(PROFILE) >= maxShared()) { reqAsk("shared"); return; }
-    cloud.msg = "";
-    rpc("pair_start").then(function (r) {
-      if (r.error || !r.data) { cloud.msg = "تعذّر إنشاء رمز الربط: " + netError(r.error); refreshCloud(); return; }
-      ui.pair = { token: r.data, until: Date.now() + 10 * 60000 };
-      render(); pairPoll();
-    }, function (e) { cloud.msg = netError(e); refreshCloud(); });
-  }
-  function pairPoll() {
-    clearTimeout(pairTimer);
-    if (!ui.pair) return;
-    if (Date.now() > ui.pair.until) { pairStop(); cloud.msg = "انتهت صلاحية الرمز. اضغط «اربط بجوالي عبر QR» لرمز جديد."; refreshCloud(); return; }
-    pairTimer = setTimeout(function () {
-      if (!ui.pair) return;
-      rpc("pair_take", { p_token: ui.pair.token, p_label: deviceLabel() }).then(function (r) {
-        if (!r.error && r.data && r.data.err === "limit") { pairStop(); cloud.msg = "وصل هذا الحساب إلى حد الأجهزة المرتبطة به. اطلب من صاحبه أن يطلب رفع الحد من المشرف (⚙ ← شارك حسابك)."; refreshCloud(); return; }
-        if (!r.error && r.data && r.data.token) {
-          pairStop(); setLink(r.data.token, "secondary", r.data.num);
-          render(); toast("تم الربط ✓ هذا الجهاز رقم " + r.data.num); syncNow();
-        } else pairPoll();
-      }, pairPoll);
-    }, 2000);
-  }
-  // Links opened from a scanned QR: #join=<code> (new device joins) or #pair=<token> (first owner approves)
+  // Links opened from a scanned QR: #mine=<token> (this person's new device, approved here); #team=<token> joins a team
   // Tapping a task notification opens that day with the task open: #task=<date>:<id> (or a message from sw.js)
   function openTask(k, id) {
     var has = function (st) { return st && st.days && st.days[k] && arr(st.days[k].items).some(function (i) { return i.id === id; }); };
@@ -3527,25 +3664,17 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   function handleLink() {
     var t = /^#task=(\d{4}-\d{2}-\d{2}):(.+)$/.exec(location.hash || "");
     if (t) { try { history.replaceState(null, "", appUrl()); } catch (e) {} openTask(t[1], decodeURIComponent(t[2])); return; }
-    var m = /^#(pair|join|team)=([a-z0-9-]+)$/i.exec(location.hash || "");
+    var m = /^#(pair|join|team|mine)=([a-z0-9-]+)$/i.exec(location.hash || "");
     if (!m) return;
     try { history.replaceState(null, "", appUrl()); } catch (e) {}
     if (!sb) { toast("الحفظ السحابي غير مفعّل على هذا الجهاز"); return; }
     if (m[1].toLowerCase() === "team") { teamJoin(cleanCode(m[2])); return; }
-    if (m[1].toLowerCase() === "join") {
-      if (code) { toast("هذا الجهاز مربوط بالفعل"); return; }
-      ui.tab = "settings"; render(); joinWith(m[2]); return;
-    }
-    if (!code || cloud.role === "secondary") {
+    if (m[1].toLowerCase() === "mine") {
       ui.tab = "settings"; render();
-      toast("افتح هذا الرابط على الجهاز المسؤول الأول");
-      return;
+      if (!mainKey()) { toast("افتح هذا الرابط على جهازك الذي فيه حسابك، أو اكتب الرمز فيه"); return; }
+      mineApprove(m[2]); return;
     }
-    rpc("pair_approve", { p_token: cleanCode(m[2]), p_code: code }).then(function (r) {
-      if (r.error) { toast("تعذّر الربط: " + netError(r.error)); return; }
-      toast(r.data ? "تم ربط الجهاز الآخر ✓" : "انتهت صلاحية الرمز، اطلب رمزًا جديدًا");
-      if (r.data) setTimeout(loadDevices, 2500);
-    }, function () { toast("تعذّر الاتصال. تأكد من الإنترنت."); });
+    toast("طريقة الربط هذه أُلغيت. اربط أجهزتك من ⚙ ← 📱 أجهزتي");
   }
 
   window.addEventListener("online", syncNow);
