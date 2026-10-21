@@ -2141,7 +2141,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   }
   function settingsView() {
     var th = themeNow();
-    var h = reqCardHtml() + '<a class="guidelink" href="guide.html">📖 دليل استخدام «يومي» <span>كل الميزات خطوة بخطوة ←</span></a>' +
+    var h = reqCardHtml() + (ui.teamInfo && cloud.role !== "secondary" && code ? teamLinkHtml(ui.teamInfo) : "") + '<a class="guidelink" href="guide.html">📖 دليل استخدام «يومي» <span>كل الميزات خطوة بخطوة ←</span></a>' +
       shareHtml();
     h += '<section><h2>المظهر</h2><div class="rangeseg">' + [["auto", "تلقائي"], ["light", "☀️ فاتح"], ["dark", "🌙 غامق"]].map(function (o) {
       return '<button data-act="theme" data-t="' + o[0] + '" aria-pressed="' + (th === o[0]) + '">' + o[1] + '</button>';
@@ -2218,7 +2218,6 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
         var shr = ui.teamInfo && ui.teamInfo.tk === "shared";
         h += '<p><b>' + (shr ? "أنت منشئ هذا الحساب المشترك" : ui.teamInfo ? "أنت مسؤول هذا الفريق" : "هذا حسابك، ويظهر على كل أجهزتك") + '</b></p>' +
           '<div class="row-wrap"><button class="btn" data-act="syncNow">مزامنة الآن</button></div>';
-        if (ui.teamInfo) h += teamLinkHtml(ui.teamInfo);
         if (ui.teamInfo && !shr) h += '<div class="card"><h3>🔒 ضوابط الفريق</h3><p class="small">الأعضاء ينجزون مهامك ويكتبون عليها ملاحظات، ولا يحذفونها ولا يغيّرون وقتها أو تفاصيلها، ولا يعدّلون التقسيمات والمهام الدائمة والقوالب والأهداف.</p>' +
           '<button class="ghost" data-act="tcfgAdd" aria-pressed="' + membersAdd() + '">' + (membersAdd() ? "✓ يستطيع الأعضاء إضافة مهامهم" : "✗ لا يضيف المهام إلا أنت") + '</button></div>';
         var devs = ui.devices || [];
@@ -2601,13 +2600,22 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       case "useCode": useCode($("codeInput").value); break;
       case "forget": forgetDevice(""); toast("فُصل الجهاز، وبياناتك باقية عليه وفي السحابة"); break;
       case "mineStart": if (mainKey() && !ui.mineAsk) { ui.mineAsk = true; ui.tab = "settings"; render(); break; } mineStart(); break;
-      case "mineCancel": mineStop(); ui.mineAsk = false; ui.mineAdd = false; render(); break;
+      case "mineCancel": mineStop(); ui.mineAsk = false; ui.mineAdd = false; ui.mineUrl = null; render(); break;
       case "mineAdd": ui.mineAdd = true; render(); break;
       case "mineApprove": mineApprove($("mineInput").value); break;
       case "mineScan": scanQr(); break;
       case "myDevDel": ui.confirmDev = b.dataset.dev; render(); break;
       case "myDevNo": ui.confirmDev = null; render(); break;
       case "myDevYes": myDevRemove(b.dataset.dev); break;
+      case "myDevMain": myDevMain(b.dataset.dev); break;
+      case "mineLink": mineLink(); break;
+      case "mineShare": mineShare(); break;
+      case "mineCopy":
+        try { navigator.clipboard.writeText(ui.mineUrl.url).then(function () { toast("نُسخ الرابط. افتحه على الجهاز الجديد"); }, function () { toast("انسخ الرابط يدويًا"); }); }
+        catch (err) { toast("انسخ الرابط يدويًا"); }
+        break;
+      case "addYes": mineAddLink(ui.addAsk); break;
+      case "addNo": ui.addAsk = null; render(); break;
       case "revoke": ui.confirmRevoke = b.dataset.tok; render(); break;
       case "revokeNo": ui.confirmRevoke = null; render(); break;
       case "revokeYes": revoke(b.dataset.tok); break;
@@ -3269,7 +3277,8 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   }
   /* ---------- MY DEVICES (supabase_v16.sql): an account belongs to its person, so every account opens on each of their devices ---------- */
   // The new device shows a one-time code (QR + 8 letters); the person's other device scans or types it, then the new one takes the person's key.
-  var DEV_KEY = "yawmi-dev";
+  var DEV_KEY = "yawmi-dev", meMain = false, meAt = 0;
+  try { meMain = localStorage.getItem("yawmi-main") === "1"; } catch (e) {}
   function devId() {
     var d = "";
     try { d = localStorage.getItem(DEV_KEY) || ""; if (!d) { d = uid() + uid(); localStorage.setItem(DEV_KEY, d); } } catch (e) {}
@@ -3306,10 +3315,16 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       if (!c || profMeta(pf.id).role === "secondary") return;
       sb.rpc("yawmi_own_claim", { p_key: mk, p_code: c, p_name: pf.name }).then(function (r) { if (!r.error && r.data) { pf.own = 1; saveProfiles(); } }, function () {});
     });
+    meAt = Date.now();
     sb.rpc("yawmi_me", { p_key: mk, p_dev: devId(), p_label: deviceLabel() }).then(function (r) {
       if (r.error) { if (r.error.code === "PGRST202") teamInbox(); return; }
       if (!r.data) return;
       if (r.data.revoked) { meRevoked(); return; }
+      if (r.data.main != null && !!r.data.main !== meMain) {
+        meMain = !!r.data.main;
+        try { localStorage.setItem("yawmi-main", meMain ? "1" : ""); } catch (e) {}
+        if (ui.tab === "settings") softRender();
+      }
       var keys = {}, added = 0;
       arr(r.data.accounts).forEach(function (t) {
         keys[t.key] = 1;
@@ -3346,9 +3361,45 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   function myDevRemove(dev) {
     ui.confirmDev = null;
     if (!online()) { render(); return; }
-    sb.rpc("yawmi_my_device_remove", { p_key: mainKey(), p_dev: dev }).then(function (r) {
-      if (r.error || !r.data) { toast("تعذّرت الإزالة: " + netError(r.error)); return; }
+    sb.rpc("yawmi_my_device_remove", { p_key: mainKey(), p_dev: dev, p_me: devId() }).then(function (r) {
+      if (r.error || !r.data) { toast(r.error ? "تعذّرت الإزالة: " + netError(r.error) : "الإزالة من جهازك الأساسي ⭐ فقط"); return; }
       toast("أُزيل الجهاز، وتُحذف حساباتك منه عند فتحه"); myDevLoad();
+    }, function () { toast("تعذّر الاتصال. تأكد من الإنترنت."); });
+  }
+  function myDevMain(dev) {
+    if (!online()) return;
+    sb.rpc("yawmi_my_device_main", { p_key: mainKey(), p_dev: dev, p_me: devId() }).then(function (r) {
+      if (r.error || !r.data) { toast("تعذّر: " + netError(r.error)); return; }
+      meMain = false; try { localStorage.setItem("yawmi-main", ""); } catch (e) {}
+      toast("⭐ صار ذلك الجهاز هو الأساسي"); myDevLoad();
+    }, function () { toast("تعذّر الاتصال. تأكد من الإنترنت."); });
+  }
+  // The main device sends a one-time link; opening it on the new device links it straight away (#add=<token>)
+  function mineLink() {
+    if (!online()) return;
+    sb.rpc("yawmi_mine_link", { p_key: mainKey(), p_me: devId() }).then(function (r) {
+      if (r.error || !r.data) { toast(r.error && r.error.code === "PGRST202" ? "رابط الربط غير مفعّل بعد على الخادم" : "تعذّر إنشاء الرابط: " + netError(r.error)); return; }
+      if (r.data === "limit") { reqAsk("devices"); return; }
+      if (r.data === "notmain") { toast("إضافة الأجهزة من جهازك الأساسي ⭐ فقط"); return; }
+      ui.mineUrl = { url: appUrl() + "#add=" + r.data, until: Date.now() + 10 * 60000 };
+      render(); mineShare();
+    }, function () { toast("تعذّر الاتصال. تأكد من الإنترنت."); });
+  }
+  function mineShare() {
+    var u = ui.mineUrl && ui.mineUrl.url, txt = "رابط ربط جهازي بتطبيق «يومي». افتحه على الجهاز الجديد:";
+    if (!u) return;
+    if (navigator.share) navigator.share({ title: "يومي", text: txt, url: u }).catch(function () {});
+    else try { navigator.clipboard.writeText(u).then(function () { toast("نُسخ الرابط. افتحه على الجهاز الجديد"); }, function () {}); } catch (e) {}
+  }
+  // Opened on the new device: a device that already has an account asks first, since it becomes this person's
+  function mineAddLink(tk) {
+    if (mainKey() && ui.addAsk !== tk) { ui.addAsk = tk; ui.tab = "settings"; render(); window.scrollTo(0, 0); return; }
+    ui.addAsk = null;
+    if (!online()) return;
+    sb.rpc("yawmi_mine_take", { p_token: tk, p_dev: devId(), p_label: deviceLabel() }).then(function (r) {
+      if (r.error || !r.data || !r.data.key) { toast("الرابط غير صحيح أو انتهت صلاحيته. أرسل رابطًا جديدًا من جهازك الأساسي"); render(); return; }
+      if (r.data.key === mainKey()) { toast("هذا الجهاز مربوط بحسابك أصلًا ✓"); render(); return; }
+      adoptPerson(r.data);
     }, function () { toast("تعذّر الاتصال. تأكد من الإنترنت."); });
   }
   var mineTimer = null;
@@ -3395,9 +3446,10 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     if (t.length !== 8) { toast("الرمز ٨ أحرف وأرقام، كما يظهر على الجهاز الجديد"); return; }
     if (!mainKey()) { toast("هذا الجهاز ليس فيه حسابك بعد"); return; }
     if (!online()) return;
-    sb.rpc("yawmi_mine_approve", { p_token: t, p_key: mainKey() }).then(function (r) {
+    sb.rpc("yawmi_mine_approve", { p_token: t, p_key: mainKey(), p_me: devId() }).then(function (r) {
       if (r.error) { toast(r.error.code === "PGRST202" ? "ربط الأجهزة غير مفعّل بعد على الخادم" : "تعذّر: " + netError(r.error)); return; }
       if (r.data === "limit") { reqAsk("devices"); return; }
+      if (r.data === "notmain") { toast("إضافة الأجهزة من جهازك الأساسي ⭐ فقط"); return; }
       if (r.data !== "ok") { toast("الرمز غير صحيح أو انتهت صلاحيته. اطلب رمزًا جديدًا من الجهاز الجديد"); return; }
       ui.mineAdd = false; render(); toast("تم ✓ تظهر حساباتك على الجهاز الجديد خلال ثوانٍ");
       setTimeout(myDevLoad, 5000);
@@ -3412,26 +3464,39 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
         '<p class="small muted">صالح لمرة واحدة ولمدة ١٠ دقائق. ينتظر هذا الجهاز حتى توافق عليه.</p>' +
         '<div><button class="ghost" data-act="mineCancel">إلغاء</button></div></section>';
     }
+    if (ui.addAsk) {
+      return h + '<p class="small"><b>فتحت رابط ربط جهاز.</b> هذا الجهاز فيه حساب الآن، فإن تابعت يصبح حسابه الأول هو حسابك الآخر، وتُدمج فيه مهام هذا الجهاز.</p>' +
+        '<div class="row-wrap"><button class="btn" data-act="addYes">متابعة</button><button class="ghost" data-act="addNo">إلغاء</button></div></section>';
+    }
     if (ui.mineAsk) {
       return h + '<p class="small"><b>هذا الجهاز فيه حساب الآن.</b> إن ربطته بحسابك على جهاز آخر، يصبح حسابه الأول هو حسابك الآخر، وتُدمج فيه مهام هذا الجهاز.</p>' +
         '<div class="row-wrap"><button class="btn" data-act="mineStart">متابعة</button><button class="ghost" data-act="mineCancel">إلغاء</button></div></section>';
     }
     if (mainKey()) {
-      var me = devId(), list = ui.myDevs || [];
+      var me = devId(), list = ui.myDevs || [], mainDev = list.filter(function (x) { return x.main; })[0];
       h += '<p class="small muted">كل حساباتك (الشخصي والفرق) تظهر على كل أجهزتك' + (limits && limits.max_devices ? '، حتى ' + limits.max_devices + ' أجهزة' : "") + '.</p>';
       if (list.length) h += '<ul class="list">' + list.map(function (dv) {
         var seen = dv.last_seen ? new Date(dv.last_seen) : null, mine = dv.dev === me;
-        return '<li class="card"><div class="left"><span class="t"><b>' + esc(dv.label || "جهاز") + '</b>' + (mine ? ' · <span class="now">● هذا الجهاز</span>' : "") +
+        return '<li class="card"><div class="left"><span class="t"><b>' + (dv.main ? "⭐ " : "") + esc(dv.label || "جهاز") + '</b>' + (dv.main ? ' · <span class="small">الأساسي</span>' : "") + (mine ? ' · <span class="now">● هذا الجهاز</span>' : "") +
           (seen && !mine ? '<br><span class="small muted">آخر ظهور: ' + (keyOf(seen) === keyOf(new Date()) ? "اليوم " : shortDate(keyOf(seen)) + " ") + stamp(seen.getTime()) + '</span>' : "") + '</span>' +
-          (mine ? "" : ui.confirmDev === dv.dev
+          (mine || dv.main || !meMain ? "" : ui.confirmDev === dv.dev
             ? '<button class="ghost danger" data-act="myDevYes" data-dev="' + esc(dv.dev) + '">تأكيد الإزالة</button><button class="ghost" data-act="myDevNo">تراجع</button>'
-            : '<button class="ghost danger" data-act="myDevDel" data-dev="' + esc(dv.dev) + '">إزالة</button>') + '</div></li>';
+            : '<button class="ghost" data-act="myDevMain" data-dev="' + esc(dv.dev) + '">⭐ اجعله الأساسي</button><button class="ghost danger" data-act="myDevDel" data-dev="' + esc(dv.dev) + '">إزالة</button>') + '</div></li>';
       }).join("") + '</ul>';
+      if (!meMain) return h + '<p class="small muted">إضافة الأجهزة وإزالتها من جهازك الأساسي ⭐' + (mainDev ? " «" + esc(mainDev.label || "جهاز") + "»" : "") + '.</p></section>';
+      var lk = ui.mineUrl && Date.now() < ui.mineUrl.until ? ui.mineUrl : null;
       h += ui.mineAdd
-        ? '<div class="card"><h3>➕ أضف جهازًا لي</h3><p class="small">على الجهاز الجديد افتح «يومي» ← ⚙ ← 📱 أجهزتي ← «هذا جهاز جديد»، فيظهر رمز. امسحه أو اكتبه هنا:</p>' +
-          '<div class="addform"><input class="field grow ltr" id="mineInput" type="text" placeholder="xxxx-xxxx" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="btn" data-act="mineApprove">اربط</button></div>' +
-          '<div class="row-wrap"><button class="ghost" data-act="mineScan">📷 امسح الرمز</button><button class="ghost" data-act="mineCancel">إلغاء</button></div></div>'
+        ? '<div class="card"><h3>➕ أضف جهازًا لي</h3>' +
+          '<p class="small"><b>الأسهل:</b> أرسل رابط الربط لنفسك (مثل واتساب)، وافتحه على الجهاز الجديد، فيُربط مباشرة.</p>' +
+          (lk ? '<div class="tip ltr small" style="user-select:all;word-break:break-all">' + esc(lk.url) + '</div>' +
+            '<div class="row-wrap"><button class="btn" data-act="mineShare">📤 أرسله</button><button class="ghost" data-act="mineCopy">📋 انسخ</button></div>' +
+            '<p class="small muted">صالح لمرة واحدة ولمدة ١٠ دقائق. لا ترسله لغيرك: من يفتحه يصبح جهازه من أجهزتك.</p>'
+            : '<div class="row-wrap"><button class="btn" data-act="mineLink">📤 أرسل رابط الربط</button></div>') +
+          '<p class="small" style="margin-top:8px"><b>أو:</b> على الجهاز الجديد افتح «يومي» ← ⚙ ← 📱 أجهزتي ← «هذا جهاز جديد»، فيظهر رمز. امسحه أو اكتبه هنا:</p>' +
+          '<div class="addform"><input class="field grow ltr" id="mineInput" type="text" placeholder="xxxx-xxxx" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="ghost" data-act="mineApprove">اربط</button></div>' +
+          '<div class="row-wrap"><button class="ghost" data-act="mineScan">📷 امسح الرمز</button><button class="ghost" data-act="mineCancel">إغلاق</button></div></div>'
         : '<div class="row-wrap"><button class="btn" data-act="mineAdd">➕ أضف جهازًا لي</button></div>';
+      return h + '</section>';
     }
     return h + '<div><button class="linkbtn" data-act="mineStart">🔗 هذا جهاز جديد، وحسابي على جهاز آخر</button></div></section>';
   }
@@ -3739,11 +3804,12 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   function handleLink() {
     var t = /^#task=(\d{4}-\d{2}-\d{2}):(.+)$/.exec(location.hash || "");
     if (t) { try { history.replaceState(null, "", appUrl()); } catch (e) {} openTask(t[1], decodeURIComponent(t[2])); return; }
-    var m = /^#(pair|join|team|mine)=([a-z0-9-]+)$/i.exec(location.hash || "");
+    var m = /^#(pair|join|team|mine|add)=([a-z0-9-]+)$/i.exec(location.hash || "");
     if (!m) return;
     try { history.replaceState(null, "", appUrl()); } catch (e) {}
     if (!sb) { toast("الحفظ السحابي غير مفعّل على هذا الجهاز"); return; }
     if (m[1].toLowerCase() === "team") { teamJoin(cleanCode(m[2])); return; }
+    if (m[1].toLowerCase() === "add") { mineAddLink(cleanCode(m[2])); return; }
     if (m[1].toLowerCase() === "mine") {
       ui.tab = "settings"; render();
       if (!mainKey()) { toast("افتح هذا الرابط على جهازك الذي فيه حسابك، أو اكتب الرمز فيه"); return; }
@@ -3767,6 +3833,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     loadTip();
     renderProfile();
     syncNow();
+    if (Date.now() - meAt > 120000) meLoad();
     softRender();
   });
   // While the live channel is connected, other devices announce their changes, so a full check every 10 minutes is enough
