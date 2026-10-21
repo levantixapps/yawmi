@@ -987,7 +987,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     $("prev").disabled = diff <= -ARCHIVE;
     $("next").disabled = diff >= FUTURE;
     document.querySelectorAll(".tab").forEach(function (b) { b.setAttribute("aria-current", b.dataset.tab === ui.tab ? "true" : "false"); });
-    var ftab = document.querySelector('.tab[data-tab="flows"]'); if (ftab) ftab.hidden = !flowsOn();
+    var ftab = document.querySelector('.tab[data-tab="flows"]'); if (ftab) ftab.hidden = !flowsTab();
     var dot = $("cloudDot");
     dot.hidden = cloud.status === "off" || cloud.status === "nocode";
     dot.className = "dot" + (cloud.status === "error" || cloud.status === "offline" ? " warn" : "");
@@ -1023,9 +1023,9 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       html += '<div class="banner"><span>هذا يوم مثال يوضّح طريقة الاستخدام.</span><button class="linkbtn" data-act="clearSample">احذف المثال وابدأ</button></div>';
     }
     html += linkHereHtml();
-    if (flowsOn() && (ui.tab === "flows" ? Date.now() - flowsAt > 20000 : ui.tab === "day" && Date.now() - flowsAt > 120000)) flowsLoad();
+    if (flowsOn() && (ui.tab === "flows" ? Date.now() - flowsAt > 20000 : Date.now() - flowsAt > 120000)) flowsLoad();
     if (ui.tab === "day" && flowsOn() && myFlows().length) html += '<div class="banner"><span>📨 عندك ' + myFlows().length + ' معاملة تنتظرك</span><button class="linkbtn" data-act="tab" data-tab="flows">افتحها</button></div>';
-    if (ui.tab === "flows" && !flowsOn()) ui.tab = "day";
+    if (ui.tab === "flows" && !flowsTab()) ui.tab = "day";
     html += ui.tab === "flows" ? flowsView() : ui.tab === "settings" ? settingsView() : ui.tab === "plan" ? planView() : ui.tab === "day" ? dayView() : reviewView();
     view.innerHTML = '<div class="stack" style="gap:20px;padding-top:16px">' + html + '</div>';
     drawQr();
@@ -1485,6 +1485,28 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     ui.tplOpen = false; commit();
     toast(n ? "أُضيف " + (n === 1 ? "بند واحد" : n === 2 ? "بندان" : n <= 10 ? n + " بنود" : n + " بندًا") + " من «" + t.name.replace(/^\S+\s/, "") + "». احذف ما لا يناسبك" : "كل بنود هذا القالب موجودة في يومك");
   }
+  // Settings: make a template from tasks written straight into it, or edit one (ui.tplDraft = { id, name, items })
+  function tplSettingsHtml() {
+    var list = userTpls(), dr = ui.tplDraft;
+    var h = '<section id="tplset"><h2>📋 قوالبي</h2><p class="muted small">قالب بمهامك أنت، تضيفه إلى أي يوم من «خطّط» ← «📋 ابدأ من قالب جاهز».</p>';
+    if (list.length) h += '<ul class="list">' + list.map(function (t) {
+      return '<li class="card"><div class="top"><span class="ttl"><b>' + esc(t.name) + '</b><span class="small muted">' + esc(arr(t.items).map(function (x) { return x.title; }).join("، ").slice(0, 120)) + '</span></span>' +
+        '<button class="ghost" data-act="tplEdit" data-t="' + esc(t.id) + '">تعديل</button><button class="del" data-act="tplDel" data-t="' + esc(t.id) + '" aria-label="حذف القالب">×</button></div></li>';
+    }).join("") + '</ul>';
+    if (!dr) return h + '<div class="row-wrap"><button class="btn" data-act="tplNew">➕ قالب جديد</button></div></section>';
+    h += '<div class="card"><h3>' + (dr.id ? "تعديل القالب" : "قالب جديد") + '</h3>' +
+      '<input class="field" id="tplName" type="text" maxlength="30" placeholder="اسم القالب، مثل: يوم الدوام" autocomplete="off" value="' + esc(dr.name) + '">';
+    h += dr.items.length ? '<ul class="list" style="margin-top:8px">' + dr.items.map(function (x, i) {
+      return '<li class="card"><div class="top"><span class="ttl"><span>' + esc(x.title) + '</span><span class="row-wrap" style="gap:4px 10px">' + catChip(x.cat) + '<span class="cat">' + durLabel(x.dur || 30) + '</span>' +
+        (x.time ? '<span class="cat">' + fmt12(x.time) + '</span>' : "") + '</span></span><button class="del" data-act="tplItemDel" data-i="' + i + '" aria-label="حذف">×</button></div></li>';
+    }).join("") + '</ul>' : '<p class="small muted">أضف مهام القالب:</p>';
+    h += '<div class="stack" style="gap:8px;margin-top:8px"><input class="field" id="tplItem" type="text" placeholder="مهمة، مثل: مراجعة البريد" autocomplete="off">' +
+      '<div class="row-wrap">' + catSelect('id="tplCat"', ui.lastCat) + durSelect('id="tplDur"', 30) + '<input class="field" id="tplTime" type="time" aria-label="الوقت (اختياري)"></div>' +
+      '<div><button class="ghost" data-act="tplItemAdd">+ أضف المهمة</button></div></div>' +
+      '<div class="row-wrap" style="margin-top:8px"><button class="btn" data-act="tplDraftSave">💾 احفظ القالب</button><button class="ghost" data-act="tplDraftNo">إلغاء</button></div></div></section>';
+    return h;
+  }
+  function tplKeepName() { if (ui.tplDraft && $("tplName")) ui.tplDraft.name = $("tplName").value; }
   function tplSave() {
     var items = day().items.filter(function (i) { return !i.moved && !i.rid; });
     if (!items.length) { toast("أضف بنودًا أولًا (المهام الدائمة لا تدخل في القالب)"); return; }
@@ -2307,6 +2329,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     }).join("") + '</ul>';
     h += '</section>';
 
+    h += tplSettingsHtml();
     h += '<section><h2>التقسيمات</h2><p class="muted small">اضغط على اللون لتغييره، وعلى الاسم لتعديله.</p><ul class="list">' + cats().map(function (c) {
       return '<li class="catedit"><button class="colorbtn" style="--cc:var(--c' + c.color + ')" data-act="catColor" data-id="' + esc(c.id) + '" aria-label="تغيير اللون"><i></i></button>' +
         '<input class="field" style="flex:1" value="' + esc(c.name) + '" data-act="catName" data-id="' + esc(c.id) + '" aria-label="اسم التقسيم">' +
@@ -2699,6 +2722,28 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       case "goalDelNo": ui.confirmGoal = null; render(); break;
       case "goalDelYes": state.settings.goals = goals().filter(function (g) { return g.id !== id; }); ui.confirmGoal = null; commit(); toast("حُذف الهدف"); break;
       case "tplSave": tplSave(); break;
+      case "tplNew": ui.tplDraft = { id: "", name: "", items: [] }; render(); break;
+      case "tplEdit":
+        var tex = userTpls().filter(function (x) { return x.id === b.dataset.t; })[0];
+        if (tex) { ui.tplDraft = { id: tex.id, name: tex.name.replace(/^⭐\s*/, ""), items: arr(tex.items).map(function (x) { return Object.assign({}, x); }) }; render(); }
+        break;
+      case "tplItemAdd":
+        tplKeepName();
+        var tti = ($("tplItem") || {}).value || "";
+        if (!tti.trim()) { toast("اكتب المهمة"); break; }
+        ui.lastCat = $("tplCat").value;
+        ui.tplDraft.items.push({ title: tti.trim().slice(0, 80), cat: ui.lastCat, dur: +$("tplDur").value || 30, important: null, urgent: null, time: $("tplTime").value || "" });
+        render(); var tfi = $("tplItem"); if (tfi) tfi.focus(); break;
+      case "tplItemDel": tplKeepName(); ui.tplDraft.items.splice(+b.dataset.i, 1); render(); break;
+      case "tplDraftNo": ui.tplDraft = null; render(); break;
+      case "tplDraftSave":
+        tplKeepName();
+        var tdr = ui.tplDraft, tnm = (tdr.name || "").trim().slice(0, 30);
+        if (!tnm) { toast("اكتب اسم القالب"); break; }
+        if (!tdr.items.length) { toast("أضف مهمة واحدة على الأقل"); break; }
+        var tnew = { id: tdr.id || "u" + uid(), name: "⭐ " + tnm, items: tdr.items };
+        state.settings.templates = tdr.id ? userTpls().map(function (x) { return x.id === tdr.id ? tnew : x; }) : userTpls().concat([tnew]);
+        ui.tplDraft = null; commit(); toast("حُفظ القالب «" + tnm + "» ✓"); break;
       case "tplDel":
         var tdel = tplById(b.dataset.t);
         if (tdel && confirm("حذف القالب «" + tdel.name.replace(/^\S+\s/, "") + "»؟")) { state.settings.templates = userTpls().filter(function (x) { return x.id !== b.dataset.t; }); ui.tplOpen = true; commit(); }
@@ -3778,6 +3823,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   // settings.roles = { "<num>": "المالية" }, settings.paths = [{ id, name, steps: [role…] }], settings.rejecters = [role…].
   // The flows themselves live on the server; the holder of the current step (or the leader) moves them on.
   function flowsOn() { return isTeamOnly() && !!sb && !!code; }
+  function flowsTab() { return flowsOn() && (paths().length > 0 || arr(ui.flows).some(function (f) { return f.status === "open"; })); }
   function roles() { return state.settings.roles || {}; }
   function roleList() { var seen = {}, out = []; Object.keys(roles()).sort().forEach(function (n) { var r = (roles()[n] || "").trim(); if (r && !seen[r]) { seen[r] = 1; out.push(r); } }); return out; }
   function myRole() { return (roles()[String(myNum())] || "").trim(); }
@@ -3805,7 +3851,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       if (r.error) { if (r.error.code === "PGRST202") ui.flowsOff = true; return; }
       var was = JSON.stringify(ui.flows || null);
       ui.flows = arr(r.data);
-      if (was !== JSON.stringify(ui.flows) && (ui.tab === "flows" || ui.tab === "day")) softRender();
+      if (was !== JSON.stringify(ui.flows) && (ui.tab === "flows" || ui.tab === "day")) softRender(); else renderHeader();
     }, function () {});
   }
   function myFlows() { return arr(ui.flows).filter(function (f) { return f.status === "open" && myRole() && f.steps[f.pos] === myRole(); }); }
