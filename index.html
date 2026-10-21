@@ -1013,6 +1013,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     if (state.sample === dk() && ui.tab !== "settings") {
       html += '<div class="banner"><span>هذا يوم مثال يوضّح طريقة الاستخدام.</span><button class="linkbtn" data-act="clearSample">احذف المثال وابدأ</button></div>';
     }
+    html += linkHereHtml();
     html += ui.tab === "settings" ? settingsView() : ui.tab === "plan" ? planView() : ui.tab === "day" ? dayView() : reviewView();
     view.innerHTML = '<div class="stack" style="gap:20px;padding-top:16px">' + html + '</div>';
     drawQr();
@@ -2195,6 +2196,8 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
         '<br><b>👥 فريق:</b> للعمل. تكون أنت مسؤوله وتوزّع المهام، ويدخله الأعضاء برابط، وترى سجل تغييرات كل عضو.' : "") + '</p>' +
       '<form class="addform" data-form="profile"><input class="field grow" id="profInput" type="text" maxlength="40" placeholder="اسم الحساب، مثل: العمل أو عائلتي أو فريق المبيعات" autocomplete="off">' +
       '<button class="btn" type="submit">👤 شخصي</button>' + (sb ? '<button class="ghost" type="button" data-act="profTeam" data-k="shared">👨‍👩‍👧 مشترك</button><button class="ghost" type="button" data-act="profTeam" data-k="team">👥 فريق</button>' : "") + '</form>' +
+      (sb ? '<form class="addform" data-form="paste" style="margin-top:8px"><input class="field grow ltr" id="pasteInput" type="url" placeholder="🔗 عندي رابط: الصقه هنا" autocomplete="off"><button class="ghost" type="submit">انضم</button></form>' +
+        '<p class="small muted">لرابط حساب مشترك أو فريق أو رابط ربط جهازك، إن فُتح في المتصفح بدل التطبيق.</p>' : "") +
       '</section>';
     h += '<section><h2>الحفظ السحابي <span class="small muted">(' + esc(profileName()) + ')</span></h2><div class="status">';
     if (cloud.status === "off") {
@@ -2617,6 +2620,12 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
         catch (err) { toast("انسخ الرابط يدويًا"); }
         break;
       case "addYes": mineAddLink(ui.addAsk); break;
+      case "linkCopy":
+        var lu = b.dataset.u;
+        try { navigator.clipboard.writeText(lu).then(function () { toast("نُسخ الرابط. افتح تطبيق «يومي» والصقه في ⚙ ← الحسابات"); }, function () { toast("انسخ الرابط يدويًا"); }); }
+        catch (err) { toast("انسخ الرابط يدويًا"); }
+        break;
+      case "linkHere": var lh = ui.linkHere; ui.linkHere = null; render(); openInvite(lh.kind, lh.token); break;
       case "addNo": ui.addAsk = null; render(); break;
       case "revoke": ui.confirmRevoke = b.dataset.tok; render(); break;
       case "revokeNo": ui.confirmRevoke = null; render(); break;
@@ -2851,6 +2860,8 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       var nid = "p" + Date.now().toString(36);
       profiles.list.push({ id: nid, name: v.slice(0, 30) });
       saveProfiles(); toast("أُضيف حساب «" + v + "»"); switchProfile(nid);
+    } else if (f === "paste") {
+      pasteLink($("pasteInput").value.trim());
     } else if (f === "cat") {
       v = $("catInput").value.trim(); if (!v) return;
       var used = cats().map(function (c) { return c.color; });
@@ -3811,6 +3822,23 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     var el = view.querySelector('[data-act="open"][data-id="' + id + '"]');
     if (el) el.scrollIntoView({ block: "center" });
   }
+  function standalone() { try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; } catch (e) { return false; } }
+  function openInvite(kind, tk) { if (kind === "add") mineAddLink(tk); else teamJoin(tk); }
+  // A link pasted into the app: a team or shared account invite (#team=) or a device link (#add=)
+  function pasteLink(raw) {
+    var m = /#(team|add)=([a-z0-9-]+)/i.exec(raw || "");
+    if (!m) { toast("الصق الرابط كاملًا كما وصلك، يبدأ بـ https"); return; }
+    if (!online()) return;
+    openInvite(m[1].toLowerCase(), cleanCode(m[2]));
+  }
+  function linkHereHtml() {
+    var l = ui.linkHere;
+    if (!l) return "";
+    var url = appUrl() + "#" + l.kind + "=" + l.token;
+    return '<section class="card"><h2>🔗 ' + (l.kind === "add" ? "رابط ربط جهازك" : "دعوة إلى «يومي»") + '</h2>' +
+      '<p class="small">إن كان تطبيق «يومي» مثبّتًا على جوالك، فانسخ الرابط، ثم افتح التطبيق ← ⚙ ← الحسابات ← «🔗 عندي رابط»، والصقه هناك.</p>' +
+      '<div class="row-wrap"><button class="btn" data-act="linkCopy" data-u="' + esc(url) + '">📋 انسخ الرابط</button><button class="ghost" data-act="linkHere">تابع هنا في المتصفح</button></div></section>';
+  }
   function handleLink() {
     var t = /^#task=(\d{4}-\d{2}-\d{2}):(.+)$/.exec(location.hash || "");
     if (t) { try { history.replaceState(null, "", appUrl()); } catch (e) {} openTask(t[1], decodeURIComponent(t[2])); return; }
@@ -3818,8 +3846,13 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     if (!m) return;
     try { history.replaceState(null, "", appUrl()); } catch (e) {}
     if (!sb) { toast("الحفظ السحابي غير مفعّل على هذا الجهاز"); return; }
-    if (m[1].toLowerCase() === "team") { teamJoin(cleanCode(m[2])); return; }
-    if (m[1].toLowerCase() === "add") { mineAddLink(cleanCode(m[2])); return; }
+    var lk = m[1].toLowerCase();
+    if (lk === "team" || lk === "add") {
+      // WhatsApp and the like open links in the browser, which on a phone may not share data with the installed app:
+      // a fresh browser offers to copy the link into the app first
+      if (!standalone() && !mainKey() && !userName) { ui.linkHere = { kind: lk, token: cleanCode(m[2]) }; render(); return; }
+      openInvite(lk, cleanCode(m[2])); return;
+    }
     if (m[1].toLowerCase() === "mine") {
       ui.tab = "settings"; render();
       if (!mainKey()) { toast("افتح هذا الرابط على جهازك الذي فيه حسابك، أو اكتب الرمز فيه"); return; }
