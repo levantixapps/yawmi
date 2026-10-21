@@ -3073,7 +3073,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     catch (e) { cloud.status = "off"; cloud.msg = "إعدادات Supabase في config.js غير صحيحة."; return; }
     cloud.status = code ? "ok" : "nocode";
     if (code) { liveInit(); syncNow(); }
-    teamInbox(); limitsLoad();
+    teamInbox(); limitsLoad(); pruneGone();
     if (PROFILE === "main" && teamPending()) teamJoin(teamPending());
   }
   // Teams set up by the admin (supabase_v10.sql): the team account arrives by itself as a new account on this device,
@@ -3093,6 +3093,25 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
           }
           sb.rpc("yawmi_team_ack", { p_key: c, p_team: t.team }).then(function () {}, function () {});
         });
+      }, function () {});
+    });
+  }
+  // Team accounts and accounts shared from someone else are removed from this device once they no longer exist
+  // in the cloud (a team deleted, a member removed, the platform reset). This person's own accounts stay: their data lives here.
+  function pruneGone() {
+    profiles.list.forEach(function (pf) {
+      if (pf.id === "main") return;
+      var c = "", meta = {};
+      try { c = localStorage.getItem(pkey("daily-planner-code", pf.id)) || ""; meta = JSON.parse(localStorage.getItem(pkey("daily-planner-link", pf.id)) || "{}"); } catch (e) {}
+      if (!c || !(pf.team || meta.role === "secondary")) return;
+      rpc("get", { p_code: c }).then(function (r) {
+        if (r.error || r.data) return; // only a clear "not found" removes it
+        ["daily-planner-v3", "daily-planner-code", "daily-planner-link", "yawmi-username", "yawmi-alerts", "yawmi-push-on", "yawmi-pendinglog", "yawmi-mine"].forEach(function (b) { try { localStorage.removeItem(pkey(b, pf.id)); } catch (e) {} });
+        profiles.list = profiles.list.filter(function (x) { return x.id !== pf.id; });
+        if (PROFILE === pf.id) profiles.active = "main";
+        saveProfiles();
+        toast("حُذف حساب «" + pf.name + "» من هذا الجهاز، فلم يعد موجودًا");
+        if (PROFILE === pf.id) setTimeout(function () { location.reload(); }, 1500);
       }, function () {});
     });
   }
