@@ -119,6 +119,7 @@ section, .stack { display: flex; flex-direction: column; gap: 10px; }
 .flowpath i { font-style: normal; color: var(--muted); }
 .flowcard.late { border-color: var(--q-now); }
 .tab { border: 0; background: none; border-radius: 12px; padding: 6px 4px; display: flex; flex-direction: column; align-items: center; color: var(--muted); font-size: .8rem; }
+.tab[hidden] { display: none; }
 .tab b { font-family: var(--font-display); font-size: 1rem; font-weight: 600; }
 .tab[aria-current="true"] { background: var(--accent-soft); color: var(--accent); }
 
@@ -1254,7 +1255,10 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   function kCfg() { var k = state.settings.kids || {}; return { list: arr(k.list), qs: arr(k.qs) }; }
   function kidsOn() { return kCfg().list.length > 0 && !isTeamOnly(); }
   // A team (not a shared family account) has no kids section
-  function isTeamOnly() { var pf = currentProfile(); return !!(pf && pf.team && !pf.shared); }
+  function isTeamOnly() {
+    if (ui.teamInfo && ui.teamInfo.tk) return ui.teamInfo.tk === "team"; // the leader hears it from the server
+    var pf = currentProfile(); return !!(pf && pf.team && !pf.shared);
+  }
   function kDay(d, id) { var x = (d && d.kids && d.kids[id]) || {}; return { a: x.a || {}, ev: arr(x.ev) }; }
   function kHas(d) { return !!(d && d.kids && Object.keys(d.kids).length); }
   function kCount(d, id) {
@@ -3696,7 +3700,10 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       var was = JSON.stringify(ui.teamInfo || null);
       ui.teamInfo = !r.error && r.data ? r.data : null;
       var cp = currentProfile();
-      if (ui.teamInfo && cp && !cp.team) { cp.team = 1; saveProfiles(); } // team accounts don't count as personal ones
+      if (ui.teamInfo && cp && (!cp.team || !!cp.shared !== (ui.teamInfo.tk === "shared"))) { // team accounts don't count as personal ones
+        cp.team = 1; if (ui.teamInfo.tk === "shared") cp.shared = 1; else delete cp.shared; saveProfiles();
+      }
+      if (was !== JSON.stringify(ui.teamInfo)) renderHeader();
       if (was !== JSON.stringify(ui.teamInfo) && (ui.tab === "settings" || ui.tab === "day")) softRender();
     }, function () {});
     rpc("devices_list", { p_code: code }).then(function (r) {
