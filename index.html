@@ -376,6 +376,15 @@ details.box textarea { font-size: .78rem; direction: ltr; }
 .qrow .bar { grid-column: 1 / -1; }
 .qrow.met .qgoal { color: var(--done); font-weight: 600; }
 .qbtn { width: 34px; height: 34px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); font-size: 1.15rem; line-height: 1; padding: 0; }
+.kid { border-top: 1px solid var(--line); padding-top: 8px; display: flex; flex-direction: column; gap: 8px; }
+.kid:first-of-type { border-top: 0; padding-top: 0; }
+.kidhd { display: flex; justify-content: space-between; align-items: center; background: none; border: 0; padding: 0; font: inherit; color: inherit; text-align: start; }
+.kq { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: .92rem; }
+.kbtns { display: flex; gap: 4px; flex: none; }
+.kb { filter: grayscale(1); opacity: .55; }
+.kb[aria-pressed="true"], .addform .kb { filter: none; opacity: 1; }
+.kb[aria-pressed="true"] { background: var(--star-soft); border-color: var(--star); }
+.kev { margin: 0; padding-inline-start: 18px; display: flex; flex-direction: column; gap: 4px; }
 .qnum { width: 58px; text-align: center; font-family: var(--font-mono); font-variant-numeric: tabular-nums; padding-inline: 4px; -moz-appearance: textfield; }
 .qnum::-webkit-inner-spin-button, .qnum::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 .qfoot { margin: 0; line-height: 1.7; }
@@ -743,9 +752,9 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   function itemJson(i) { var o = {}; Object.keys(i).forEach(function (k) { if (k !== "u") o[k] = i[k]; }); return JSON.stringify(o); }
   function itemsMap(d) { var m = {}; d.items.forEach(function (i) { m[i.id] = itemJson(i); }); return m; }
   function textJson(d) { return JSON.stringify([d.good, d.improve, d.notes, d.startAt, d.sleep || null]); }
-  function daySnap(d) { return { m: itemsMap(d), t: textJson(d), a: JSON.stringify(d.applied), q: JSON.stringify(d.quran || null) }; }
-  function setJson() { return JSON.stringify([state.settings.categories, state.settings.routines, state.settings.sleep || null, state.settings.prayer || null, state.settings.quran || null, state.settings.templates || null, state.settings.goals || null, state.settings.team || null]); }
-  function isEmptyDay(d) { return !d.items.length && !d.good && !d.improve && !d.notes && !(d.sleep && (d.sleep.bed || d.sleep.wake)) && !qHas(d); }
+  function daySnap(d) { return { m: itemsMap(d), t: textJson(d), a: JSON.stringify(d.applied), q: JSON.stringify(d.quran || null), k: JSON.stringify(d.kids || null) }; }
+  function setJson() { return JSON.stringify([state.settings.categories, state.settings.routines, state.settings.sleep || null, state.settings.prayer || null, state.settings.quran || null, state.settings.templates || null, state.settings.goals || null, state.settings.team || null, state.settings.kids || null]); }
+  function isEmptyDay(d) { return !d.items.length && !d.good && !d.improve && !d.notes && !(d.sleep && (d.sleep.bed || d.sleep.wake)) && !qHas(d) && !kHas(d); }
   function takeSnap() {
     snap = { _s: setJson() };
     Object.keys(state.days).forEach(function (k) { snap[k] = daySnap(state.days[k]); });
@@ -755,7 +764,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     Object.keys(state.days).forEach(function (k) {
       var d = state.days[k], cur = daySnap(d), old = snap[k], any = false, fresh = !old;
       snap[k] = cur;
-      if (!old) { if (isEmptyDay(d)) return; old = { m: {}, t: textJson(blankDay()), a: "[]", q: "null" }; }
+      if (!old) { if (isEmptyDay(d)) return; old = { m: {}, t: textJson(blankDay()), a: "[]", q: "null", k: "null" }; }
       d.items.forEach(function (i) {
         if (old.m[i.id] === cur.m[i.id]) return;
         i.u = now; any = true;
@@ -775,6 +784,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       if (old.t !== cur.t) { d.tu = now; any = true; if (!fresh) logEvent("كتب في مراجعة اليوم", "", k, "text:" + k); }
       if (old.a !== cur.a) any = true;
       if (old.q !== cur.q) { d.qu = now; any = true; if (!fresh) logEvent("سجّل ورد القرآن", "", k, "quran:" + k); }
+      if (old.k !== cur.k) { d.ku = now; any = true; if (!fresh) logEvent("سجّل نجوم الأبناء", "", k, "kids:" + k); }
       if (any) d.updatedAt = now;
     });
     var s = setJson();
@@ -1175,6 +1185,100 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       '<div class="stat"><b>' + t.rev + cmp(t.rev, p.rev) + '</b><span>صفحة راجعتها</span></div></div>' +
       '<p class="small">أتممت وردك في <b>' + t.met + ' من ' + n + '</b> أيام' + (p.read || p.hifz || p.rev ? '، وفي ' + (n === 7 ? "الأسبوع" : "الشهر") + ' الذي قبله: ' + p.met + '.' : ".") +
       ' معدّل قراءتك ' + (t.read % n ? num(t.read / n) + ' صفحة' : pagesText(t.read / n)) + ' يوميًا.</p></section>';
+  }
+  /* ---------- KIDS: a gold star for a good deed, a red fire for a bad one ---------- */
+  // Settings: state.settings.kids = { list: [{ id, name }], qs: [{ id, text }] }; every question is asked of every child each day.
+  // Each day: d.kids = { <kidId>: { a: { <qId>: "s" | "f" }, ev: [{ id, t: "s" | "f", note, at }] } } with its own edit time d.ku
+  function kCfg() { var k = state.settings.kids || {}; return { list: arr(k.list), qs: arr(k.qs) }; }
+  function kidsOn() { return kCfg().list.length > 0; }
+  function kDay(d, id) { var x = (d && d.kids && d.kids[id]) || {}; return { a: x.a || {}, ev: arr(x.ev) }; }
+  function kHas(d) { return !!(d && d.kids && Object.keys(d.kids).length); }
+  function kCount(d, id) {
+    var x = kDay(d, id), s = 0, f = 0;
+    kCfg().qs.forEach(function (q) { if (x.a[q.id] === "s") s++; else if (x.a[q.id] === "f") f++; });
+    x.ev.forEach(function (e) { if (e.t === "s") s++; else f++; });
+    return { s: s, f: f };
+  }
+  function kSet(id, fn) {
+    var d = day(), o = d.kids || {}, x = kDay(d, id);
+    fn(x);
+    if (Object.keys(x.a).length || x.ev.length) o[id] = { a: x.a, ev: x.ev }; else delete o[id];
+    if (Object.keys(o).length) d.kids = o; else delete d.kids;
+    commit();
+  }
+  function setKids(ch) { var g = kCfg(); Object.keys(ch).forEach(function (k) { g[k] = ch[k]; }); state.settings.kids = g; commit(); }
+  function kidsCard() {
+    var o = offsetOf(dk());
+    if (!kidsOn() || o > 0) return "";
+    var g = kCfg(), d = day();
+    var h = '<div class="qcard"><div class="sechead"><h3>⭐ أبنائي' + (o < 0 ? ' <span class="small muted">لهذا اليوم</span>' : "") + '</h3></div>';
+    g.list.forEach(function (kid) {
+      var x = kDay(d, kid.id), c = kCount(d, kid.id), open = g.list.length === 1 || ui.kidOpen === kid.id, kk = ' data-k="' + esc(kid.id) + '"';
+      h += '<div class="kid"><button class="kidhd" data-act="kidOpen"' + kk + ' aria-expanded="' + open + '"><b>' + esc(kid.name) + '</b><span>⭐ ' + c.s + ' · 🔥 ' + c.f + '</span></button>';
+      if (open) {
+        g.qs.forEach(function (q) {
+          var v = x.a[q.id], qq = kk + ' data-q="' + esc(q.id) + '"';
+          h += '<div class="kq"><span>' + esc(q.text) + '</span><span class="kbtns">' +
+            '<button class="qbtn kb" data-act="kidQ"' + qq + ' data-v="s" aria-pressed="' + (v === "s") + '" aria-label="نجمة">⭐</button>' +
+            '<button class="qbtn kb" data-act="kidQ"' + qq + ' data-v="f" aria-pressed="' + (v === "f") + '" aria-label="نار">🔥</button></span></div>';
+        });
+        h += '<div class="addform"><input class="field grow" id="kidNote-' + esc(kid.id) + '" type="text" maxlength="80" placeholder="ماذا فعل؟ (اختياري)" autocomplete="off">' +
+          '<button class="qbtn kb" data-act="kidEv"' + kk + ' data-v="s" aria-label="أضف نجمة">⭐</button><button class="qbtn kb" data-act="kidEv"' + kk + ' data-v="f" aria-label="أضف نارًا">🔥</button></div>';
+        if (x.ev.length) h += '<ul class="kev small">' + x.ev.map(function (e) {
+          return '<li>' + (e.t === "s" ? "⭐ " : "🔥 ") + esc(e.note || (e.t === "s" ? "عمل جيد" : "عمل سيئ")) + (e.at ? ' <span class="muted">' + fmt12(e.at) + '</span>' : "") +
+            ' <button class="linkbtn" data-act="kidEvDel"' + kk + ' data-e="' + esc(e.id) + '" aria-label="حذف">×</button></li>';
+        }).join("") + '</ul>';
+        if (!g.qs.length && !x.ev.length) h += '<p class="small muted">اضغط ⭐ أو 🔥 متى عمل شيئًا، وأضف أسئلة تتكرر كل يوم من ⚙ ← أبنائي.</p>';
+      }
+      h += '</div>';
+    });
+    return h + '</div>';
+  }
+  function kidLines(d, kid) {
+    var x = kDay(d, kid.id), good = [], bad = [];
+    kCfg().qs.forEach(function (q) { if (x.a[q.id] === "s") good.push(q.text); else if (x.a[q.id] === "f") bad.push(q.text); });
+    x.ev.forEach(function (e) { (e.t === "s" ? good : bad).push(e.note || (e.t === "s" ? "عمل جيد" : "عمل سيئ")); });
+    return { good: good, bad: bad };
+  }
+  // End of the day: what each child earned, and why
+  function kidsDayHtml(d) {
+    if (!kidsOn()) return "";
+    var rows = kCfg().list.map(function (kid) {
+      var c = kCount(d, kid.id), l = kidLines(d, kid);
+      if (!c.s && !c.f) return '<li><b>' + esc(kid.name) + '</b> <span class="small muted">لم يُسجَّل شيء</span></li>';
+      return '<li><b>' + esc(kid.name) + '</b>: ⭐ ' + c.s + ' · 🔥 ' + c.f +
+        (l.good.length ? '<br><span class="small">⭐ ' + l.good.map(esc).join("، ") + '</span>' : "") +
+        (l.bad.length ? '<br><span class="small">🔥 ' + l.bad.map(esc).join("، ") + '</span>' : "") + '</li>';
+    }).join("");
+    return '<section><h2>⭐ أبنائي اليوم</h2><ul class="kev">' + rows + '</ul></section>';
+  }
+  function kidsHtml(endKey, n) {
+    if (!kidsOn()) return "";
+    var tot = function (end, id) {
+      var s = 0, f = 0;
+      for (var i = 0; i < n; i++) { var c = kCount(state.days[keyOf(addDays(parseKey(end), -i))], id); s += c.s; f += c.f; }
+      return { s: s, f: f };
+    };
+    var prevEnd = keyOf(addDays(parseKey(endKey), -n)), prevLabel = n === 7 ? "الأسبوع الذي قبله" : "الشهر الذي قبله";
+    return '<section><h2>⭐ أبنائي</h2><div class="stats">' + kCfg().list.map(function (kid) {
+      var t = tot(endKey, kid.id), p = tot(prevEnd, kid.id);
+      return '<div class="stat"><b>⭐ ' + t.s + ' · 🔥 ' + t.f + '</b><span>' + esc(kid.name) + (p.s || p.f ? '<br>' + prevLabel + ': ⭐ ' + p.s + ' · 🔥 ' + p.f : "") + '</span></div>';
+    }).join("") + '</div></section>';
+  }
+  function kidsSettingsHtml() {
+    var g = kCfg();
+    var row = function (text, act, id) {
+      var cf = ui.confirmKid === id;
+      return '<li class="card"><div class="profrow"><span class="grow">' + esc(text) + '</span>' + (cf
+        ? '<button class="ghost danger" data-act="' + act + '" data-k="' + esc(id) + '">تأكيد الحذف</button><button class="ghost" data-act="kidDelNo">تراجع</button>'
+        : '<button class="del" data-act="kidDelAsk" data-k="' + esc(id) + '" aria-label="حذف">×</button>') + '</div></li>';
+    };
+    return '<section id="kids"><h2>⭐ أبنائي</h2><p class="muted small">نجمة ذهبية ⭐ للعمل الجيد، ونار 🔥 للعمل السيئ. أضف أسماء أبنائك، وأسئلة تتكرر كل يوم لكلٍّ منهم، ثم سجّل من «جدولي»، ومعها أي عمل يحدث خلال اليوم. ويظهر التقرير في «راجع».</p>' +
+      '<h3>الأبناء</h3>' + (g.list.length ? '<ul class="list">' + g.list.map(function (k) { return row(k.name, "kidDel", k.id); }).join("") + '</ul>' : "") +
+      '<form class="addform" data-form="kid"><input class="field grow" id="kidName" type="text" maxlength="30" placeholder="اسم الابن أو البنت" autocomplete="off"><button class="btn" type="submit">أضف</button></form>' +
+      (g.list.length ? '<h3>أسئلة كل يوم</h3>' + (g.qs.length ? '<ul class="list">' + g.qs.map(function (q) { return row(q.text, "kidQDel", q.id); }).join("") + '</ul>' : "") +
+        '<form class="addform" data-form="kidq"><input class="field grow" id="kidQText" type="text" maxlength="60" placeholder="مثل: صلّى الفجر؟ رتّب سريره؟" autocomplete="off"><button class="btn" type="submit">أضف</button></form>' : "") +
+      '</section>';
   }
   function topHtml(endKey, n) {
     var met = 0, had = 0, prev = 0;
@@ -1627,7 +1731,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   }
   function dayView() {
     var d = day(), items = active(d).filter(function (i) { return !ui.mine || isMine(i); });
-    if (!d.items.length) return sleepCard() + prayCard(dk()) + quranCard() + '<div class="empty"><p>لم تخطّط لهذا اليوم بعد.</p><button class="btn" data-act="tab" data-tab="plan">خطّط ليومك في ٤ خطوات</button></div>' +
+    if (!d.items.length) return sleepCard() + prayCard(dk()) + quranCard() + kidsCard() + '<div class="empty"><p>لم تخطّط لهذا اليوم بعد.</p><button class="btn" data-act="tab" data-tab="plan">خطّط ليومك في ٤ خطوات</button></div>' +
       quickAddHtml("أو أضف مهمة أو ملاحظة سريعة", "مثل: موعد طبيب الأسنان");
     var st = dayStats(d), pct = Math.min(100, Math.round(st.rate * 100));
     var h = shareAskHtml() + teamFilterHtml(d) + '<div class="progress"><span>إنجاز اليوم</span><div class="bar"><i style="width:' + pct + '%"></i></div><b>' + pct + '%</b></div>' + catSummary(items);
@@ -1645,12 +1749,12 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       var n = new Date(), nm = n.getHours() * 60 + n.getMinutes();
       timed.forEach(function (i) { var s = toMin(i.time); if (nm >= s && nm < s + (i.dur || 60)) nowId = i.id; });
     }
-    var side = sleepCard() + prayCard(dk()) + quranCard() + h; h = "";
+    var side = sleepCard() + prayCard(dk()) + quranCard() + kidsCard() + h; h = "";
     h += '<section><div class="sechead"><h2>جدول اليوم</h2><span class="muted small">اضغط على أي بند لتعديله</span></div>';
     if (!timed.length) h += '<div class="empty">لا توجد أوقات محددة. <button class="linkbtn" data-act="gostep4">حدّد الأوقات</button></div>';
     else {
       var rows = timed.map(function (it) { return { m: toMin(it.time), h: slot(it, nowId) }; });
-      prayList(dk()).forEach(function (p) { rows.push({ m: p.min, h: prayRow(p), p: 1 }); });
+      if (prayCfg().inList) prayList(dk()).forEach(function (p) { rows.push({ m: p.min, h: prayRow(p), p: 1 }); }); // off by default: the prayer card above already lists them
       rows.sort(function (a, b) { return a.m - b.m || (b.p || 0) - (a.p || 0); });
       h += '<ul class="timeline">' + rows.map(function (r) { return r.h; }).join("") + '</ul>';
     }
@@ -1809,6 +1913,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     if (sleepOn()) h += sleepHtml(endKey, n);
     h += topHtml(endKey, n);
     h += quranHtml(endKey, n);
+    h += kidsHtml(endKey, n);
     // most accomplished
     var names = Object.keys(t.titles).sort(function (a, b) { return t.titles[b].n - t.titles[a].n || t.titles[b].m - t.titles[a].m; }).slice(0, 6);
     if (names.length) {
@@ -2027,6 +2132,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     var sm = sleepMins(d);
     if (sm != null && sleepOn()) h += '<p class="small">😴 نمت ' + fmtH(sm) + (d.sleep.wake ? '، واستيقظت ' + fmt12(d.sleep.wake) + (wokeEarly(d) ? ' مبكرًا ✓' : '') : '') + '.</p>';
     h += quranDayLine(d);
+    h += kidsDayHtml(d);
     h += teamReviewHtml(d);
     h += '<div class="stats"><div class="stat"><b>' + items.filter(function (i) { return i.done; }).length + '/' + items.length + '</b><span>بنود أُنجزت</span></div>' +
       '<div class="stat"><b>' + topDone + '/' + top.length + '</b><span>من أهم ٣</span></div><div class="stat"><b>' + left.length + '</b><span>متبقٍّ</span></div></div>';
@@ -2215,11 +2321,13 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
         '<label class="row-wrap small">وقت يُترك لكل صلاة عند الترتيب <select class="field" data-act="prayBlock">' + [0, 10, 15, 20, 30, 45].map(function (v) {
           return '<option value="' + v + '"' + ((pc.block == null ? 20 : pc.block) === v ? " selected" : "") + '>' + (v ? v + " دقيقة" : "لا شيء") + '</option>';
         }).join("") + '</select></label>' +
-        '<div class="row-wrap"><button class="ghost" data-act="prayAlert" aria-pressed="' + !!pc.alert + '">' + (pc.alert ? "🔔 تنبيه عند دخول الوقت" : "🔕 بدون تنبيه عند دخول الوقت") + '</button></div>' +
+        '<div class="row-wrap"><button class="ghost" data-act="prayAlert" aria-pressed="' + !!pc.alert + '">' + (pc.alert ? "🔔 تنبيه عند دخول الوقت" : "🔕 بدون تنبيه عند دخول الوقت") + '</button>' +
+        '<button class="ghost" data-act="prayInList" aria-pressed="' + !!pc.inList + '">' + (pc.inList ? "📋 الصلوات تظهر داخل جدول اليوم" : "📋 الصلوات في بطاقتها أعلى اليوم فقط") + '</button></div>' +
         (pc.alert ? '<p class="small muted">تنبيه الصلاة يعمل والتطبيق مفتوح.</p>' : "") + prayCard(keyOf(new Date()));
     }
     h += '</section>';
     h += quranSettingsHtml();
+    h += kidsSettingsHtml();
     h += focusSettingsHtml();
 
     h += '<section><h2>المهام الدائمة</h2><p class="muted small">تنزل تلقائيًا في الأيام التي تختارها، مثل قراءة القرآن كل يوم، أو دراسة القانون أيام الدوام.</p>' +
@@ -2635,6 +2743,24 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       case "qAdd": qChange(dk(), b.dataset.f, qDay(d)[b.dataset.f] + +b.dataset.v); break;
       case "prayAsr": setPray({ hanafi: b.dataset.v === "1" }); break;
       case "prayLoc": prayLocate(); break;
+      case "prayInList": setPray({ inList: !prayCfg().inList }); break;
+      case "kidOpen": ui.kidOpen = ui.kidOpen === b.dataset.k ? null : b.dataset.k; render(); break;
+      case "kidQ":
+        var kq = b.dataset.q, kv = b.dataset.v;
+        kSet(b.dataset.k, function (x) { if (x.a[kq] === kv) delete x.a[kq]; else x.a[kq] = kv; });
+        if (kv === "s") chime();
+        break;
+      case "kidEv":
+        var kn = $("kidNote-" + b.dataset.k), ktx = kn ? kn.value.trim() : "", kt = b.dataset.v;
+        kSet(b.dataset.k, function (x) { x.ev.push({ id: uid(), t: kt, note: ktx.slice(0, 80), at: nowHM() }); });
+        toast(kt === "s" ? "⭐ نجمة ذهبية!" : "🔥 سُجّلت");
+        if (kt === "s") chime();
+        break;
+      case "kidEvDel": var ke = b.dataset.e; kSet(b.dataset.k, function (x) { x.ev = x.ev.filter(function (e) { return e.id !== ke; }); }); break;
+      case "kidDelAsk": ui.confirmKid = b.dataset.k; render(); break;
+      case "kidDelNo": ui.confirmKid = null; render(); break;
+      case "kidDel": ui.confirmKid = null; setKids({ list: kCfg().list.filter(function (x) { return x.id !== b.dataset.k; }) }); break;
+      case "kidQDel": ui.confirmKid = null; setKids({ qs: kCfg().qs.filter(function (x) { return x.id !== b.dataset.k; }) }); break;
       case "prayAlert":
         setPray({ alert: !prayCfg().alert });
         if (prayCfg().alert) { unlockAudio(); if ("Notification" in window && Notification.permission === "default") askNotify(); }
@@ -2806,6 +2932,12 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       v = $("unameInput").value.trim(); if (!v) { toast("اكتب اسمك"); return; }
       setUserName(v); render(); toast("أهلًا، " + userName + " 🌷");
       if (sb && !code && cloud.status === "nocode" && !ui.pair) createCode(true); // a cloud account in the person's name, so the admin can add them to a team
+    } else if (f === "kid") {
+      v = $("kidName").value.trim(); if (!v) { toast("اكتب الاسم"); return; }
+      setKids({ list: kCfg().list.concat([{ id: uid(), name: v.slice(0, 30) }]) }); toast("أُضيف «" + v + "» ⭐");
+    } else if (f === "kidq") {
+      v = $("kidQText").value.trim(); if (!v) { toast("اكتب السؤال"); return; }
+      setKids({ qs: kCfg().qs.concat([{ id: uid(), text: v.slice(0, 60) }]) });
     } else if (f === "profile") {
       v = $("profInput").value.trim(); if (!v) return;
       var nid = "p" + Date.now().toString(36);
@@ -3233,7 +3365,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   }
 
   function toRemote(k, d) {
-    return { date: k, items: d.items, good: d.good, improve: d.improve, notes: d.notes, startAt: d.startAt, sleep: d.sleep || null, quran: d.quran || null, qu: d.qu || 0, applied: d.applied, del: d.del || {}, tu: d.tu || 0, updatedAt: d.updatedAt || 0 };
+    return { date: k, items: d.items, good: d.good, improve: d.improve, notes: d.notes, startAt: d.startAt, sleep: d.sleep || null, quran: d.quran || null, qu: d.qu || 0, kids: d.kids || null, ku: d.ku || 0, applied: d.applied, del: d.del || {}, tu: d.tu || 0, updatedAt: d.updatedAt || 0 };
   }
   function normDay(v) {
     var items = arr(v.items).slice().sort(function (a, b) { return a.id < b.id ? -1 : a.id > b.id ? 1 : 0; });
@@ -3242,12 +3374,14 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     if (v.sleep && (v.sleep.bed || v.sleep.wake)) o.sleep = { bed: v.sleep.bed || "", wake: v.sleep.wake || "" };
     if (qHas(v)) o.quran = qDay(v);
     if (v.qu) o.qu = v.qu;
+    if (kHas(v)) o.kids = v.kids;
+    if (v.ku) o.ku = v.ku;
     return o;
   }
   function canon(v) {
     if (!v) return "";
     var del = Object.keys(v.del || {}).sort().map(function (id) { return id + ":" + v.del[id]; });
-    return JSON.stringify([v.items, v.good, v.improve, v.notes, v.startAt, v.applied, del, v.tu || 0, v.sleep || null, v.quran || null, v.qu || 0]);
+    return JSON.stringify([v.items, v.good, v.improve, v.notes, v.startAt, v.applied, del, v.tu || 0, v.sleep || null, v.quran || null, v.qu || 0, v.kids || null, v.ku || 0]);
   }
   function localDay(k) {
     var d = state.days[k];
@@ -3275,8 +3409,9 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     var lt = L.tu || 0, rt = R.tu || 0;
     var src = rt > lt || (rt === lt && textJson(R) > textJson(L)) ? R : L, applied = arr(L.applied).slice();
     var lq = L.qu || 0, rq = R.qu || 0, qsrc = rq > lq || (rq === lq && JSON.stringify(R.quran || null) > JSON.stringify(L.quran || null)) ? R : L;
+    var lk = L.ku || 0, rk = R.ku || 0, ksrc = rk > lk || (rk === lk && JSON.stringify(R.kids || null) > JSON.stringify(L.kids || null)) ? R : L;
     arr(R.applied).forEach(function (a) { if (applied.indexOf(a) < 0) applied.push(a); });
-    return normDay({ items: items, good: src.good, improve: src.improve, notes: src.notes, startAt: src.startAt, sleep: src.sleep, quran: qsrc.quran, qu: Math.max(lq, rq), applied: applied,
+    return normDay({ items: items, good: src.good, improve: src.improve, notes: src.notes, startAt: src.startAt, sleep: src.sleep, quran: qsrc.quran, qu: Math.max(lq, rq), kids: ksrc.kids, ku: Math.max(lk, rk), applied: applied,
       del: del, tu: Math.max(L.tu || 0, R.tu || 0), updatedAt: Math.max(L.updatedAt || 0, R.updatedAt || 0) });
   }
 
@@ -3311,13 +3446,13 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       });
       var rs = row.settings, rst = rs ? (rs.updatedAt || 0) : -1, lst = state.settings.updatedAt || 0;
       if (rs && rst > lst) {
-        state.settings = { categories: arr(rs.categories).length ? rs.categories : defaultCats(), routines: arr(rs.routines), sleep: rs.sleep || state.settings.sleep, prayer: rs.prayer || state.settings.prayer, quran: rs.quran || state.settings.quran, templates: rs.templates || state.settings.templates, goals: rs.goals || state.settings.goals, team: rs.team || state.settings.team, updatedAt: rst };
+        state.settings = { categories: arr(rs.categories).length ? rs.categories : defaultCats(), routines: arr(rs.routines), sleep: rs.sleep || state.settings.sleep, prayer: rs.prayer || state.settings.prayer, quran: rs.quran || state.settings.quran, templates: rs.templates || state.settings.templates, goals: rs.goals || state.settings.goals, team: rs.team || state.settings.team, kids: rs.kids || state.settings.kids, updatedAt: rst };
         snap._s = setJson(); changed = true;
       } else if (lst > rst) upload = true;
       fixState(); persist();
       if (changed) softRender();
       if (!upload) return;
-      var data = { base_date: todayKey, settings: { categories: state.settings.categories, routines: state.settings.routines, sleep: state.settings.sleep, prayer: state.settings.prayer || null, quran: state.settings.quran || null, templates: state.settings.templates || null, goals: state.settings.goals || null, team: state.settings.team || null, updatedAt: state.settings.updatedAt || 0 } };
+      var data = { base_date: todayKey, settings: { categories: state.settings.categories, routines: state.settings.routines, sleep: state.settings.sleep, prayer: state.settings.prayer || null, quran: state.settings.quran || null, templates: state.settings.templates || null, goals: state.settings.goals || null, team: state.settings.team || null, kids: state.settings.kids || null, updatedAt: state.settings.updatedAt || 0 } };
       windowKeys().forEach(function (k, i) { data[COLS[i]] = merged[k] ? toRemote(k, merged[k]) : null; });
       return rpc("save", { p_code: code, p_data: data }).then(function (r2) {
         if (r2.error) throw r2.error;

@@ -1,7 +1,7 @@
 // Offline support: the app shell is served network-first (so updates arrive),
 // fonts and the Supabase library cache-first. Personal data never passes through here;
 // it lives in the browser's localStorage.
-var CACHE = "yawmi-v41";
+var CACHE = "yawmi-v42";
 var CORE = ["./", "index.html", "guide.html", "config.js", "manifest.webmanifest", "icon.svg", "icon-192.png", "icon-512.png"];
 
 self.addEventListener("install", function (e) {
@@ -30,11 +30,17 @@ self.addEventListener("fetch", function (e) {
   var url = new URL(req.url);
 
   if (url.origin === self.location.origin) {
-    e.respondWith(
-      fetch(req).then(function (res) { return store(req, res); }).catch(function () {
-        return caches.match(req).then(function (r) { return r || caches.match("index.html"); });
-      })
-    );
+    // Network first, but a weak or dead connection can hang for a long time:
+    // after 3 seconds the saved copy opens instead, and the fresh one is still stored when it arrives.
+    var cached = function () { return caches.match(req).then(function (r) { return r || caches.match("index.html"); }); };
+    e.respondWith(new Promise(function (resolve, reject) {
+      var done = false, finish = function (r) { if (!done && r) { done = true; resolve(r); } };
+      var timer = setTimeout(function () { cached().then(finish); }, 3000);
+      fetch(req).then(function (res) { return store(req, res); }).then(function (res) { clearTimeout(timer); finish(res); }, function () {
+        clearTimeout(timer);
+        cached().then(function (r) { if (r) finish(r); else if (!done) { done = true; reject(new Error("offline")); } });
+      });
+    }));
     return;
   }
 

@@ -62,7 +62,7 @@
 |---|---|
 | `index.html` | التطبيق كاملًا (HTML + CSS + JS في ملف واحد، بدون أدوات بناء) |
 | `config.js` | رابط Supabase، والمفتاح العام (anon)، ومفتاح الإشعارات العام (VAPID public) |
-| `sw.js` | Service Worker: العمل بدون إنترنت + استقبال الإشعارات. **غيّر رقم `CACHE` مع كل تحديث** |
+| `sw.js` | Service Worker: العمل بدون إنترنت + استقبال الإشعارات. ملفات التطبيق من الشبكة أولًا، فإن تأخرت ٣ ثوانٍ فُتحت النسخة المحفوظة. **غيّر رقم `CACHE` مع كل تحديث** |
 | `manifest.webmanifest` | التثبيت كتطبيق |
 | `guide.html` | دليل الاستخدام المختصر (٦ بطاقات) |
 | `privacy.html` | سياسة الخصوصية (مطلوبة لـ Google Play) |
@@ -98,9 +98,9 @@
 - مفاتيح التخزين لكل حساب (الحساب الأول بلا لاحقة، والبقية بلاحقة `:<id>`):
   `daily-planner-v3` (البيانات) · `daily-planner-code` (مفتاح السحابة) · `daily-planner-link` (الدور والرقم والقناة) · `yawmi-username` · `yawmi-alerts` · `yawmi-push-on` · `yawmi-pendinglog`.
   مشتركة: `yawmi-profiles` (قائمة الحسابات والأقفال) · `yawmi-theme` · `yawmi-tip` · `yawmi-admin`.
-- **شكل اليوم:** `{ items[], good, improve, notes, startAt, applied[], del{}, tu, quran, qu, updatedAt }` (`quran` = `{read, hifz, rev}` بالصفحات، و`qu` وقت تعديله، ويُدمج مستقلًا عن الملاحظات).
+- **شكل اليوم:** `{ items[], good, improve, notes, startAt, applied[], del{}, tu, quran, qu, kids, ku, updatedAt }` (`quran` = `{read, hifz, rev}` بالصفحات، و`qu` وقت تعديله، ويُدمج مستقلًا عن الملاحظات. `kids` = `{<kidId>: {a: {<qId>: "s"|"f"}, ev: [{id, t, note, at}]}}` نجوم الأبناء ⭐ ونيرانهم 🔥، و`ku` وقت تعديله، والأحدث يغلب).
 - **شكل البند:** `{ id, title, cat, dur, time, important, urgent, top, done, spent, focus, goal, to, doneAt, doneBy, note, rid, moved, u }`.
-- **الإعدادات:** `{ categories[], routines[], sleep, prayer, quran, templates[], goals[], team[], updatedAt }`.
+- **الإعدادات:** `{ categories[], routines[], sleep, prayer (فيه `inList`: إظهار الصلوات داخل جدول اليوم، معطّل افتراضيًا), quran, templates[], goals[], team[], kids, updatedAt }` (`kids` = `{list: [{id, name}], qs: [{id, text}]}`: الأبناء وأسئلة كل يوم).
 
 ### المزامنة
 - السحابة فيها **صف واحد لكل حساب** (`yawmi_accounts`) وسبعة حقول للأيام: `day_m3 … day_0 … day_p3`، و`base_date` يقابل `day_0`. الحقول «تنزاح» مع كل يوم جديد.
