@@ -2142,7 +2142,8 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   }
   function settingsView() {
     var th = themeNow();
-    var h = reqCardHtml() + (ui.teamInfo && cloud.role !== "secondary" && code ? teamLinkHtml(ui.teamInfo) : "") + '<a class="guidelink" href="guide.html">📖 دليل استخدام «يومي» <span>كل الميزات خطوة بخطوة ←</span></a>' +
+    var h = reqCardHtml() + (ui.addAsk ? '<section class="card"><h2>🔗 ربط هذا الجهاز بحسابك</h2><p class="small">فتحت رابط ربط جهاز. هذا الجهاز فيه حساب الآن، فإن تابعت يصبح حسابه الأول هو حسابك على جهازك الأساسي، وتُدمج فيه مهام هذا الجهاز، وتظهر عليه كل حساباتك.</p>' +
+      '<div class="row-wrap"><button class="btn" data-act="addYes">✓ متابعة الربط</button><button class="ghost" data-act="addNo">إلغاء</button></div></section>' : "") + (ui.teamInfo && cloud.role !== "secondary" && code ? teamLinkHtml(ui.teamInfo) : "") + '<a class="guidelink" href="guide.html">📖 دليل استخدام «يومي» <span>كل الميزات خطوة بخطوة ←</span></a>' +
       shareHtml();
     h += '<section><h2>المظهر</h2><div class="rangeseg">' + [["auto", "تلقائي"], ["light", "☀️ فاتح"], ["dark", "🌙 غامق"]].map(function (o) {
       return '<button data-act="theme" data-t="' + o[0] + '" aria-pressed="' + (th === o[0]) + '">' + o[1] + '</button>';
@@ -3465,10 +3466,6 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
         '<div class="qrbox" id="qrBox" data-qr="' + esc(appUrl() + "#mine=" + ui.mine.token) + '"></div>' +
         '<p class="small muted">صالح لمرة واحدة ولمدة ١٠ دقائق. ينتظر هذا الجهاز حتى توافق عليه.</p>' +
         '<div><button class="ghost" data-act="mineCancel">إلغاء</button></div></section>';
-    }
-    if (ui.addAsk) {
-      return h + '<p class="small"><b>فتحت رابط ربط جهاز.</b> هذا الجهاز فيه حساب الآن، فإن تابعت يصبح حسابه الأول هو حسابك الآخر، وتُدمج فيه مهام هذا الجهاز.</p>' +
-        '<div class="row-wrap"><button class="btn" data-act="addYes">متابعة</button><button class="ghost" data-act="addNo">إلغاء</button></div></section>';
     }
     if (ui.mineAsk) {
       return h + '<p class="small"><b>هذا الجهاز فيه حساب الآن.</b> إن ربطته بحسابك على جهاز آخر، يصبح حسابه الأول هو حسابك الآخر، وتُدمج فيه مهام هذا الجهاز.</p>' +
