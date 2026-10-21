@@ -139,7 +139,12 @@ try { var t0 = localStorage.getItem("yawmi-theme"); if (t0 === "light" || t0 ===
   function reqsHtml() {
     if (!A.reqs.length) return "";
     return '<h2>📩 الطلبات (' + A.reqs.length + ')</h2><ul class="list">' + A.reqs.map(function (q) {
-      var what = q.kind === "personal" ? "حساب شخصي إضافي (حدّه الآن " + q.max_personal + ")" : "فريق إضافي (عنده " + q.teams_used + " من " + q.max_teams + ")";
+      var what = {
+        personal: "حساب شخصي إضافي (حدّه الآن " + q.max_personal + ")",
+        teams: "فريق إضافي (عنده " + q.teams_used + " من " + q.max_teams + ")",
+        shared: "الانضمام إلى حساب مشترك آخر (حدّه الآن " + q.max_shared + ")",
+        devices: "جهاز إضافي لحسابه (مرتبط " + q.devices_used + " من " + q.max_devices + ")"
+      }[q.kind] || q.kind;
       return '<li class="card"><div class="top"><span class="ttl"><span><b>' + esc(q.name || q.person) + '</b>' + (q.label ? ' · <span class="small">' + esc(q.label) + '</span>' : "") + '</span>' +
         '<span class="small">يطلب: ' + what + ' · ' + ago(q.created_at) + '</span>' + (q.note ? '<span class="small muted">«' + esc(q.note) + '»</span>' : "") + '</span></div>' +
         '<div class="row-wrap"><button class="btn" data-act="req" data-id="' + q.id + '" data-v="1">✓ موافقة</button><button class="ghost" data-act="req" data-id="' + q.id + '" data-v="0">✗ رفض</button></div></li>';
