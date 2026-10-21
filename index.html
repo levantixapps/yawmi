@@ -2625,7 +2625,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
         try { navigator.clipboard.writeText(prettyCode(code)).then(function () { toast("تم نسخ الكود"); }, function () { toast("انسخ الكود يدويًا"); }); }
         catch (err) { toast("انسخ الكود يدويًا"); }
         break;
-      case "syncNow": syncNow(); break;
+      case "syncNow": syncNow(); meLoad(); break;
       case "theme": applyTheme(b.dataset.t); render(); break;
       case "prayOn": setPray({ on: !prayCfg().on }); break;
       case "focus": focusStart(it); break;
@@ -3841,13 +3841,15 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     loadTip();
     renderProfile();
     syncNow();
-    if (Date.now() - meAt > 120000) meLoad();
+    if (Date.now() - meAt > 30000) meLoad();
     softRender();
   });
   // While the live channel is connected, other devices announce their changes, so a full check every 10 minutes is enough
   // (this keeps Supabase download traffic low); without it, check every minute.
   setInterval(function () {
-    if (document.hidden || Date.now() - lastPoll < (live ? 600000 : 60000) - 2000) return;
+    if (document.hidden) return;
+    if (Date.now() - meAt > 180000 - 2000) meLoad(); // accounts added or deleted on this person's other devices
+    if (Date.now() - lastPoll < (live ? 600000 : 60000) - 2000) return;
     lastPoll = Date.now(); syncNow();
   }, 60000);
 
