@@ -753,13 +753,59 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   function itemsMap(d) { var m = {}; d.items.forEach(function (i) { m[i.id] = itemJson(i); }); return m; }
   function textJson(d) { return JSON.stringify([d.good, d.improve, d.notes, d.startAt, d.sleep || null]); }
   function daySnap(d) { return { m: itemsMap(d), t: textJson(d), a: JSON.stringify(d.applied), q: JSON.stringify(d.quran || null), k: JSON.stringify(d.kids || null) }; }
-  function setJson() { return JSON.stringify([state.settings.categories, state.settings.routines, state.settings.sleep || null, state.settings.prayer || null, state.settings.quran || null, state.settings.templates || null, state.settings.goals || null, state.settings.team || null, state.settings.kids || null]); }
+  function setJson() { return JSON.stringify([state.settings.categories, state.settings.routines, state.settings.sleep || null, state.settings.prayer || null, state.settings.quran || null, state.settings.templates || null, state.settings.goals || null, state.settings.team || null, state.settings.kids || null, state.settings.tcfg || null]); }
   function isEmptyDay(d) { return !d.items.length && !d.good && !d.improve && !d.notes && !(d.sleep && (d.sleep.bed || d.sleep.wake)) && !qHas(d) && !kHas(d); }
   function takeSnap() {
     snap = { _s: setJson() };
     Object.keys(state.days).forEach(function (k) { snap[k] = daySnap(state.days[k]); });
   }
+  /* ---------- TEAM RULES: a member of a team (not a shared account) works on the leader's tasks without reshaping them ---------- */
+  // The member may finish a task, write its note, log its actual and focus time. The leader's tasks keep their title, time,
+  // category, owner, priority and place; the team's categories, standing tasks, templates and goals are the leader's.
+  // New tasks carry `by` (the member's device number); the leader decides whether members may add any (settings.tcfg.add).
+  function memberLock() { return isTeamOnly() && cloud.role === "secondary" && !!code; }
+  function lockedItem(i) { return memberLock() && !!i && i.by !== cloud.num; }
+  function membersAdd() { return (state.settings.tcfg || {}).add !== false; }
+  function canAdd() { return !memberLock() || membersAdd(); }
+  var LOCK_F = ["title", "cat", "dur", "time", "to", "important", "urgent", "top", "moved", "rid", "goal"];
+  function guardTeam() {
+    var blocked = false;
+    Object.keys(state.days).forEach(function (k) {
+      var d = state.days[k], old = snap[k], have = {};
+      d.items = d.items.filter(function (i) {
+        have[i.id] = 1;
+        var o = old && old.m[i.id];
+        if (!o) { // new here
+          if (i.rid || i.by != null) return true;
+          if (!membersAdd()) { blocked = true; return false; }
+          i.by = cloud.num; return true;
+        }
+        o = JSON.parse(o);
+        if (!lockedItem(o)) return true;
+        LOCK_F.forEach(function (f) {
+          if (JSON.stringify(i[f]) === JSON.stringify(o[f])) return;
+          if (o[f] === undefined) delete i[f]; else i[f] = o[f];
+          blocked = true;
+        });
+        return true;
+      });
+      if (old) Object.keys(old.m).forEach(function (id) {
+        if (have[id]) return;
+        var o = JSON.parse(old.m[id]);
+        if (lockedItem(o)) { d.items.push(o); blocked = true; }
+      });
+    });
+    if (snap._s) {
+      var was = JSON.parse(snap._s), now = JSON.parse(setJson());
+      [[0, "categories"], [1, "routines"], [5, "templates"], [6, "goals"], [9, "tcfg"]].forEach(function (x) {
+        if (JSON.stringify(now[x[0]]) === JSON.stringify(was[x[0]])) return;
+        state.settings[x[1]] = was[x[0]]; blocked = true;
+      });
+    }
+    if (blocked) toast("هذا من عمل مسؤول الفريق. تستطيع إنجاز المهمة وكتابة ملاحظة عليها" + (membersAdd() ? "، وإضافة مهامك" : ""));
+  }
   function save() {
+    if (memberLock() && snap._s) guardTeam();
     var now = Date.now(), real = false;
     Object.keys(state.days).forEach(function (k) {
       var d = state.days[k], cur = daySnap(d), old = snap[k], any = false, fresh = !old;
@@ -994,16 +1040,16 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   function step1(d) {
     var h = '<section><h2>اكتب كل ما في رأسك</h2>' +
       '<p class="muted small">كل ما تريد أو تحتاج أن تعمله اليوم، مع تقسيمه وكم يأخذ من الوقت. لا ترتّب الآن، فقط اكتب. المهام الدائمة تنزل هنا تلقائيًا.</p>' +
-      '<form class="addform" data-form="dump"><input class="field grow" id="dumpInput" type="text" placeholder="مثال: دراسة قانون" autocomplete="off">' +
+      (canAdd() ? '<form class="addform" data-form="dump"><input class="field grow" id="dumpInput" type="text" placeholder="مثال: دراسة قانون" autocomplete="off">' +
       catSelect('id="dumpCat"', ui.lastCat) + durSelect('id="dumpDur"', ui.lastDur) +
       (voiceSupported() ? '<button type="button" class="ghost mic' + (voice.on ? " live" : "") + '" data-act="voice" aria-pressed="' + voice.on + '">' + (voice.on ? "⏹ أوقف" : "🎤 بالصوت") + '</button>' : "") +
       '<button class="btn" type="submit">أضف</button></form>' +
       (voice.on ? '<p class="small voicehint">🔴 أستمع… قل البند ثم قل <b>«أضف»</b>، مثل: «دراسة قانون أضف». وقل <b>«توقف»</b> للإنهاء.</p>' :
-        voiceSupported() ? '<p class="small muted">يمكنك الإملاء بالصوت: اضغط 🎤 وقل البند ثم «أضف».</p>' : "");
-    h += tplHtml(d);
+        voiceSupported() ? '<p class="small muted">يمكنك الإملاء بالصوت: اضغط 🎤 وقل البند ثم «أضف».</p>' : "") : '<p class="small muted">🔒 مسؤول الفريق هو من يضيف المهام.</p>');
+    if (canAdd() && !memberLock()) h += tplHtml(d);
     if (!d.items.length) h += '<div class="empty">ابدأ بأول شيء يخطر ببالك.</div>';
     else h += '<ul class="list">' + d.items.map(function (it) {
-      return '<li class="card"><div class="top"><span class="ttl">' + itemTitle(it) + '</span><button class="del" data-act="del" data-id="' + it.id + '" aria-label="حذف">×</button></div></li>';
+      return '<li class="card"><div class="top"><span class="ttl">' + itemTitle(it) + '</span>' + (lockedItem(it) ? '<span class="small muted" title="من المسؤول">🔒</span>' : '<button class="del" data-act="del" data-id="' + it.id + '" aria-label="حذف">×</button>') + '</div></li>';
     }).join("") + '</ul>';
     h += '</section><div class="navrow"><span class="muted small">' + d.items.length + ' بنود</span><button class="btn" data-act="step" data-n="2"' + (d.items.length ? "" : " disabled") + '>التالي: ميّز المهم ←</button></div>';
     return h;
@@ -1658,7 +1704,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     }
     h += '</section>';
     if (untimed.length) h += '<section><h2>بدون وقت</h2><ul class="timeline">' + untimed.map(function (it) { return slot(it, null); }).join("") + '</ul></section>';
-    var add = quickAddHtml("أضف شيئًا طرأ", "ماذا طرأ؟");
+    var add = canAdd() ? quickAddHtml("أضف شيئًا طرأ", "ماذا طرأ؟") : "";
     return '<div class="daygrid"><div class="dtop">' + side + '</div><div class="dmain">' + h + '</div><div class="dbottom">' + add + '</div></div>';
   }
   function slot(it, nowId) {
@@ -1670,7 +1716,13 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       (it.done && it.spent != null && it.spent !== it.dur ? '<span class="cat">فعليًا ' + fmtH(it.spent) + '</span>' : "") + (it.rid ? '<span class="fixtag">دائمة</span>' : "") + (it.focus ? '<span class="cat">⏱ ' + durLabel(it.focus) + ' تركيز</span>' : "") + goalChip(it) + teamChip(it) + '</span>' +
       (it.note && !open ? '<span class="note">' + esc(it.note) + '</span>' : "") + '</button>' +
       '<input type="checkbox" class="check" data-act="done" data-id="' + it.id + '"' + (it.done ? " checked" : "") + ' aria-label="تم"></div>';
-    if (open) {
+    if (open && lockedItem(it)) {
+      h += '<div class="editor"><textarea data-act="note" data-id="' + it.id + '" placeholder="ملاحظة لهذا البند…" style="min-height:70px">' + esc(it.note) + '</textarea>' +
+        '<p class="small muted">🔒 مهمة من مسؤول الفريق: تستطيع إنجازها وكتابة ملاحظة عليها. وإن احتاجت تغييرًا فاكتبه في الملاحظة.</p>' +
+        (it.done ? '<div class="timerow">الوقت الفعلي ' + durSelect('data-act="spent" data-id="' + it.id + '"', it.spent != null ? it.spent : it.dur) + '</div>' : "") +
+        '<div class="row-wrap">' + (!it.done && offsetOf(dk()) === 0 ? '<button class="btn" data-act="focus" data-id="' + it.id + '">▶ ركّز عليها (' + focusCfg.work + ' د)</button>' : "") +
+        '<button class="ghost" data-act="open" data-id="' + it.id + '">إغلاق</button></div></div>';
+    } else if (open) {
       h += '<div class="editor"><textarea data-act="note" data-id="' + it.id + '" placeholder="ملاحظة لهذا البند…" style="min-height:70px">' + esc(it.note) + '</textarea>' +
         '<div class="timerow">الساعة <input class="field" type="time" value="' + (it.time || "") + '" data-act="time" data-id="' + it.id + '" aria-label="الوقت"> لمدة ' + durSelect('data-act="dur" data-id="' + it.id + '"', it.dur) + '</div>' +
         '<div class="timerow">التقسيم ' + catSelect('data-act="cat" data-id="' + it.id + '"', it.cat) + '</div>' + goalSelect(it) + teamSelect(it) +
@@ -2039,7 +2091,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     if (!left.length) h += '<div class="empty">لا شيء متبقٍّ.</div>';
     else h += '<ul class="list">' + left.map(function (it) {
       return '<li class="card"><div class="left"><span class="t">' + (it.top ? '<span class="startag">★ </span>' : "") + esc(it.title) + ' ' + catChip(it.cat) + '</span>' +
-        (canMove && !it.rid ? '<button class="ghost" data-act="move" data-id="' + it.id + '">انقلها للغد</button>' : "") + '<button class="del" data-act="del" data-id="' + it.id + '" aria-label="حذف">×</button></div></li>';
+        (lockedItem(it) ? '<span class="small muted" title="من المسؤول">🔒</span>' : (canMove && !it.rid ? '<button class="ghost" data-act="move" data-id="' + it.id + '">انقلها للغد</button>' : "") + '<button class="del" data-act="del" data-id="' + it.id + '" aria-label="حذف">×</button>') + '</div></li>';
     }).join("") + '</ul>';
     var moved = d.items.filter(function (i) { return i.moved; });
     if (moved.length) h += '<p class="muted small">نُقل للغد: ' + moved.map(function (i) { return esc(i.title); }).join("، ") + '</p>';
@@ -2051,7 +2103,9 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   }
   function moveToTomorrow(it) {
     var nd = day(keyOf(addDays(current, 1)));
-    nd.items.push({ id: uid(), title: it.title, cat: it.cat, important: it.important, urgent: it.urgent, top: it.top, time: "", dur: it.dur, done: false, spent: null, note: it.note });
+    var cp = { id: uid(), title: it.title, cat: it.cat, important: it.important, urgent: it.urgent, top: it.top, time: "", dur: it.dur, done: false, spent: null, note: it.note };
+    if (it.by != null) cp.by = it.by;
+    nd.items.push(cp);
     it.moved = true;
   }
 
@@ -2165,6 +2219,8 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
         h += '<p><b>' + (shr ? "أنت منشئ هذا الحساب المشترك" : ui.teamInfo ? "أنت مسؤول هذا الفريق" : "هذا حسابك، ويظهر على كل أجهزتك") + '</b></p>' +
           '<div class="row-wrap"><button class="btn" data-act="syncNow">مزامنة الآن</button></div>';
         if (ui.teamInfo) h += teamLinkHtml(ui.teamInfo);
+        if (ui.teamInfo && !shr) h += '<div class="card"><h3>🔒 ضوابط الفريق</h3><p class="small">الأعضاء ينجزون مهامك ويكتبون عليها ملاحظات، ولا يحذفونها ولا يغيّرون وقتها أو تفاصيلها، ولا يعدّلون التقسيمات والمهام الدائمة والقوالب والأهداف.</p>' +
+          '<button class="ghost" data-act="tcfgAdd" aria-pressed="' + membersAdd() + '">' + (membersAdd() ? "✓ يستطيع الأعضاء إضافة مهامهم" : "✗ لا يضيف المهام إلا أنت") + '</button></div>';
         var devs = ui.devices || [];
         if (ui.teamInfo || devs.length) h += '<div class="sechead" style="margin-top:6px"><h3>' + (shr ? "الأعضاء" : ui.teamInfo ? "أعضاء الفريق" : "أجهزة مربوطة بالطريقة القديمة") + '</h3>' + (devs.length ? '<button class="linkbtn" data-act="logRefresh">تحديث</button>' : "") + '</div>';
         if (devs.length && ui.teamInfo && !shr) h += '<p class="small muted">👥 <b>وضع الفريق:</b> إن كان كل جهاز لشخص، فليكتب كل عضو اسمه في جهازه (⚙ ← اسمك)، ثم وزّع المهام: افتح المهمة في «جدولي» واختر «👤 لمن؟». ويستطيع كل عضو عرض «مهامي فقط»، وتظهر نسبة إنجاز كل عضو في «راجع».</p>';
@@ -2213,6 +2269,8 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     if (!isTeamOnly()) h += kidsSettingsHtml();
     h += focusSettingsHtml();
 
+    if (memberLock()) h += '<section><h2>إعدادات الفريق</h2><p class="small muted">🔒 التقسيمات والمهام الدائمة والقوالب والأهداف يعدّلها مسؤول الفريق، وتصلك تلقائيًا.</p></section>';
+    else {
     h += '<section><h2>المهام الدائمة</h2><p class="muted small">تنزل تلقائيًا في الأيام التي تختارها، مثل قراءة القرآن كل يوم، أو دراسة القانون أيام الدوام.</p>' +
       '<div class="card"><form class="stack" data-form="routine" style="gap:8px">' +
       '<input class="field" id="rTitle" type="text" placeholder="اسم المهمة، مثل: حفظ صفحة" autocomplete="off">' +
@@ -2236,6 +2294,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
         (c.id === "other" ? "" : '<button class="del" data-act="delCat" data-id="' + esc(c.id) + '" aria-label="حذف">×</button>') + '</li>';
     }).join("") + '</ul><form class="addform" data-form="cat"><input class="field grow" id="catInput" type="text" placeholder="تقسيم جديد، مثل: القراءة" autocomplete="off"><button class="btn" type="submit">أضف</button></form></section>';
 
+    }
     var archived = Object.keys(state.days).filter(function (k) { return offsetOf(k) < -SPAN; }).length;
     h += '<section><h2>الأرشيف</h2><p class="small muted">السحابة تحفظ ٧ أيام فقط، وهذا الجهاز يحتفظ بالأيام السابقة لمدة سنة. المحفوظ الآن: <b>' + archived + '</b> يومًا قديمًا. لتصفّحها اضغط على التاريخ في الأعلى. الأرشيف لا يُرفع إلى السحابة، فخذ منه نسخة احتياطية بين حين وآخر.</p></section>';
     h += '<details class="box"' + (ui.backupOpen ? " open" : "") + '><summary>نسخة احتياطية</summary><div class="inner">' +
@@ -2519,8 +2578,8 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       case "auto": autoArrange(); break;
       case "startDay": ui.tab = "day"; ui.step = 1; commit(); window.scrollTo(0, 0); break;
       case "open": ui.open = ui.open === id ? null : id; render(); break;
-      case "move": moveToTomorrow(it); commit(); toast("نُقلت إلى الغد"); break;
-      case "moveAll": active(d).filter(function (i) { return !i.done && !i.rid; }).forEach(moveToTomorrow); commit(); toast("نُقل المتبقي إلى الغد"); break;
+      case "move": if (lockedItem(it)) break; moveToTomorrow(it); commit(); toast("نُقلت إلى الغد"); break;
+      case "moveAll": active(d).filter(function (i) { return !i.done && !i.rid && !lockedItem(i); }).forEach(moveToTomorrow); commit(); toast("نُقل المتبقي إلى الغد"); break;
       case "clearSample":
         state.days[state.sample] = blankDay();
         state.settings.routines = state.settings.routines.filter(function (r) { return !r.sample; });
@@ -2563,6 +2622,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       case "tpl": tplApply(b.dataset.t); break;
       case "teamLinkNew": teamLink(+($("teamLinkHrs") || {}).value || 24); break;
       case "teamLinkStop": teamLink(0); break;
+      case "tcfgAdd": state.settings.tcfg = { add: !membersAdd() }; commit(); toast(membersAdd() ? "يستطيع الأعضاء إضافة مهامهم" : "لا يضيف المهام إلا أنت"); break;
       case "reqSend": reqSend(); break;
       case "reqCancel": ui.req = null; render(); break;
       case "profTeam":
@@ -3619,13 +3679,13 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       });
       var rs = row.settings, rst = rs ? (rs.updatedAt || 0) : -1, lst = state.settings.updatedAt || 0;
       if (rs && rst > lst) {
-        state.settings = { categories: arr(rs.categories).length ? rs.categories : defaultCats(), routines: arr(rs.routines), sleep: rs.sleep || state.settings.sleep, prayer: rs.prayer || state.settings.prayer, quran: rs.quran || state.settings.quran, templates: rs.templates || state.settings.templates, goals: rs.goals || state.settings.goals, team: rs.team || state.settings.team, kids: rs.kids || state.settings.kids, updatedAt: rst };
+        state.settings = { categories: arr(rs.categories).length ? rs.categories : defaultCats(), routines: arr(rs.routines), sleep: rs.sleep || state.settings.sleep, prayer: rs.prayer || state.settings.prayer, quran: rs.quran || state.settings.quran, templates: rs.templates || state.settings.templates, goals: rs.goals || state.settings.goals, team: rs.team || state.settings.team, kids: rs.kids || state.settings.kids, tcfg: rs.tcfg || state.settings.tcfg, updatedAt: rst };
         snap._s = setJson(); changed = true;
       } else if (lst > rst) upload = true;
       fixState(); persist();
       if (changed) softRender();
       if (!upload) { cloud.stamp = typeof row.stamp === "string" ? row.stamp : ""; cloud.sbase = base; saveCode(); return; }
-      var data = { base_date: todayKey, settings: { categories: state.settings.categories, routines: state.settings.routines, sleep: state.settings.sleep, prayer: state.settings.prayer || null, quran: state.settings.quran || null, templates: state.settings.templates || null, goals: state.settings.goals || null, team: state.settings.team || null, kids: state.settings.kids || null, updatedAt: state.settings.updatedAt || 0 } };
+      var data = { base_date: todayKey, settings: { categories: state.settings.categories, routines: state.settings.routines, sleep: state.settings.sleep, prayer: state.settings.prayer || null, quran: state.settings.quran || null, templates: state.settings.templates || null, goals: state.settings.goals || null, team: state.settings.team || null, kids: state.settings.kids || null, tcfg: state.settings.tcfg || null, updatedAt: state.settings.updatedAt || 0 } };
       windowKeys().forEach(function (k, i) { data[COLS[i]] = merged[k] ? toRemote(k, merged[k]) : null; });
       return rpc("save", { p_code: code, p_data: data }).then(function (r2) {
         if (r2.error) throw r2.error;
