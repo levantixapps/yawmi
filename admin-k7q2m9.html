@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>يومي · الإدارة</title>
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=swap">
+<script>
+try { var t0 = localStorage.getItem("yawmi-theme"); if (t0 === "light" || t0 === "dark") document.documentElement.setAttribute("data-theme", t0); } catch (e) {}
+</script>
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<style>
+/* Until the app's own styles load (they are read from index.html, so both pages look the same) */
+.admpanel { display: flex; flex-direction: column; gap: 10px; }
+.admpanel code { font-family: var(--font-mono); font-size: .85rem; }
+.admpanel .stat small { font-size: .8rem; color: var(--muted); }
+.admhead { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding-top: 16px; }
+.admhead h1 { margin: 0; font-size: 1.3rem; }
+</style>
+</head>
+<body>
+<!-- The admin page: not linked from the app. Every action also needs the admin key on the server. -->
+<div class="wrap">
+  <div class="admhead"><h1>🛠️ إدارة «يومي»</h1><span class="row-wrap" id="headBtns"></span></div>
+  <div id="view" class="admpanel"><p class="small muted">جارٍ التحميل…</p></div>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(function () {
+  var CFG = window.PLANNER_CONFIG || {}, ADMIN_KEY = "yawmi-admin";
+  var $ = function (id) { return document.getElementById(id); }, view = $("view");
+  var sb = null, key = "", A = null, tip = null, ui = { tipEdit: false };
+  try { key = localStorage.getItem(ADMIN_KEY) || ""; } catch (e) {}
+
+  // Same look as the app: take its stylesheet
+  fetch("index.html").then(function (r) { return r.text(); }).then(function (t) {
+    var m = /<style>([\s\S]*?)<\/style>/.exec(t);
+    if (m) { var s = document.createElement("style"); s.textContent = m[1]; document.head.insertBefore(s, document.head.querySelector("style")); }
+  }, function () {});
+
+  /* ---------- helpers ---------- */
+  function esc(s) { var d = document.createElement("div"); d.textContent = s == null ? "" : s; return d.innerHTML; }
+  function arr(a) { return Array.isArray(a) ? a : []; }
+  function pad(n) { return (n < 10 ? "0" : "") + n; }
+  function keyOf(d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
+  function shortDate(k) { var p = k.split("-"); return +p[2] + "/" + +p[1]; }
+  function fmt12(t) { var p = t.split(":"), h = +p[0], suf = h < 12 ? "ص" : "م"; h = h % 12 || 12; return h + ":" + p[1] + " " + suf; }
+  function stamp(ms) { var d = new Date(ms); return fmt12(pad(d.getHours()) + ":" + pad(d.getMinutes())); }
+  function num(x) { return String(Math.round(x * 10) / 10); }
+  function kb(b) { return b >= 1048576 ? num(b / 1048576) + " م.ب" : Math.max(1, Math.round(b / 1024)) + " ك.ب"; }
+  function ago(ts) {
+    if (!ts) return "—";
+    var n = Math.floor((Date.now() - new Date(ts).getTime()) / 86400000);
+    return n <= 0 ? "اليوم" : n === 1 ? "أمس" : "منذ " + n + (n <= 10 ? " أيام" : " يومًا");
+  }
+  var toastTimer = null;
+  function toast(msg) { var t = $("toast"); t.textContent = msg; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.hidden = true; }, 2600); }
+  function netError(e) { return (e && e.message) || "تعذّر الاتصال بالخادم. تأكد من الإنترنت."; }
+  function call(fn, args) { return sb.rpc("yawmi_" + fn, args); }
+  var APP = location.href.split(/[?#]/)[0].replace(/[^/]*$/, "");
+  function teamUrl(tk) { return APP + "#team=" + tk; }
+  var INVITE_HOURS = [[1, "ساعة"], [6, "٦ ساعات"], [24, "يوم"], [72, "٣ أيام"], [168, "٧ أيام"]];
+  function untilText(ts) {
+    var d = new Date(ts), mins = Math.round((d.getTime() - Date.now()) / 60000);
+    return mins < 60 ? "بعد " + Math.max(1, mins) + " دقيقة" : (keyOf(d) === keyOf(new Date()) ? "اليوم " : shortDate(keyOf(d)) + " ") + stamp(d.getTime());
+  }
+
+  /* ---------- sign in ---------- */
+  function signIn(raw) {
+    var k = (raw || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (!k) return;
+    call("admin_check", { p_admin: k }).then(function (r) {
+      if (r.data === true) { key = k; try { localStorage.setItem(ADMIN_KEY, k); } catch (e) {} load(); }
+      else toast("مفتاح المشرف غير صحيح");
+    }, function () { toast("تعذّر الاتصال. تأكد من الإنترنت."); });
+  }
+  function signOut() { key = ""; A = null; try { localStorage.removeItem(ADMIN_KEY); } catch (e) {} render(); }
+
+  /* ---------- load ---------- */
+  function load() {
+    var keep = A || {};
+    A = { loading: true }; render();
+    Promise.all([call("admin_stats", { p_admin: key }), call("admin_accounts", { p_admin: key }), call("admin_teams", { p_admin: key }),
+      call("admin_requests", { p_admin: key }), call("tip_for", { p_day: keyOf(new Date()) })]).then(function (r) {
+      if (r[0].error || r[1].error) A = { err: r[0].error && r[0].error.code === "PGRST202" ? "شغّل ملفات SQL في Supabase أولًا (حتى supabase_v9.sql على الأقل)." : "تعذّر التحميل: " + netError(r[0].error || r[1].error) };
+      else if (!r[0].data) { A = null; signOut(); toast("مفتاح المشرف غير صحيح"); return; }
+      else A = { stats: r[0].data, accounts: arr(r[1].data), teams: r[2].error ? null : arr(r[2].data), reqs: r[3].error ? [] : arr(r[3].data), dev: {}, hours: keep.hours || {} };
+      tip = r[4].data || null;
+      render();
+    }, function () { A = { err: "تعذّر الاتصال. تأكد من الإنترنت." }; render(); });
+  }
+  function devices(id) {
+    if (A.dev[id]) { delete A.dev[id]; render(); return; }
+    call("admin_devices", { p_admin: key, p_id: id }).then(function (r) { A.dev[id] = arr(r.data); render(); });
+  }
+  function del(kind, id) {
+    call("admin_delete", { p_admin: key, p_kind: kind, p_id: id }).then(function (r) {
+      A.confirm = null;
+      if (r.data) { toast(kind === "account" ? "حُذف الحساب من السحابة" : "فُصل الجهاز"); load(); } else { toast("تعذّر الحذف"); render(); }
+    });
+  }
+  function team(fn, args, ok) {
+    args.p_admin = key;
+    call("admin_team_" + fn, args).then(function (r) {
+      if (r.error) { toast(r.error.code === "PGRST202" ? "شغّل ملف supabase_v11.sql في Supabase أولًا" : "تعذّر: " + netError(r.error)); return; }
+      if (r.data === null || r.data === false) { toast("تعذّر، حدّث الصفحة وأعد المحاولة"); return; }
+      if (ok) toast(ok);
+      A.confirm = null; load();
+    }, function () { toast("تعذّر الاتصال. تأكد من الإنترنت."); });
+  }
+
+  /* ---------- page ---------- */
+  function render() {
+    $("headBtns").innerHTML = key ? '<button class="linkbtn" data-act="load">تحديث</button><button class="linkbtn" data-act="out">خروج</button>' : "";
+    if (!sb) { view.innerHTML = '<p class="err">الحفظ السحابي غير مفعّل: تأكد من config.js.</p>'; return; }
+    if (!key) {
+      view.innerHTML = '<section class="card"><h2>دخول المشرف</h2><p class="small">اكتب «مفتاح المشرف» الذي ظهر لك في Supabase بعد تشغيل supabase_v6.sql. يُحفظ على هذا الجهاز فقط.</p>' +
+        '<form class="addform" id="inForm"><input class="field grow ltr" id="keyIn" type="password" autocomplete="off" placeholder="مفتاح المشرف"><button class="btn" type="submit">دخول</button></form></section>';
+      return;
+    }
+    if (!A || A.loading) { view.innerHTML = '<p class="small muted">جارٍ التحميل…</p>'; return; }
+    if (A.err) { view.innerHTML = '<p class="err">' + esc(A.err) + '</p>'; return; }
+    view.innerHTML = statsHtml() + reqsHtml() + teamsHtml() + peopleHtml() + tipsHtml() + resetHtml();
+  }
+  function statsHtml() {
+    var st = A.stats, idle = st.idle_days;
+    return '<div class="stats"><div class="stat"><b>' + st.accounts_7 + '<small>/' + st.accounts + '</small></b><span>حسابات نشيطة هذا الأسبوع</span></div>' +
+      '<div class="stat"><b>' + st.devices_7 + '<small>/' + st.devices + '</small></b><span>أجهزة ثانوية نشيطة</span></div>' +
+      '<div class="stat"><b>' + st.push + '</b><span>اشتراك إشعارات</span></div>' +
+      (st.teams != null ? '<div class="stat"><b>' + st.teams + '</b><span>فرق</span></div>' : "") + '</div>' +
+      '<p class="small">الحسابات النشيطة خلال ٣٠ يومًا: <b>' + st.accounts_30 + '</b>. بيانات الحسابات: <b>' + kb(st.data_bytes) + '</b>، وحجم القاعدة كلها ' + kb(st.db_bytes) + ' من ٥٠٠ م.ب المجانية.</p>' +
+      '<p class="small muted">يُحذف تلقائيًا كل يوم الحساب الذي لم يُفتح منذ ' + idle + ' يومًا، والجهاز الثانوي الذي لم يظهر منذ ' + idle + ' يومًا. بيانات المستخدمين على أجهزتهم لا تتأثر.</p>';
+  }
+  function reqsHtml() {
+    if (!A.reqs.length) return "";
+    return '<h2>📩 الطلبات (' + A.reqs.length + ')</h2><ul class="list">' + A.reqs.map(function (q) {
+      var what = q.kind === "personal" ? "حساب شخصي إضافي (حدّه الآن " + q.max_personal + ")" : "فريق إضافي (عنده " + q.teams_used + " من " + q.max_teams + ")";
+      return '<li class="card"><div class="top"><span class="ttl"><span><b>' + esc(q.name || q.person) + '</b>' + (q.label ? ' · <span class="small">' + esc(q.label) + '</span>' : "") + '</span>' +
+        '<span class="small">يطلب: ' + what + ' · ' + ago(q.created_at) + '</span>' + (q.note ? '<span class="small muted">«' + esc(q.note) + '»</span>' : "") + '</span></div>' +
+        '<div class="row-wrap"><button class="btn" data-act="req" data-id="' + q.id + '" data-v="1">✓ موافقة</button><button class="ghost" data-act="req" data-id="' + q.id + '" data-v="0">✗ رفض</button></div></li>';
+    }).join("") + '</ul>';
+  }
+  function who(p) { return esc(p.name || p.id); }
+  function personOpts(list) { return list.map(function (y) { return '<option value="' + esc(y.id) + '">' + who(y) + (y.label ? " · " + esc(y.label) : "") + '</option>'; }).join(""); }
+  function teamsHtml() {
+    if (!A.teams) return '<p class="small muted">لإنشاء الفرق وروابط الدعوة، شغّل ملفي supabase_v10.sql ثم supabase_v11.sql في Supabase.</p>';
+    var h = '<h2>👥 الفرق</h2>' +
+      '<div class="addform"><input class="field grow" id="teamName" type="text" maxlength="40" placeholder="اسم الفريق، مثل: فريق المبيعات" autocomplete="off">' +
+      '<select class="field" id="teamLead"><option value="">المسؤول…</option>' + personOpts(A.accounts) + '</select><button class="btn" data-act="teamNew">أنشئ</button></div>';
+    if (!A.teams.length) return h + '<p class="small muted">لا توجد فرق بعد. أنشئ فريقًا واختر مسؤوله، ثم أرسل رابط الدعوة للأعضاء، أو أضفهم من القائمة.</p>';
+    return h + '<ul class="list">' + A.teams.map(function (t) {
+      var mem = arr(t.members), hrs = A.hours[t.id] || 24;
+      var others = A.accounts.filter(function (y) { return y.id !== t.leader_id && !mem.some(function (m) { return m.id === y.id; }); });
+      var inv = t.invite
+        ? '<div class="small">🔗 رابط الدعوة، ينتهي ' + untilText(t.invite_until) + ':</div><div class="tip ltr small" style="user-select:all;word-break:break-all">' + esc(teamUrl(t.invite)) + '</div>' +
+          '<div class="row-wrap"><button class="ghost" data-act="invCopy" data-id="' + esc(t.invite) + '">📋 انسخ الرابط</button><button class="ghost" data-act="invShare" data-id="' + esc(t.invite) + '" data-n="' + esc(t.name) + '">📤 أرسله</button><button class="ghost danger" data-act="invStop" data-id="' + esc(t.id) + '">إيقاف الرابط</button></div>'
+        : '<div class="addform"><span class="small">رابط دعوة صالح لمدة</span><select class="field" data-act="invHrs" data-id="' + esc(t.id) + '">' + INVITE_HOURS.map(function (o) {
+            return '<option value="' + o[0] + '"' + (o[0] === hrs ? " selected" : "") + '>' + o[1] + '</option>';
+          }).join("") + '</select><button class="ghost" data-act="invNew" data-id="' + esc(t.id) + '">🔗 أنشئ رابطًا</button></div>';
+      return '<li class="card"><div class="top"><span class="ttl"><span><b>' + esc(t.name) + '</b> · المسؤول: <b>' + esc(t.leader_name || t.leader_id) + '</b>' + (t.leader_taken ? "" : ' <span class="muted">(⏳ لم يصله بعد)</span>') + '</span>' +
+        '<span class="small muted">آخر نشاط: ' + ago(t.updated_at) + ' · التابعون: ' + mem.length + '</span></span></div>' +
+        (mem.length ? '<ul class="small" style="margin:0;padding-inline-start:18px">' + mem.map(function (m) {
+          var k = "trm:" + t.id + ":" + m.id;
+          return '<li>' + who(m) + ' · ' + esc(m.label || "جهاز") + ' · ' + (m.taken ? "آخر ظهور: " + ago(m.seen) : "⏳ لم يفتح التطبيق بعد") + ' ' +
+            (A.confirm === k ? '<button class="linkbtn" data-act="teamRmYes" data-id="' + esc(t.id) + '" data-m="' + esc(m.id) + '">تأكيد الإزالة</button>'
+              : '<button class="linkbtn" data-act="ask" data-k="' + esc(k) + '">إزالة</button>') + '</li>';
+        }).join("") + '</ul>' : "") +
+        (others.length ? '<div class="addform"><select class="field grow" id="add-' + esc(t.id) + '"><option value="">أضف شخصًا إلى الفريق…</option>' + personOpts(others) +
+          '</select><button class="ghost" data-act="teamAdd" data-id="' + esc(t.id) + '">أضف</button></div>' : "") +
+        inv +
+        '<div class="row-wrap">' + (A.confirm === "account:" + t.id
+          ? '<button class="ghost danger" data-act="delYes" data-k="account" data-id="' + esc(t.id) + '">تأكيد حذف الفريق ومهامه</button><button class="ghost" data-act="askNo">تراجع</button>'
+          : '<button class="linkbtn" data-act="ask" data-k="account:' + esc(t.id) + '">حذف الفريق</button>') + '</div></li>';
+    }).join("") + '</ul>';
+  }
+  function peopleHtml() {
+    var idle = A.stats.idle_days;
+    return '<h2>👤 الأشخاص</h2><ul class="list">' + A.accounts.map(function (x) {
+      var days = Math.floor((Date.now() - new Date(x.updated_at).getTime()) / 86400000), devs = A.dev[x.id];
+      var tag = days >= idle - 7 ? '<span class="gbad">سيُحذف قريبًا</span>' : days >= 7 ? '<span class="muted">خامل</span>' : '<span class="gok">نشيط</span>';
+      var leads = arr(A.teams).filter(function (t) { return t.leader_id === x.id; });
+      var ins = arr(A.teams).filter(function (t) { return arr(t.members).some(function (m) { return m.id === x.id; }); });
+      var teamH = (leads.length ? '<div class="small">👥 مسؤول عن: <b>' + leads.map(function (t) { return esc(t.name); }).join("، ") + '</b></div>' : "") +
+        (ins.length ? '<div class="small">تابع في: <b>' + ins.map(function (t) { return esc(t.name); }).join("، ") + '</b></div>' : "");
+      return '<li class="card"><div class="top"><span class="ttl"><span><b>' + (x.name ? esc(x.name) : '<span class="muted">بلا اسم</span>') + '</b> · <code>' + esc(x.id) + '</code> · ' + tag + '</span>' +
+        '<span class="small muted">' + (x.label ? esc(x.label) + ' · ' : "") + 'آخر نشاط: ' + ago(x.updated_at) + ' · أُنشئ ' + shortDate(keyOf(new Date(x.created_at))) + ' · ' + kb(x.bytes) +
+        ' · أجهزة ثانوية: ' + x.devices + (x.devices_seen ? ' (آخرها ' + ago(x.devices_seen) + ')' : "") + ' · إشعارات: ' + x.push + '</span></span></div>' + teamH +
+        '<div class="row-wrap">' + (x.devices ? '<button class="ghost" data-act="dev" data-id="' + esc(x.id) + '">' + (devs ? "إخفاء الأجهزة" : "الأجهزة") + '</button>' : "") +
+        (A.confirm === "account:" + x.id
+          ? '<button class="ghost danger" data-act="delYes" data-k="account" data-id="' + esc(x.id) + '">' + (leads.length ? "تأكيد حذف الحساب وفرقه من السحابة" : "تأكيد حذف الحساب من السحابة") + '</button><button class="ghost" data-act="askNo">تراجع</button>'
+          : '<button class="ghost danger" data-act="ask" data-k="account:' + esc(x.id) + '">حذف</button>') + '</div>' +
+        (devs ? '<ul class="small" style="margin:0;padding-inline-start:18px">' + devs.map(function (dv) {
+          return '<li>جهاز رقم ' + dv.num + ' · ' + esc(dv.label || "جهاز") + ' · آخر ظهور: ' + ago(dv.last_seen) + ' ' +
+            (A.confirm === "device:" + dv.id ? '<button class="linkbtn" data-act="delYes" data-k="device" data-id="' + esc(dv.id) + '">تأكيد الفصل</button>'
+              : '<button class="linkbtn" data-act="ask" data-k="device:' + esc(dv.id) + '">فصل</button>') + '</li>';
+        }).join("") + '</ul>' : "") + '</li>';
+    }).join("") + '</ul>';
+  }
+  function tipsHtml() {
+    var h = '<h2>💡 معلومة اليوم</h2>';
+    if (tip && ui.tipEdit) h += '<div class="card stack"><textarea id="tipBody" style="min-height:90px">' + esc(tip.body) + '</textarea>' +
+      '<input class="field" id="tipSource" value="' + esc(tip.source || "") + '" placeholder="المصدر (اختياري)">' +
+      '<div class="row-wrap"><button class="btn" data-act="tipSave">حفظ للجميع</button><button class="ghost" data-act="tipCancel">إلغاء</button><button class="ghost danger" data-act="tipHide">إيقاف هذه المعلومة</button></div></div>';
+    else if (tip) h += '<div class="tipcard"><p>' + esc(tip.body) + '</p>' + (tip.source ? '<span class="small muted">' + esc(tip.source) + '</span>' : "") +
+      '<div><button class="linkbtn" data-act="tipEdit">✏️ تعديل</button></div></div>';
+    else h += '<p class="small muted">لا توجد معلومة مفعّلة.</p>';
+    return h + '<form class="stack" id="tipNew" style="gap:8px"><b>أضف معلومة جديدة</b><textarea id="tipNewBody" placeholder="نص المعلومة" style="min-height:70px"></textarea>' +
+      '<input class="field" id="tipNewSource" placeholder="المصدر (اختياري)"><div><button class="btn" type="submit">أضف</button></div></form>';
+  }
+  function resetHtml() {
+    return '<details class="box" style="margin-top:12px"' + (A.resetAsk ? " open" : "") + '><summary>⚠️ منطقة الخطر: تصفير المنصة</summary><div class="inner">' +
+      '<p class="small">يحذف من السحابة <b>كل الحسابات والفرق والأجهزة واشتراكات الإشعارات والطلبات</b>، ولا رجعة فيه. تبقى معلومات اليوم ومفتاح المشرف.</p>' +
+      '<p class="small muted">بيانات كل مستخدم على جهازه تبقى، وحين يفتح التطبيق تظهر له رسالة أن حسابه لم يُعثر عليه، فيبدأ حسابًا جديدًا وتُرفع إليه بياناته. وحسابات الفرق على الأجهزة تتوقف.</p>' +
+      (A.resetAsk
+        ? '<p class="err"><b>هل أنت متأكد؟ هذه الخطوة الأخيرة.</b></p><div class="row-wrap"><button class="ghost danger" data-act="resetYes">🗑️ تأكيد نهائي: صفّر المنصة</button><button class="ghost" data-act="resetNo">تراجع</button></div>'
+        : '<div class="addform"><input class="field grow" id="resetWord" type="text" placeholder="اكتب: صفّر" autocomplete="off"><button class="ghost danger" data-act="reset">تصفير</button></div>') +
+      '</div></details>';
+  }
+  function tipSave(id, body, source, done) {
+    call("tip_save", { p_admin: key, p_id: id, p_body: body, p_source: source }).then(function (r) {
+      if (r.error || !r.data) { toast("تعذّر الحفظ"); return; }
+      done(r.data);
+    }, function () { toast("تعذّر الاتصال. تأكد من الإنترنت."); });
+  }
+
+  /* ---------- actions ---------- */
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest("[data-act]");
+    if (!b || /INPUT|SELECT|TEXTAREA/.test(b.tagName)) return;
+    var id = b.dataset.id;
+    switch (b.dataset.act) {
+      case "load": load(); break;
+      case "out": signOut(); break;
+      case "dev": devices(id); break;
+      case "ask": A.confirm = b.dataset.k; render(); break;
+      case "askNo": A.confirm = null; render(); break;
+      case "delYes": del(b.dataset.k, id); break;
+      case "req":
+        var ok = b.dataset.v === "1";
+        call("admin_request_decide", { p_admin: key, p_id: +id, p_ok: ok }).then(function (x) { toast(x.data ? (ok ? "✓ وافقت على الطلب" : "رُفض الطلب") : "تعذّر"); load(); });
+        break;
+      case "teamNew":
+        var tn = $("teamName").value.trim(), tl = $("teamLead").value;
+        if (!tn || !tl) { toast("اكتب اسم الفريق واختر مسؤوله"); break; }
+        team("new", { p_leader: tl, p_name: tn }, "أُنشئ الفريق ✓ يصل إلى المسؤول حين يفتح التطبيق"); break;
+      case "teamAdd":
+        var tm = ($("add-" + id) || {}).value;
+        if (!tm) { toast("اختر الشخص"); break; }
+        team("add", { p_team: id, p_member: tm }, "أُضيف ✓ يصله حساب الفريق حين يفتح التطبيق"); break;
+      case "teamRmYes": team("remove", { p_team: id, p_member: b.dataset.m }, "أُزيل من الفريق"); break;
+      case "invNew": team("invite", { p_team: id, p_hours: A.hours[id] || 24 }, "أُنشئ رابط الدعوة ✓"); break;
+      case "invStop": team("invite", { p_team: id, p_hours: 0 }, "أُوقف الرابط"); break;
+      case "invCopy":
+        try { navigator.clipboard.writeText(teamUrl(id)).then(function () { toast("نُسخ الرابط"); }, function () { toast("انسخ الرابط يدويًا"); }); } catch (err) { toast("انسخ الرابط يدويًا"); }
+        break;
+      case "invShare":
+        var txt = "انضم إلى «" + b.dataset.n + "» في تطبيق «يومي»: افتح الرابط واكتب اسمك.";
+        if (navigator.share) navigator.share({ title: "يومي", text: txt, url: teamUrl(id) }).catch(function () {});
+        else try { navigator.clipboard.writeText(txt + "\n" + teamUrl(id)).then(function () { toast("نُسخت الدعوة"); }); } catch (err) {}
+        break;
+      case "tipEdit": ui.tipEdit = true; render(); break;
+      case "tipCancel": ui.tipEdit = false; render(); break;
+      case "tipSave":
+        var body = $("tipBody").value.trim();
+        if (!body) { toast("اكتب نص المعلومة"); break; }
+        tipSave(tip.id, body, $("tipSource").value.trim(), function (row) { tip = row; ui.tipEdit = false; render(); toast("حُفظت للجميع ✓"); });
+        break;
+      case "tipHide":
+        call("tip_hide", { p_admin: key, p_id: tip.id }).then(function (r) { if (r.data) { ui.tipEdit = false; toast("أُوقفت هذه المعلومة"); load(); } else toast("تعذّر"); });
+        break;
+      case "reset":
+        if (($("resetWord").value || "").replace(/[ً-ْ\s]/g, "") !== "صفر") { toast("اكتب كلمة «صفّر» للتأكيد"); break; }
+        A.resetAsk = true; render(); break;
+      case "resetNo": A.resetAsk = false; render(); break;
+      case "resetYes":
+        A.resetAsk = false;
+        call("admin_reset", { p_admin: key, p_word: "صفر" }).then(function (x) {
+          if (x.error) { toast(x.error.code === "PGRST202" ? "شغّل ملف supabase_v14.sql في Supabase أولًا" : "تعذّر: " + netError(x.error)); render(); return; }
+          if (!x.data) { toast("تعذّر التصفير"); render(); return; }
+          toast("صُفّرت المنصة: حُذف " + x.data.accounts + " حسابًا"); load();
+        }, function () { toast("تعذّر الاتصال. تأكد من الإنترنت."); render(); });
+        break;
+    }
+  });
+  document.addEventListener("change", function (e) {
+    var t = e.target;
+    if (t.dataset.act === "invHrs" && A) A.hours[t.dataset.id] = +t.value;
+  });
+  document.addEventListener("submit", function (e) {
+    e.preventDefault();
+    if (e.target.id === "inForm") signIn($("keyIn").value);
+    else if (e.target.id === "tipNew") {
+      var v = $("tipNewBody").value.trim();
+      if (!v) { toast("اكتب نص المعلومة"); return; }
+      tipSave(null, v, $("tipNewSource").value.trim(), function () { toast("أُضيفت المعلومة ✓"); load(); });
+    }
+  });
+
+  if (CFG.supabaseUrl && CFG.supabaseAnonKey && window.supabase) {
+    try { sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseAnonKey, { auth: { persistSession: false } }); } catch (e) { sb = null; }
+  }
+  if (sb && key) load(); else render();
+})();
+</script>
+</body>
+</html>

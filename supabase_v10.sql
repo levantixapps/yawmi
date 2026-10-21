@@ -14,7 +14,7 @@ alter table public.yawmi_accounts add column if not exists label text;
 -- حساب الفريق: مسؤوله، وهل وصل كوده إلى جهاز المسؤول
 alter table public.yawmi_accounts add column if not exists team_leader text references public.yawmi_accounts(code) on delete cascade;
 alter table public.yawmi_accounts add column if not exists team_taken boolean not null default false;
-create unique index if not exists yawmi_accounts_team_leader on public.yawmi_accounts (team_leader) where team_leader is not null;
+-- (كان هنا فهرس «فريق واحد لكل مسؤول»، وأُلغي في v11 حيث صار للمسؤول أكثر من فريق)
 
 -- التابعون: كل تابع له جهاز ثانوي في حساب الفريق، ويصل مفتاحه إلى جهازه مرة واحدة
 create table if not exists public.yawmi_team_members (
