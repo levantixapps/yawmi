@@ -2299,6 +2299,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     }).join("") + '</ul><form class="addform" data-form="cat"><input class="field grow" id="catInput" type="text" placeholder="تقسيم جديد، مثل: القراءة" autocomplete="off"><button class="btn" type="submit">أضف</button></form></section>';
 
     }
+    h += resetHtml();
     var archived = Object.keys(state.days).filter(function (k) { return offsetOf(k) < -SPAN; }).length;
     h += '<section><h2>الأرشيف</h2><p class="small muted">السحابة تحفظ ٧ أيام فقط، وهذا الجهاز يحتفظ بالأيام السابقة لمدة سنة. المحفوظ الآن: <b>' + archived + '</b> يومًا قديمًا. لتصفّحها اضغط على التاريخ في الأعلى. الأرشيف لا يُرفع إلى السحابة، فخذ منه نسخة احتياطية بين حين وآخر.</p></section>';
     h += '<details class="box"' + (ui.backupOpen ? " open" : "") + '><summary>نسخة احتياطية</summary><div class="inner">' +
@@ -2746,6 +2747,9 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
         break;
       case "wipe": ui.confirmWipe = true; ui.backupOpen = true; render(); break;
       case "wipeNo": ui.confirmWipe = false; render(); break;
+      case "resetAsk": ui.resetSet = !!($("resetSet") || {}).checked; ui.confirmReset = true; render(); break;
+      case "resetNo": ui.confirmReset = false; render(); break;
+      case "resetYes": resetAccount(); break;
       case "wipeYes":
         state = blankState(); ui.confirmWipe = false; ui.tab = "plan"; ui.step = 1; takeSnap(); persist(); render();
         state.settings.updatedAt = 0; takeSnap(); // let the cloud copy win on the next sync
@@ -2786,6 +2790,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       qc[t.dataset.f] = qv; setQuran(qc); commit();
     }
     else if (act === "prayBlock") setPray({ block: +t.value });
+    else if (act === "resetSetBox") ui.resetSet = t.checked;
     else if (act === "uname") { if (t.value.trim()) { setUserName(t.value); toast("حُفظ الاسم"); } else t.value = userName; }
     else if (act === "profName") {
       var pf = profiles.list.filter(function (x) { return x.id === t.dataset.id; })[0], nv = t.value.trim();
@@ -3094,13 +3099,13 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   try {
     code = localStorage.getItem(CODE_KEY) || "";
     var meta = JSON.parse(localStorage.getItem(META_KEY) || "{}");
-    cloud.role = meta.role || ""; cloud.num = meta.num || 0; cloud.chan = meta.chan || ""; cloud.stamp = meta.stamp || ""; cloud.sbase = meta.sbase || "";
+    cloud.role = meta.role || ""; cloud.num = meta.num || 0; cloud.chan = meta.chan || ""; cloud.stamp = meta.stamp || ""; cloud.sbase = meta.sbase || ""; cloud.rst = meta.rst || "";
   } catch (e) {}
 
   function saveCode() {
     try {
       if (code) localStorage.setItem(CODE_KEY, code); else localStorage.removeItem(CODE_KEY);
-      localStorage.setItem(META_KEY, JSON.stringify({ role: cloud.role, num: cloud.num, chan: cloud.chan, stamp: cloud.stamp || "", sbase: cloud.sbase || "" }));
+      localStorage.setItem(META_KEY, JSON.stringify({ role: cloud.role, num: cloud.num, chan: cloud.chan, stamp: cloud.stamp || "", sbase: cloud.sbase || "", rst: cloud.rst || "" }));
     } catch (e) {}
   }
   function setLink(key, role, num) {
@@ -3726,6 +3731,41 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       del: del, tu: Math.max(L.tu || 0, R.tu || 0), updatedAt: Math.max(L.updatedAt || 0, R.updatedAt || 0) });
   }
 
+  /* ---------- START OVER (supabase_v19.sql): the account's days, tasks and reports go on every device; settings too if chosen ---------- */
+  function applyReset(withSet) {
+    state.days = {}; state.dirtyDays = {}; delete state.sample;
+    if (withSet) state.settings = blankState().settings;
+    pendingLog = {}; try { localStorage.setItem(LOG_KEY, "{}"); localStorage.removeItem(pkey("yawmi-dirty")); } catch (e) {}
+    current = today(); ui.open = null; fixState(); takeSnap(); persist();
+  }
+  // Personal accounts from this person's main device; a team or shared account from its leader
+  function canReset() {
+    var pf = currentProfile() || {};
+    if (!sb || !code || cloud.role !== "primary") return false;
+    return pf.team ? true : meMain;
+  }
+  function resetAccount() {
+    if (!online()) return;
+    var withSet = !!($("resetSet") || {}).checked;
+    sb.rpc("yawmi_reset", { p_key: code, p_dev: devId(), p_settings: withSet }).then(function (r) {
+      if (r.error) { toast(r.error.code === "PGRST202" ? "«ابدأ من جديد» غير مفعّل بعد على الخادم" : "تعذّر: " + netError(r.error)); return; }
+      if (!r.data) { toast("«ابدأ من جديد» من جهازك الأساسي ⭐ أو من مسؤول الفريق فقط"); return; }
+      ui.confirmReset = false; applyReset(withSet); cloud.rst = String(r.data); cloud.stamp = ""; saveCode();
+      ui.tab = "plan"; ui.step = 1; render(); window.scrollTo(0, 0);
+      toast("🧹 بدأت من جديد" + ((currentProfile() || {}).team ? "، لك ولكل الأعضاء" : " على كل أجهزتك"));
+      syncNow(); nudge();
+    }, function () { toast("تعذّر الاتصال. تأكد من الإنترنت."); });
+  }
+  function resetHtml() {
+    if (!canReset()) return "";
+    var tm = !!(currentProfile() || {}).team;
+    var h = '<section><h2>🧹 ابدأ من جديد</h2><p class="small muted">يحذف كل المهام والأيام والملاحظات والتقارير في «' + esc(profileName()) + '»' +
+      (tm ? "، لك ولكل الأعضاء." : "، على كل أجهزتك.") + ' ولا يمكن التراجع، فاحفظ نسخة احتياطية أولًا إن أردت.</p>' +
+      '<label class="small"><input type="checkbox" id="resetSet"' + (ui.resetSet ? " checked" : "") + ' data-act="resetSetBox"> واحذف الإعدادات أيضًا (التقسيمات والمهام الدائمة والقوالب والأهداف)</label>';
+    return h + (ui.confirmReset
+      ? '<p class="small err">متأكد؟ سيُحذف كل ذلك الآن.</p><div class="row-wrap"><button class="ghost danger" data-act="resetYes">🧹 نعم، ابدأ من جديد</button><button class="ghost" data-act="resetNo">تراجع</button></div></section>'
+      : '<div class="row-wrap"><button class="ghost danger" data-act="resetAsk">🧹 ابدأ من جديد</button></div></section>');
+  }
   function syncNow() {
     if (!sb || !code) return;
     if (syncing) { again = true; return; }
@@ -3743,6 +3783,10 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       if (r.error) throw r.error;
       if (!r.data) { var gone = new Error("gone"); gone.gone = true; throw gone; }
       var row = r.data, base = row.base_date, todayKey = keyOf(today()), remote = {};
+      if (row.reset_at && !sameStamp(row.reset_at, cloud.rst)) {
+        applyReset(!!row.reset_set); cloud.rst = String(row.reset_at); saveCode();
+        toast("🧹 بدأ هذا الحساب من جديد"); softRender();
+      }
       var role = row.role || "primary", num = row.num || (role === "primary" ? 1 : cloud.num), ch = row.chan || "";
       if (role !== cloud.role || num !== cloud.num || ch !== cloud.chan) {
         var chChanged = ch !== cloud.chan;
