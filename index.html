@@ -2695,7 +2695,12 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
         if (rji >= 0) rjl.splice(rji, 1); else rjl.push(b.dataset.r);
         state.settings.rejecters = rjl; commit(); break;
       case "pathStep": ui.pathName = ($("pathName") || {}).value || ""; ui.pathSteps = arr(ui.pathSteps).concat([b.dataset.r]); render(); break;
-      case "pathPop": ui.pathName = ($("pathName") || {}).value || ""; ui.pathSteps = arr(ui.pathSteps).slice(0, -1); render(); break;
+      case "pathRm": ui.pathName = ($("pathName") || {}).value || ""; ui.pathSteps = arr(ui.pathSteps).filter(function (x, i) { return i !== +b.dataset.i; }); render(); break;
+      case "pathEdit":
+        var pe = paths().filter(function (x) { return x.id === id; })[0];
+        if (pe) { ui.pathEdit = pe.id; ui.pathName = pe.name; ui.pathSteps = arr(pe.steps).slice(); render(); var pfm = $("pathName"); if (pfm) pfm.scrollIntoView({ block: "center" }); }
+        break;
+      case "pathCancel": ui.pathEdit = null; ui.pathName = ""; ui.pathSteps = []; render(); break;
       case "pathDel": state.settings.paths = paths().filter(function (x) { return x.id !== id; }); commit(); break;
       case "tcfgAdd": state.settings.tcfg = { add: !membersAdd() }; commit(); toast(membersAdd() ? "يستطيع الأعضاء إضافة مهامهم" : "لا يضيف المهام إلا أنت"); break;
       case "reqSend": reqSend(); break;
@@ -2947,8 +2952,9 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       v = $("pathName").value.trim();
       if (!v) { toast("اكتب اسم المسار"); return; }
       if (!arr(ui.pathSteps).length) { toast("اضغط الأدوار بالترتيب"); return; }
-      state.settings.paths = paths().concat([{ id: "w" + uid(), name: v.slice(0, 40), steps: arr(ui.pathSteps).slice() }]);
-      ui.pathSteps = []; ui.pathName = ""; commit(); toast("حُفظ المسار «" + v + "»");
+      var np2 = { id: ui.pathEdit || "w" + uid(), name: v.slice(0, 40), steps: arr(ui.pathSteps).slice() };
+      state.settings.paths = ui.pathEdit ? paths().map(function (x) { return x.id === ui.pathEdit ? np2 : x; }) : paths().concat([np2]);
+      ui.pathSteps = []; ui.pathName = ""; ui.pathEdit = null; commit(); toast("حُفظ المسار «" + v + "»");
     } else if (f === "paste") {
       pasteLink($("pasteInput").value.trim());
     } else if (f === "cat") {
@@ -3947,12 +3953,13 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       return '<button class="ghost" data-act="rejToggle" data-r="' + esc(r) + '" aria-pressed="' + on + '">' + (on ? "✓ " : "") + esc(r) + '</button>';
     }).join("") + '</div><p class="small muted">وأنت (المسؤول) تستطيع دائمًا الرفض والتصرّف في أي معاملة.</p>';
     h += '<h3>المسارات المحفوظة</h3>' + (paths().length ? '<ul class="list">' + paths().map(function (p) {
-      return '<li class="card"><div class="top"><span class="ttl"><b>' + esc(p.name) + '</b><span class="small muted">' + esc(arr(p.steps).join(" ← ")) + '</span></span><button class="del" data-act="pathDel" data-id="' + esc(p.id) + '" aria-label="حذف">×</button></div></li>';
+      return '<li class="card"><div class="top"><span class="ttl"><b>' + esc(p.name) + '</b><span class="small muted">' + esc(arr(p.steps).join(" ← ")) + '</span></span><button class="ghost" data-act="pathEdit" data-id="' + esc(p.id) + '">تعديل</button><button class="del" data-act="pathDel" data-id="' + esc(p.id) + '" aria-label="حذف">×</button></div></li>';
     }).join("") + '</ul>' : '<p class="small muted">لا توجد مسارات بعد.</p>') +
-      '<div class="card"><form class="stack" data-form="path" style="gap:8px"><input class="field" id="pathName" type="text" maxlength="40" placeholder="اسم المسار، مثل: طلب صرف" autocomplete="off" value="' + esc(ui.pathName || "") + '">' +
-      '<p class="small">' + (ps.length ? esc(ps.join(" ← ")) + ' <button type="button" class="del" data-act="pathPop" aria-label="احذف آخر خطوة">⌫</button>' : '<span class="muted">اضغط الأدوار بالترتيب:</span>') + '</p>' +
+      '<div class="card"><h3>' + (ui.pathEdit ? "تعديل المسار" : "مسار جديد") + '</h3><form class="stack" data-form="path" style="gap:8px"><input class="field" id="pathName" type="text" maxlength="40" placeholder="اسم المسار، مثل: طلب صرف" autocomplete="off" value="' + esc(ui.pathName || "") + '">' +
+      (ps.length ? '<div class="flowpath">' + ps.map(function (r, i) { return '<button type="button" class="ghost" data-act="pathRm" data-i="' + i + '" aria-label="احذف هذه الخطوة">' + esc(r) + ' ×</button>'; }).join("<i>←</i>") + '</div><p class="small muted">اضغط أي خطوة لحذفها، واضغط الأدوار أدناه لإضافتها في آخر المسار.</p>'
+        : '<p class="small muted">اضغط الأدوار بالترتيب:</p>') +
       '<div class="row-wrap">' + rl.map(function (r) { return '<button type="button" class="ghost" data-act="pathStep" data-r="' + esc(r) + '">+ ' + esc(r) + '</button>'; }).join("") + '</div>' +
-      '<div><button class="btn" type="submit">احفظ المسار</button></div></form></div></section>';
+      '<div class="row-wrap"><button class="btn" type="submit">' + (ui.pathEdit ? "احفظ التعديل" : "احفظ المسار") + '</button>' + (ui.pathEdit || ps.length ? '<button type="button" class="ghost" data-act="pathCancel">إلغاء</button>' : "") + '</div></form></div></section>';
     return h;
   }
   /* ---------- START OVER (supabase_v19.sql): the account's days, tasks and reports go on every device; settings too if chosen ---------- */
