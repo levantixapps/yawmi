@@ -3358,6 +3358,8 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     sb.rpc("yawmi_my_devices_list", { p_key: mk }).then(function (r) {
       if (r.error || !r.data) return;
       ui.myDevs = arr(r.data);
+      var me = ui.myDevs.filter(function (x) { return x.dev === devId(); })[0]; // the list knows whether this device is the main one now
+      if (me && !!me.main !== meMain) { meMain = !!me.main; try { localStorage.setItem("yawmi-main", meMain ? "1" : ""); } catch (e) {} }
       if (ui.tab === "settings") softRender();
     }, function () {});
   }
