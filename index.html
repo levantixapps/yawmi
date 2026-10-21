@@ -996,6 +996,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     renderHeader();
     var html = ui.tab === "settings" ? "" : focusBar();
     if (ui.tab === "day" || ui.tab === "plan") html += tipHtml();
+    if (ui.tab === "day") html += teamBarHtml();
     if (!userName && ui.tab !== "settings") {
       html += '<form class="namecard" data-form="uname"><b>أهلًا بك في «يومي» 👋 ما اسمك؟</b>' +
         (teamPending() ? '<span class="small"><b>👥 بعد كتابة اسمك تنضم إلى الفريق تلقائيًا.</b></span>' : "") +
@@ -2630,6 +2631,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       case "tpl": tplApply(b.dataset.t); break;
       case "teamLinkNew": teamLink(+($("teamLinkHrs") || {}).value || 24); break;
       case "teamLinkStop": teamLink(0); break;
+      case "teamLinkGo": ui.tab = "settings"; ui.open = null; render(); window.scrollTo(0, 0); loadDevices(); myDevLoad(); break;
       case "tcfgAdd": state.settings.tcfg = { add: !membersAdd() }; commit(); toast(membersAdd() ? "يستطيع الأعضاء إضافة مهامهم" : "لا يضيف المهام إلا أنت"); break;
       case "reqSend": reqSend(); break;
       case "reqCancel": ui.req = null; render(); break;
@@ -3573,6 +3575,15 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       loadDevices();
     }, function () { toast("تعذّر الاتصال. تأكد من الإنترنت."); });
   }
+  // In the team (or shared) account's day screen, its leader sees the members and the invite link without opening settings
+  function teamBarHtml() {
+    var t = ui.teamInfo;
+    if (!t || cloud.role === "secondary" || !code) return "";
+    var names = (ui.devices || []).map(function (dv) { return dv.uname || ("جهاز " + dv.num); });
+    return '<div class="banner"><span>' + (t.tk === "shared" ? "👨‍👩‍👧 " : "👥 ") + '<b>' + esc(t.name) + '</b>: ' + (names.length ? esc(names.join("، ")) : "لا أعضاء بعد") + '</span>' +
+      (t.invite ? '<button class="linkbtn" data-act="teamInvShare" data-id="' + esc(t.invite) + '" data-n="' + esc(t.name) + '">📤 أرسل رابط الدعوة</button>'
+        : '<button class="linkbtn" data-act="teamLinkGo">🔗 أنشئ رابط دعوة</button>') + '</div>';
+  }
   function teamLinkHtml(t) {
     var h = '<div class="card"><h3>🔗 دعوة إلى «' + esc(t.name) + '»</h3>';
     if (t.invite) return h + '<p class="small">أرسل هذا الرابط ' + (t.tk === "shared" ? "لمن تريد مشاركته الحساب" : "لأعضاء فريقك") + ' عبر واتساب أو غيره. من فتحه دخل مباشرة. ينتهي ' + untilText(t.invite_until) + '.</p>' +
@@ -3636,14 +3647,14 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       ui.teamInfo = !r.error && r.data ? r.data : null;
       var cp = currentProfile();
       if (ui.teamInfo && cp && !cp.team) { cp.team = 1; saveProfiles(); } // team accounts don't count as personal ones
-      if (was !== JSON.stringify(ui.teamInfo) && ui.tab === "settings") softRender();
+      if (was !== JSON.stringify(ui.teamInfo) && (ui.tab === "settings" || ui.tab === "day")) softRender();
     }, function () {});
     rpc("devices_list", { p_code: code }).then(function (r) {
       if (r.error) return;
       ui.devices = arr(r.data);
       teamSync(ui.devices);
       if (done) done(ui.devices);
-      if (ui.tab === "settings") softRender();
+      if (ui.tab === "settings" || (ui.tab === "day" && ui.teamInfo)) softRender();
     }, function () {});
   }
   function revoke(tok) {
