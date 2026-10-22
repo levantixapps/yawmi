@@ -194,9 +194,12 @@ try { var t0 = localStorage.getItem("yawmi-theme"); if (t0 === "light" || t0 ===
       var ins = arr(A.teams).filter(function (t) { return arr(t.members).some(function (m) { return m.id === x.id; }); });
       var teamH = (leads.length ? '<div class="small">👥 مسؤول عن: <b>' + leads.map(function (t) { return esc(t.name); }).join("، ") + '</b></div>' : "") +
         (ins.length ? '<div class="small">تابع في: <b>' + ins.map(function (t) { return esc(t.name); }).join("، ") + '</b></div>' : "");
-      return '<li class="card"><div class="top"><span class="ttl"><span><b>' + (x.name ? esc(x.name) : '<span class="muted">بلا اسم</span>') + '</b> · <code>' + esc(x.id) + '</code> · ' + tag + '</span>' +
+      // A person, another personal account of a person ("العمل"), or a person never used (no name, no devices)
+      var who = x.kind === "own" ? '📁 «' + esc(x.pname || "حساب") + '» <span class="small muted">حساب آخر لـ ' + esc(x.owner_name || x.owner_id || "") + '</span>'
+        : x.name ? '👤 ' + esc(x.name) : '<span class="muted">👤 بلا اسم' + (x.my_devices === 0 ? " · لم يُستعمل" : "") + '</span>';
+      return '<li class="card"><div class="top"><span class="ttl"><span><b>' + who + '</b> · <code>' + esc(x.id) + '</code> · ' + tag + '</span>' +
         '<span class="small muted">' + (x.label ? esc(x.label) + ' · ' : "") + 'آخر نشاط: ' + ago(x.updated_at) + ' · أُنشئ ' + shortDate(keyOf(new Date(x.created_at))) + ' · ' + kb(x.bytes) +
-        ' · أجهزة ثانوية: ' + x.devices + (x.devices_seen ? ' (آخرها ' + ago(x.devices_seen) + ')' : "") + ' · إشعارات: ' + x.push + '</span></span></div>' + teamH +
+        (x.kind === "person" && x.my_devices != null ? ' · أجهزته: ' + x.my_devices : "") + ' · أجهزة ثانوية: ' + x.devices + (x.devices_seen ? ' (آخرها ' + ago(x.devices_seen) + ')' : "") + ' · إشعارات: ' + x.push + '</span></span></div>' + teamH +
         '<div class="row-wrap">' + (x.devices ? '<button class="ghost" data-act="dev" data-id="' + esc(x.id) + '">' + (devs ? "إخفاء الأجهزة" : "الأجهزة") + '</button>' : "") +
         (A.confirm === "account:" + x.id
           ? '<button class="ghost danger" data-act="delYes" data-k="account" data-id="' + esc(x.id) + '">' + (leads.length ? "تأكيد حذف الحساب وفرقه من السحابة" : "تأكيد حذف الحساب من السحابة") + '</button><button class="ghost" data-act="askNo">تراجع</button>'
