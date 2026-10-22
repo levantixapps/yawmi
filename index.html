@@ -507,7 +507,14 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   var KEY = pkey("daily-planner-v3"), OLD_KEY = "daily-planner-v2";
   var NAME_KEY = pkey("yawmi-username"), LOG_KEY = pkey("yawmi-pendinglog");
   var userName = "";
-  try { userName = localStorage.getItem(NAME_KEY) || ""; } catch (e) {}
+  // One name for the person on this device: an account without one takes the first account's (or any other's)
+  try {
+    userName = localStorage.getItem(NAME_KEY) || "";
+    if (!userName) {
+      userName = localStorage.getItem("yawmi-username") || profiles.list.map(function (pf) { return localStorage.getItem(pkey("yawmi-username", pf.id)) || ""; }).filter(Boolean)[0] || "";
+      if (userName) localStorage.setItem(NAME_KEY, userName);
+    }
+  } catch (e) {}
   var SPAN = 3; // days kept in the cloud before and after today
   var FUTURE = 365; // days ahead you can plan on this device; they sync once within SPAN
   var CFG = window.PLANNER_CONFIG || {};
@@ -3059,7 +3066,10 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   }
   function setUserName(v) {
     userName = (v || "").trim().slice(0, 30);
-    try { if (userName) localStorage.setItem(NAME_KEY, userName); else localStorage.removeItem(NAME_KEY); } catch (e) {}
+    try { // every account here is this person's, so they all carry the name; each tells the server on its next opening
+      if (userName) profiles.list.forEach(function (pf) { localStorage.setItem(pkey("yawmi-username", pf.id), userName); });
+      else localStorage.removeItem(NAME_KEY);
+    } catch (e) {}
     renderProfile(); pushName();
   }
   // The name and device model go to the server, so the admin can tell people apart (supabase_v10.sql).
