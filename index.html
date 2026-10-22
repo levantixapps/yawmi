@@ -2619,10 +2619,19 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   var tip = null;
   try { tip = JSON.parse(localStorage.getItem(TIP_KEY) || "null"); } catch (e) {}
   function tipDay() { return keyOf(new Date()); }
+  function hijriMD(d) {
+    try {
+      var parts = new Intl.DateTimeFormat("en-u-ca-islamic-umalqura-nu-latn", { day: "numeric", month: "numeric" }).formatToParts(d), o = {};
+      parts.forEach(function (x) { if (x.type === "day" || x.type === "month") o[x.type] = +x.value; });
+      return o.day && o.month ? { m: o.month, d: o.day } : null;
+    } catch (e) { return null; }
+  }
   function loadTip(force) {
     if (!sb) return;
     if (!force && tip && tip.day === tipDay()) return;
-    rpc("tip_for", { p_day: tipDay() }).then(function (r) {
+    var hm = hijriMD(new Date()), args = { p_day: tipDay() };
+    // with the Hijri month and day, a tip planned for this weekday or Hijri date comes first (supabase_v26.sql)
+    (hm ? sb.rpc("yawmi_tip_for", { p_day: tipDay(), p_hm: hm.m, p_hd: hm.d }).then(function (r) { return r.error && r.error.code === "PGRST202" ? rpc("tip_for", args) : r; }) : rpc("tip_for", args)).then(function (r) {
       if (r.error || !r.data) return;
       tip = { day: tipDay(), id: r.data.id, body: r.data.body, source: r.data.source || "", hidden: tip && tip.day === tipDay() ? tip.hidden : false };
       try { localStorage.setItem(TIP_KEY, JSON.stringify(tip)); } catch (e) {}

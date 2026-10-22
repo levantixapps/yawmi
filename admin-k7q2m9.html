@@ -86,11 +86,12 @@ try { var t0 = localStorage.getItem("yawmi-theme"); if (t0 === "light" || t0 ===
     var keep = A || {};
     A = { loading: true }; render();
     Promise.all([call("admin_stats", { p_admin: key }), call("admin_accounts", { p_admin: key }), call("admin_teams", { p_admin: key }),
-      call("admin_requests", { p_admin: key }), call("tip_for", { p_day: keyOf(new Date()) })]).then(function (r) {
+      call("admin_requests", { p_admin: key }), call("tip_for", { p_day: keyOf(new Date()) }), call("admin_tips", { p_admin: key })]).then(function (r) {
       if (r[0].error || r[1].error) A = { err: r[0].error && r[0].error.code === "PGRST202" ? "شغّل ملفات SQL في Supabase أولًا (حتى supabase_v9.sql على الأقل)." : "تعذّر التحميل: " + netError(r[0].error || r[1].error) };
       else if (!r[0].data) { A = null; signOut(); toast("مفتاح المشرف غير صحيح"); return; }
       else A = { stats: r[0].data, accounts: arr(r[1].data), teams: r[2].error ? null : arr(r[2].data), reqs: r[3].error ? [] : arr(r[3].data), dev: {}, hours: keep.hours || {} };
       tip = r[4].data || null;
+      if (A && !A.err) A.plans = r[5].error ? null : arr(r[5].data);
       render();
     }, function () { A = { err: "تعذّر الاتصال. تأكد من الإنترنت." }; render(); });
   }
@@ -219,8 +220,38 @@ try { var t0 = localStorage.getItem("yawmi-theme"); if (t0 === "light" || t0 ===
     else if (tip) h += '<div class="tipcard"><p>' + esc(tip.body) + '</p>' + (tip.source ? '<span class="small muted">' + esc(tip.source) + '</span>' : "") +
       '<div><button class="linkbtn" data-act="tipEdit">✏️ تعديل</button></div></div>';
     else h += '<p class="small muted">لا توجد معلومة مفعّلة.</p>';
-    return h + '<form class="stack" id="tipNew" style="gap:8px"><b>أضف معلومة جديدة</b><textarea id="tipNewBody" placeholder="نص المعلومة" style="min-height:70px"></textarea>' +
+    h += plansHtml();
+    return h + '<form class="stack" id="tipNew" style="gap:8px"><b>أضف معلومة جديدة (تدور على الأيام)</b><textarea id="tipNewBody" placeholder="نص المعلومة" style="min-height:70px"></textarea>' +
       '<input class="field" id="tipNewSource" placeholder="المصدر (اختياري)"><div><button class="btn" type="submit">أضف</button></div></form>';
+  }
+  // Tips for set days: weekdays (0 Sunday … 6 Saturday) and/or Hijri days of the month, optionally of one month (supabase_v26.sql)
+  var WDAYS = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+  var HMONTHS = ["محرم", "صفر", "ربيع الأول", "ربيع الآخر", "جمادى الأولى", "جمادى الآخرة", "رجب", "شعبان", "رمضان", "شوال", "ذي القعدة", "ذي الحجة"]; // after «من»
+  function planText(t) {
+    var out = [];
+    if (arr(t.wdays).length) out.push("كل " + arr(t.wdays).map(function (d) { return WDAYS[d]; }).join(" و"));
+    if (arr(t.hdays).length) out.push("يوم " + arr(t.hdays).join(" و") + (t.hmonth ? " من " + HMONTHS[t.hmonth - 1] : " من كل شهر هجري"));
+    return out.join("، و");
+  }
+  function plansHtml() {
+    if (A.plans == null) return '<p class="small muted">المعلومات في أيام معيّنة تحتاج supabase_v26.sql.</p>';
+    var e = ui.planEdit, d = e || { wdays: [], hdays: [], hmonth: null };
+    var h = '<h3>📅 معلومات في أيام معيّنة</h3><p class="small muted">تظهر في أيامها فقط، وتتقدّم على المعلومة المعتادة. مثل: تذكير صيام الاثنين والخميس في الأحد والأربعاء.</p>';
+    if (A.plans.length) h += '<ul class="list">' + A.plans.map(function (t) {
+      return '<li class="card"><p style="margin:0">' + esc(t.body) + '</p>' + (t.source ? '<span class="small muted">' + esc(t.source) + '</span>' : "") +
+        '<div class="small"><b>📅 ' + esc(planText(t)) + '</b></div><div class="row-wrap"><button class="linkbtn" data-act="planEdit" data-id="' + t.id + '">✏️ تعديل</button>' +
+        '<button class="linkbtn" data-act="planHide" data-id="' + t.id + '">إيقاف</button></div></li>';
+    }).join("") + '</ul>';
+    var wd = arr(ui.planW || d.wdays);
+    return h + '<form class="stack card" id="planForm" style="gap:8px"><b>' + (e && e.id ? "تعديل المعلومة" : "أضف معلومة لأيام معيّنة") + '</b>' +
+      '<textarea id="planBody" placeholder="نص المعلومة" style="min-height:70px">' + esc(d.body || "") + '</textarea>' +
+      '<input class="field" id="planSource" placeholder="المصدر (اختياري)" value="' + esc(d.source || "") + '">' +
+      '<span class="small">أيام الأسبوع:</span><div class="row-wrap">' + WDAYS.map(function (n, i) {
+        return '<button type="button" class="ghost" data-act="planDay" data-i="' + i + '" aria-pressed="' + (wd.indexOf(i) >= 0) + '">' + (wd.indexOf(i) >= 0 ? "✓ " : "") + n + '</button>';
+      }).join("") + '</div>' +
+      '<div class="addform"><span class="small">أيام هجرية</span><input class="field grow ltr" id="planH" placeholder="مثل: 12,13,14" value="' + esc(arr(d.hdays).join(",")) + '">' +
+      '<select class="field" id="planM"><option value="">من كل شهر</option>' + HMONTHS.map(function (n, i) { return '<option value="' + (i + 1) + '"' + (d.hmonth === i + 1 ? " selected" : "") + '>من ' + n + '</option>'; }).join("") + '</select></div>' +
+      '<div class="row-wrap"><button class="btn" type="submit">' + (e && e.id ? "احفظ" : "أضف") + '</button>' + (e ? '<button type="button" class="ghost" data-act="planCancel">إلغاء</button>' : "") + '</div></form>';
   }
   function resetHtml() {
     return '<details class="box" style="margin-top:12px"' + (A.resetAsk ? " open" : "") + '><summary>⚠️ منطقة الخطر: تصفير المنصة</summary><div class="inner">' +
@@ -230,6 +261,12 @@ try { var t0 = localStorage.getItem("yawmi-theme"); if (t0 === "light" || t0 ===
         ? '<p class="err"><b>هل أنت متأكد؟ هذه الخطوة الأخيرة.</b></p><div class="row-wrap"><button class="ghost danger" data-act="resetYes">🗑️ تأكيد نهائي: صفّر المنصة</button><button class="ghost" data-act="resetNo">تراجع</button></div>'
         : '<div class="addform"><input class="field grow" id="resetWord" type="text" placeholder="اكتب: صفّر" autocomplete="off"><button class="ghost danger" data-act="reset">تصفير</button></div>') +
       '</div></details>';
+  }
+  // keep what was typed in the plan form across a re-render
+  function keepPlan() {
+    var b = $("planBody"); if (!b) return;
+    ui.planEdit = Object.assign({}, ui.planEdit || {}, { body: b.value, source: $("planSource").value, hdays: $("planH").value.split(/[^0-9]+/).filter(Boolean).map(Number), hmonth: +$("planM").value || null });
+    if (!ui.planEdit.id) ui.planEdit.draft = true;
   }
   function tipSave(id, body, source, done) {
     call("tip_save", { p_admin: key, p_id: id, p_body: body, p_source: source }).then(function (r) {
@@ -274,6 +311,13 @@ try { var t0 = localStorage.getItem("yawmi-theme"); if (t0 === "light" || t0 ===
         else try { navigator.clipboard.writeText(txt + "\n" + teamUrl(id)).then(function () { toast("نُسخت الدعوة"); }); } catch (err) {}
         break;
       case "tipEdit": ui.tipEdit = true; render(); break;
+      case "planDay":
+        var pw = arr(ui.planW || (ui.planEdit || {}).wdays).slice(), pi = pw.indexOf(+b.dataset.i);
+        if (pi >= 0) pw.splice(pi, 1); else pw.push(+b.dataset.i);
+        keepPlan(); ui.planW = pw.sort(); render(); break;
+      case "planEdit": ui.planEdit = arr(A.plans).filter(function (x) { return x.id === +id; })[0] || null; ui.planW = null; render(); break;
+      case "planCancel": ui.planEdit = null; ui.planW = null; render(); break;
+      case "planHide": call("tip_hide", { p_admin: key, p_id: +id }).then(function (r) { toast(r.data ? "أُوقفت" : "تعذّر"); load(); }); break;
       case "tipCancel": ui.tipEdit = false; render(); break;
       case "tipSave":
         var body = $("tipBody").value.trim();
@@ -304,6 +348,16 @@ try { var t0 = localStorage.getItem("yawmi-theme"); if (t0 === "light" || t0 ===
   document.addEventListener("submit", function (e) {
     e.preventDefault();
     if (e.target.id === "inForm") signIn($("keyIn").value);
+    else if (e.target.id === "planForm") {
+      var pb = $("planBody").value.trim(), wd = arr(ui.planW || (ui.planEdit || {}).wdays);
+      var hd = $("planH").value.split(/[^0-9]+/).filter(Boolean).map(Number).filter(function (n) { return n >= 1 && n <= 30; });
+      if (!pb) { toast("اكتب نص المعلومة"); return; }
+      if (!wd.length && !hd.length) { toast("اختر يومًا من الأسبوع أو اكتب أيامًا هجرية"); return; }
+      call("tip_plan", { p_admin: key, p_id: (ui.planEdit && ui.planEdit.id) || null, p_body: pb, p_source: $("planSource").value.trim(), p_wdays: wd, p_hdays: hd, p_hmonth: +$("planM").value || null }).then(function (r) {
+        if (r.error || !r.data) { toast("تعذّر الحفظ"); return; }
+        ui.planEdit = null; ui.planW = null; toast("حُفظت ✓"); load();
+      }, function () { toast("تعذّر الاتصال. تأكد من الإنترنت."); });
+    }
     else if (e.target.id === "tipNew") {
       var v = $("tipNewBody").value.trim();
       if (!v) { toast("اكتب نص المعلومة"); return; }
