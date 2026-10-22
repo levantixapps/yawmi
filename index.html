@@ -3660,38 +3660,56 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     return h + '<div><button class="linkbtn" data-act="mineStart">🔗 هذا جهاز جديد، وحسابي على جهاز آخر</button></div></section>';
   }
   // In-app QR scanner: the phone's own camera app may open the link outside the installed app (iPhone)
+  // Both readers run: some devices offer a built-in detector that doesn't read QR codes, so jsQR always backs it up
   function scanQr() {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { toast("الكاميرا غير متاحة هنا. اكتب الرمز بدلًا من ذلك"); return; }
     var el = document.createElement("div");
     el.className = "lock"; el.id = "scanBox";
-    el.innerHTML = '<div class="box2"><h2>📷 وجّه الكاميرا نحو الرمز</h2><video id="scanVid" playsinline muted style="width:100%;max-width:320px;border-radius:12px;background:#000"></video>' +
+    el.innerHTML = '<div class="box2"><h2>📷 وجّه الكاميرا نحو الرمز</h2><video id="scanVid" playsinline muted autoplay style="width:100%;max-width:320px;border-radius:12px;background:#000"></video>' +
+      '<p class="small muted" id="scanHint">قرّب الجوال حتى يملأ الرمز معظم الإطار، وأبعد الانعكاس عن الشاشة.</p>' +
       '<button class="ghost" type="button" id="scanX">إلغاء</button></div>';
     document.body.appendChild(el);
-    var vid = $("scanVid"), stream = null, over = false, det = null, cv = document.createElement("canvas"), cx = cv.getContext("2d", { willReadFrequently: true });
+    var vid = $("scanVid"), stream = null, over = false, det = null, turn = 0, started = Date.now();
+    var cv = document.createElement("canvas"), cx = cv.getContext("2d", { willReadFrequently: true });
     function stop() { over = true; if (stream) stream.getTracks().forEach(function (tr) { tr.stop(); }); el.remove(); }
     function found(txt) {
       var m = /#mine=([a-z0-9-]+)/i.exec(txt || ""), t = cleanCode(m ? m[1] : txt);
       if (t.length !== 8) return false;
       stop(); mineApprove(t); return true;
     }
+    function byJsQR() {
+      if (!window.jsQR) return false;
+      var w = vid.videoWidth, h = vid.videoHeight, k = Math.min(1, 720 / Math.max(w, h)); // smaller frames read faster
+      cv.width = Math.round(w * k); cv.height = Math.round(h * k); cx.drawImage(vid, 0, 0, cv.width, cv.height);
+      var q = window.jsQR(cx.getImageData(0, 0, cv.width, cv.height).data, cv.width, cv.height, { inversionAttempts: "attemptBoth" });
+      return !!(q && found(q.data));
+    }
     function tick() {
       if (over) return;
+      if (Date.now() - started > 20000 && $("scanHint")) $("scanHint").textContent = "لم يُقرأ الرمز بعد؟ أغلق هذه النافذة واكتب الرمز الظاهر تحت QR (٨ أحرف).";
       if (vid.readyState >= 2 && vid.videoWidth) {
-        if (det) { det.detect(vid).then(function (c) { if (!(c[0] && found(c[0].rawValue))) setTimeout(tick, 250); }, function () { setTimeout(tick, 250); }); return; }
-        if (window.jsQR) {
-          cv.width = vid.videoWidth; cv.height = vid.videoHeight; cx.drawImage(vid, 0, 0);
-          var q = window.jsQR(cx.getImageData(0, 0, cv.width, cv.height).data, cv.width, cv.height);
-          if (q && found(q.data)) return;
+        turn++;
+        if (det && turn % 2) {
+          det.detect(vid).then(function (c) { if (!(c && c[0] && found(c[0].rawValue))) setTimeout(tick, 150); }, function () { det = null; setTimeout(tick, 150); });
+          return;
         }
+        if (byJsQR()) return;
       }
-      setTimeout(tick, 250);
+      setTimeout(tick, 150);
     }
     $("scanX").addEventListener("click", stop);
-    if ("BarcodeDetector" in window) { try { det = new window.BarcodeDetector({ formats: ["qr_code"] }); } catch (e) { det = null; } }
-    if (!det && !window.jsQR) { var sc = document.createElement("script"); sc.src = "https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"; document.head.appendChild(sc); }
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }).then(function (st) {
+    if (!window.jsQR) { var sc = document.createElement("script"); sc.src = "https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"; document.head.appendChild(sc); }
+    if ("BarcodeDetector" in window) {
+      try {
+        var bd = window.BarcodeDetector;
+        (bd.getSupportedFormats ? bd.getSupportedFormats() : Promise.resolve(["qr_code"])).then(function (f) {
+          if (arr(f).indexOf("qr_code") >= 0) det = new bd({ formats: ["qr_code"] });
+        }, function () {});
+      } catch (e) { det = null; }
+    }
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } } }).then(function (st) {
       if (over) { st.getTracks().forEach(function (tr) { tr.stop(); }); return; }
-      stream = st; vid.srcObject = st; vid.play(); tick();
+      stream = st; vid.srcObject = st; var pl = vid.play(); if (pl && pl.catch) pl.catch(function () {}); tick();
     }, function () { stop(); toast("لم يُسمح باستعمال الكاميرا. اكتب الرمز بدلًا من ذلك"); });
   }
   // Another personal account, made on the server in this person's name so it opens on all their devices
