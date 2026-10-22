@@ -227,7 +227,7 @@ try { var t0 = localStorage.getItem("yawmi-theme"); if (t0 === "light" || t0 ===
     else if (tip) h += '<div class="tipcard"><p>' + esc(tip.body) + '</p>' + (tip.source ? '<span class="small muted">' + esc(tip.source) + '</span>' : "") +
       '<div><button class="linkbtn" data-act="tipEdit">✏️ تعديل</button></div></div>';
     else h += '<p class="small muted">لا توجد معلومة مفعّلة.</p>';
-    h += plansHtml();
+    h += pickHtml() + plansHtml();
     return h + '<form class="stack" id="tipNew" style="gap:8px"><b>أضف معلومة جديدة (تدور على الأيام)</b><textarea id="tipNewBody" placeholder="نص المعلومة" style="min-height:70px"></textarea>' +
       '<input class="field" id="tipNewSource" placeholder="المصدر (اختياري)"><div><button class="btn" type="submit">أضف</button></div></form>';
   }
@@ -239,6 +239,31 @@ try { var t0 = localStorage.getItem("yawmi-theme"); if (t0 === "light" || t0 ===
     if (arr(t.wdays).length) out.push("كل " + arr(t.wdays).map(function (d) { return WDAYS[d]; }).join(" و"));
     if (arr(t.hdays).length) out.push("يوم " + arr(t.hdays).join(" و") + (t.hmonth ? " من " + HMONTHS[t.hmonth - 1] : " من كل شهر هجري"));
     return out.join("، و");
+  }
+  // Pick the tip of a given day from all tips (supabase_v27.sql); the pinned one comes first that day
+  function pickHtml() {
+    if (!ui.pickOpen) return '<div><button class="ghost" data-act="pickOpen">📌 اختر معلومة اليوم بنفسك</button></div>';
+    var h = '<div class="card stack"><b>📌 اختر المعلومة</b><div class="addform"><span class="small">للتاريخ</span><input class="field" id="pinDay" type="date" value="' + esc(ui.pinDay || keyOf(new Date())) + '">' +
+      '<button class="ghost" data-act="pinClear">إلغاء التثبيت لهذا التاريخ</button><button class="ghost" data-act="pickClose">إغلاق</button></div>';
+    if (ui.allTips == null) return h + '<p class="small muted">جارٍ التحميل…</p></div>';
+    if (ui.allTips === false) return h + '<p class="small muted">يحتاج supabase_v27.sql.</p></div>';
+    return h + '<ul class="list">' + ui.allTips.map(function (t) {
+      return '<li class="card"><p style="margin:0">' + esc(t.body.length > 160 ? t.body.slice(0, 160) + "…" : t.body) + '</p>' +
+        '<span class="small muted">' + (t.source ? esc(t.source) + ' · ' : "") + (t.on_date ? '📌 مثبّتة ليوم ' + esc(t.on_date) + ' · ' : "") + (t.planned ? "📅 مجدولة" : "تدور") + '</span>' +
+        '<div><button class="linkbtn" data-act="pinTip" data-id="' + t.id + '">📌 اجعلها معلومة هذا التاريخ</button></div></li>';
+    }).join("") + '</ul></div>';
+  }
+  function loadAllTips() {
+    ui.allTips = null; render();
+    call("admin_tips_all", { p_admin: key }).then(function (r) { ui.allTips = r.error ? false : arr(r.data); render(); }, function () { ui.allTips = false; render(); });
+  }
+  function pin(id) {
+    var d = ($("pinDay") || {}).value || keyOf(new Date());
+    ui.pinDay = d;
+    call("tip_pin", { p_admin: key, p_id: id, p_day: d }).then(function (r) {
+      if (r.error || !r.data) { toast("تعذّر"); return; }
+      toast(id ? "📌 ثُبّتت ليوم " + d : "أُلغي التثبيت ليوم " + d); load(); loadAllTips();
+    }, function () { toast("تعذّر الاتصال. تأكد من الإنترنت."); });
   }
   function plansHtml() {
     if (A.plans == null) return '<p class="small muted">المعلومات في أيام معيّنة تحتاج supabase_v26.sql.</p>';
@@ -319,6 +344,10 @@ try { var t0 = localStorage.getItem("yawmi-theme"); if (t0 === "light" || t0 ===
         break;
       case "atab": ui.atab = b.dataset.k; try { localStorage.setItem("yawmi-admin-tab", ui.atab); } catch (er) {} render(); window.scrollTo(0, 0); break;
       case "tipEdit": ui.tipEdit = true; render(); break;
+      case "pickOpen": ui.pickOpen = true; loadAllTips(); break;
+      case "pickClose": ui.pickOpen = false; render(); break;
+      case "pinTip": pin(+id); break;
+      case "pinClear": pin(null); break;
       case "planDay":
         var pw = arr(ui.planW || (ui.planEdit || {}).wdays).slice(), pi = pw.indexOf(+b.dataset.i);
         if (pi >= 0) pw.splice(pi, 1); else pw.push(+b.dataset.i);

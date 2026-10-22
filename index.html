@@ -2628,12 +2628,13 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   }
   function loadTip(force) {
     if (!sb) return;
-    if (!force && tip && tip.day === tipDay()) return;
+    if (!force && tip && tip.day === tipDay() && Date.now() - (tip.at || 0) < 1800000) return; // every half hour, so the admin's pick arrives the same day
     var hm = hijriMD(new Date()), args = { p_day: tipDay() };
     // with the Hijri month and day, a tip planned for this weekday or Hijri date comes first (supabase_v26.sql)
     (hm ? sb.rpc("yawmi_tip_for", { p_day: tipDay(), p_hm: hm.m, p_hd: hm.d }).then(function (r) { return r.error && r.error.code === "PGRST202" ? rpc("tip_for", args) : r; }) : rpc("tip_for", args)).then(function (r) {
       if (r.error || !r.data) return;
-      tip = { day: tipDay(), id: r.data.id, body: r.data.body, source: r.data.source || "", hidden: tip && tip.day === tipDay() ? tip.hidden : false };
+      var same = tip && tip.day === tipDay() && tip.id === r.data.id;
+      tip = { day: tipDay(), at: Date.now(), id: r.data.id, body: r.data.body, source: r.data.source || "", hidden: same ? tip.hidden : false };
       try { localStorage.setItem(TIP_KEY, JSON.stringify(tip)); } catch (e) {}
       softRender();
     }, function () {});
