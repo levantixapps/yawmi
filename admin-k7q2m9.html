@@ -145,7 +145,8 @@ try { var t0 = localStorage.getItem("yawmi-theme"); if (t0 === "light" || t0 ===
         shared: "حساب مشترك إضافي (عنده " + (q.shared_used != null ? q.shared_used + " من " : "حدّه ") + q.max_shared + ")",
         devices: "جهاز إضافي (عنده " + q.devices_used + " من " + q.max_devices + ")"
       }[q.kind] || q.kind;
-      if (q.want) what += "، باسم «" + esc(q.want) + "» ويُنشأ له عند الموافقة";
+      if (q.joins) what += "، للانضمام إلى «" + esc(q.joins) + "» ويُضاف إليه عند الموافقة";
+      else if (q.want) what += "، باسم «" + esc(q.want) + "» ويُنشأ له عند الموافقة";
       return '<li class="card"><div class="top"><span class="ttl"><span><b>' + esc(q.name || q.person) + '</b>' + (q.label ? ' · <span class="small">' + esc(q.label) + '</span>' : "") + '</span>' +
         '<span class="small">يطلب: ' + what + ' · ' + ago(q.created_at) + '</span>' + (q.note ? '<span class="small muted">«' + esc(q.note) + '»</span>' : "") + '</span></div>' +
         '<div class="row-wrap"><button class="btn" data-act="req" data-id="' + q.id + '" data-v="1">✓ موافقة</button><button class="ghost" data-act="req" data-id="' + q.id + '" data-v="0">✗ رفض</button></div></li>';

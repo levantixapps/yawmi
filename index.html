@@ -3385,7 +3385,8 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     }).length;
   }
   // name: the team or shared account the person couldn't join; make: the one they wanted to create (made on approval)
-  function reqAsk(kind, name, make) { ui.req = { kind: kind, name: name || "", make: make || "" }; ui.tab = "settings"; render(); window.scrollTo(0, 0); }
+  // inv: the invite token of the team the person couldn't join; an approval then adds them (supabase_v23.sql)
+  function reqAsk(kind, name, make, inv) { ui.req = { kind: kind, name: name || "", make: make || "", inv: inv || "" }; ui.tab = "settings"; render(); window.scrollTo(0, 0); }
   function reqCardHtml() {
     var r = ui.req;
     if (!r) return "";
@@ -3398,8 +3399,8 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     }[r.kind];
     var need = { personal: "حسابًا آخر", teams: "فريقًا آخر", shared: "حسابًا مشتركًا آخر", devices: "جهازًا آخر" }[r.kind];
     var h = '<section class="card"><h2>📩 اطلب من المشرف</h2><p class="small">' + why + ' إن احتجت ' + need + '، فاطلبه من المشرف.' +
-      (r.make ? ' وحين يوافق يُنشأ «' + esc(r.make) + '» تلقائيًا ويظهر في حساباتك.' : "") + '</p>';
-    if (pending) return h + '<p class="small"><b>⏳ طلبك قيد المراجعة.</b> حين يوافق المشرف تصلك رسالة عند فتح التطبيق' + (r.name ? "، ثم افتح الرابط من جديد" : "") + '.</p><div><button class="ghost" data-act="reqCancel">إغلاق</button></div></section>';
+      (r.make ? ' وحين يوافق يُنشأ «' + esc(r.make) + '» تلقائيًا ويظهر في حساباتك.' : r.inv && r.name ? ' وحين يوافق تنضم إلى «' + esc(r.name) + '» تلقائيًا.' : "") + '</p>';
+    if (pending) return h + '<p class="small"><b>⏳ طلبك قيد المراجعة.</b> حين يوافق المشرف تصلك رسالة عند فتح التطبيق' + (r.name && !r.inv ? "، ثم افتح الرابط من جديد" : "") + '.</p><div><button class="ghost" data-act="reqCancel">إغلاق</button></div></section>';
     if (!mainKey()) return h + '<p class="small muted">يحتاج الطلب حسابًا سحابيًا: اكتب اسمك في حسابك الأول، أو فعّل الحفظ السحابي فيه.</p><div><button class="ghost" data-act="reqCancel">إغلاق</button></div></section>';
     return h + '<textarea class="field" id="reqNote" rows="2" maxlength="200" placeholder="السبب باختصار، مثل: حساب لعملي"></textarea>' +
       '<div class="row-wrap"><button class="btn" data-act="reqSend">📩 أرسل الطلب</button><button class="ghost" data-act="reqCancel">إلغاء</button></div></section>';
@@ -3407,7 +3408,10 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   function reqSend() {
     var r = ui.req, note = ($("reqNote") || {}).value || "";
     var args = { p_key: mainKey(), p_kind: r.kind, p_note: note };
-    (r.make ? sb.rpc("yawmi_request", { p_key: args.p_key, p_kind: r.kind, p_note: note, p_name: r.make }).then(function (x) { return x.error && x.error.code === "PGRST202" ? sb.rpc("yawmi_request", args) : x; }) : sb.rpc("yawmi_request", args)).then(function (x) {
+    var old = function (x) { return x.error && x.error.code === "PGRST202" ? sb.rpc("yawmi_request", args) : x; }; // older servers
+    (r.inv || r.make ? sb.rpc("yawmi_request", { p_key: args.p_key, p_kind: r.kind, p_note: note, p_name: r.make || null, p_invite: r.inv || null }).then(function (x) {
+      return x.error && x.error.code === "PGRST202" ? sb.rpc("yawmi_request", { p_key: args.p_key, p_kind: r.kind, p_note: note, p_name: r.make || null }).then(old) : x;
+    }) : sb.rpc("yawmi_request", args)).then(function (x) {
       if (x.error || !x.data) { toast(x.error && x.error.code === "PGRST202" ? "الطلبات غير مفعّلة بعد على الخادم" : "تعذّر إرسال الطلب"); return; }
       limits = limits || {}; limits.pending = arr(limits.pending).concat([r.kind]);
       toast("📩 أُرسل الطلب إلى المشرف"); render(); limitsLoad();
@@ -3757,7 +3761,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     sb.rpc("yawmi_team_join", { p_key: c, p_token: tk, p_label: deviceLabel() }).then(function (r) {
       if (r.error) { toast(r.error.code === "PGRST202" ? "الانضمام بالرابط غير مفعّل بعد على الخادم" : "تعذّر الانضمام: " + netError(r.error)); return; }
       if (!r.data) { toast("رابط الفريق غير صحيح أو انتهت صلاحيته. اطلب رابطًا جديدًا."); return; }
-      if (r.data.err === "limit") { reqAsk(r.data.tk === "shared" ? "shared" : "teams", r.data.name); return; }
+      if (r.data.err === "limit") { reqAsk(r.data.tk === "shared" ? "shared" : "teams", r.data.name, "", tk); return; }
       var nid = addTeamProfile(r.data, "main");
       toast((r.data.tk === "shared" ? "👨‍👩‍👧" : "👥") + " انضممت إلى «" + teamTitle(r.data) + "» ✓");
       if (nid) setTimeout(function () { switchProfile(nid); }, 1500);

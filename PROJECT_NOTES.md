@@ -178,6 +178,7 @@
 | `supabase_v12.sql` | كل مستخدم ينشئ فريقه من ⚙ ← الحسابات (`yawmi_team_create`، حتى ١٠ فرق)، ومسؤول الفريق ينشئ رابط الدعوة من داخل حساب الفريق (`yawmi_team_info` و`yawmi_team_link`) |
 | `supabase_v13.sql` | الحدود: حساب شخصي واحد (`max_personal`) وفريقان (`max_teams`، مسؤول + تابع)، وطلبات إلى المشرف (`yawmi_requests`، `yawmi_request`، `yawmi_limits`، `yawmi_admin_requests`، `yawmi_admin_request_decide`) |
 | `supabase_v14.sql` | زر «تصفير المنصة» في لوحة المشرف (`yawmi_admin_reset`): يحذف كل الحسابات وما يتبعها، ويبقي معلومات اليوم ومفتاح المشرف |
+| `supabase_v23.sql` | طلب الانضمام بعد بلوغ الحد يحفظ الفريق (`yawmi_requests.team`، `yawmi_request` بخمسة معاملات `p_invite`)، فموافقة المشرف تضيف الشخص إليه مباشرة |
 | `supabase_v22.sql` | «👑 اجعله المسؤول» (`yawmi_team_handover`): عضو انضم برابط يصبح مسؤول الفريق أو الحساب المشترك، والسابق عضوًا، وتنتقل أدوار المعاملات مع أصحابها |
 | `supabase_v21.sql` | إصلاح `yawmi_flow_who` (تعارض اسم `r_num`) |
 | `supabase_v20.sql` | «📨 المعاملات» في الفريق: جدول `yawmi_flows` (مسار أدوار `steps`، الخطوة `pos`، السجل `log`، المهلة `days`)، و`yawmi_flows_list` و`yawmi_flow_new` و`yawmi_flow_act` (next / back / route / reject، يتحقق الخادم من صاحب الخطوة)، وإشعار لصاحب الخطوة الجديدة عبر `yawmi_flow_pings` داخل `yawmi_push_due`، ورقم الجهاز في `yawmi_push.num` |
@@ -187,7 +188,7 @@
 | `supabase_v16.sql` | أجهزتي: الحساب للشخص لا للجهاز (`yawmi_my_devices`، `yawmi_me`، `yawmi_mine_start/approve/take`، `yawmi_my_devices_list/remove`)، والحسابات الشخصية الأخرى باسم صاحبها (`owner`، `pname`، `yawmi_own_create/claim`)، والحذف من المنصة (`yawmi_remove`) |
 | `supabase_v15.sql` | تخفيف الحمل: مزامنة ذكية بختم `updated_at` (`yawmi_stamp`، و`yawmi_get` يعيد `stamp`، و`yawmi_save` يعيد الختم الجديد)، وسجل تغييرات ٢٥ سطرًا، وإشعارات للأجهزة الفعّالة فقط (`yawmi_push.seen` خلال ٣ أيام)، وحدود المشاركة (`max_shared`=1 على الجهاز، و`max_devices`=3 على الخادم في `yawmi_join`/`yawmi_pair_take`) |
 
-(لا يوجد v3، فقد دُمج في v4.) **كلها مُشغَّلة على المشروع الحالي، ما عدا v9 إلى v22 حتى يشغّلها المالك.**
+(لا يوجد v3، فقد دُمج في v4.) **كلها مُشغَّلة على المشروع الحالي، ما عدا v9 إلى v23 حتى يشغّلها المالك.**
 
 ### الجداول
 | الجدول | محتواه |
