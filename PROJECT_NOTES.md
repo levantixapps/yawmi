@@ -19,6 +19,7 @@
 | حساب GitHub | `levantixapps` (كان اسمه سابقًا `mohammadalorfaa2033-design`) |
 | مستودع التطبيق | `levantixapps/yawmi` ← على الحاسوب: `D:\Time Management` |
 | مستودع الصفحة الرئيسية | `levantixapps/levantixapps.github.io` ← على الحاسوب: `D:\Levantix\levantixapps.github.io` |
+| صفحة الملف التعريفي على GitHub | `levantixapps/levantixapps` (README فقط) ← على الحاسوب: `D:\Levantix\levantixapps` |
 | قاعدة البيانات | Supabase، المشروع `nkcngzsjevgzurwxkjqn` (الخطة المجانية) |
 | معرّف تطبيق أندرويد | `io.github.levantixapps.yawmi` |
 
