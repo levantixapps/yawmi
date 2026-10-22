@@ -35,6 +35,7 @@ try { var t0 = localStorage.getItem("yawmi-theme"); if (t0 === "light" || t0 ===
   var CFG = window.PLANNER_CONFIG || {}, ADMIN_KEY = "yawmi-admin";
   var $ = function (id) { return document.getElementById(id); }, view = $("view");
   var sb = null, key = "", A = null, tip = null, ui = { tipEdit: false };
+  try { ui.atab = localStorage.getItem("yawmi-admin-tab") || ""; } catch (e) {}
   try { key = localStorage.getItem(ADMIN_KEY) || ""; } catch (e) {}
 
   // Same look as the app: take its stylesheet
@@ -126,7 +127,13 @@ try { var t0 = localStorage.getItem("yawmi-theme"); if (t0 === "light" || t0 ===
     }
     if (!A || A.loading) { view.innerHTML = '<p class="small muted">جارٍ التحميل…</p>'; return; }
     if (A.err) { view.innerHTML = '<p class="err">' + esc(A.err) + '</p>'; return; }
-    view.innerHTML = statsHtml() + reqsHtml() + teamsHtml() + peopleHtml() + tipsHtml() + resetHtml();
+    // Tabs, so each part is one tap away; the stats stay on top, and pending requests show their count
+    var tabs = [["reqs", "📩 الطلبات" + (A.reqs.length ? " (" + A.reqs.length + ")" : "")], ["teams", "👥 الفرق"], ["people", "👤 الأشخاص"], ["tips", "💡 المعلومات"], ["danger", "⚠️ الخطر"]];
+    var cur = ui.atab || (A.reqs.length ? "reqs" : "people");
+    var body = { reqs: function () { return reqsHtml() || '<p class="small muted">لا توجد طلبات معلّقة.</p>'; }, teams: teamsHtml, people: peopleHtml, tips: tipsHtml, danger: resetHtml }[cur];
+    view.innerHTML = statsHtml() + '<div class="settabs" role="tablist" style="margin:12px 0">' + tabs.map(function (t) {
+      return '<button role="tab" data-act="atab" data-k="' + t[0] + '" aria-pressed="' + (t[0] === cur) + '">' + t[1] + '</button>';
+    }).join("") + '</div>' + (body ? body() : "");
   }
   function statsHtml() {
     var st = A.stats, idle = st.idle_days;
@@ -310,6 +317,7 @@ try { var t0 = localStorage.getItem("yawmi-theme"); if (t0 === "light" || t0 ===
         if (navigator.share) navigator.share({ title: "يومي", text: txt, url: teamUrl(id) }).catch(function () {});
         else try { navigator.clipboard.writeText(txt + "\n" + teamUrl(id)).then(function () { toast("نُسخت الدعوة"); }); } catch (err) {}
         break;
+      case "atab": ui.atab = b.dataset.k; try { localStorage.setItem("yawmi-admin-tab", ui.atab); } catch (er) {} render(); window.scrollTo(0, 0); break;
       case "tipEdit": ui.tipEdit = true; render(); break;
       case "planDay":
         var pw = arr(ui.planW || (ui.planEdit || {}).wdays).slice(), pi = pw.indexOf(+b.dataset.i);
