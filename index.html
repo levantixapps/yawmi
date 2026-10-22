@@ -41,6 +41,7 @@ try { var t0 = localStorage.getItem("yawmi-theme"); if (t0 === "light" || t0 ===
   --font-display: "Cairo", "IBM Plex Sans Arabic", Tahoma, sans-serif;
   --font-body: "IBM Plex Sans Arabic", Tahoma, "Segoe UI", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+  --pattern: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='88' height='88' viewBox='0 0 88 88'%3E%3Cg fill='none' stroke='rgba%2831,95,191,0.07%29' stroke-width='1'%3E%3Cpath d='M44 20L68 44L44 68L20 44Z'/%3E%3Cpath d='M27 27H61V61H27Z'/%3E%3Cpath d='M44 0V20M44 68V88M0 44H20M68 44H88M0 0L27 27M88 0L61 27M0 88L27 61M88 88L61 61'/%3E%3Ccircle cx='44' cy='44' r='9'/%3E%3C/g%3E%3C/svg%3E");
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -48,6 +49,7 @@ try { var t0 = localStorage.getItem("yawmi-theme"); if (t0 === "light" || t0 ===
     --accent: #6EA4F0; --accent-soft: #1A2A42; --done: #57C68A; --done-soft: #16301F;
     --star: #F5A04A; --star-soft: #3A2714; --q-now: #F27A72; --q-now-soft: #3A1C1B; --q-short: #EBC85A; --q-short-soft: #362E14;
     --c1: #6EA4F0; --c2: #57C68A; --c3: #8F98E8; --c4: #F5A04A; --c5: #C49AE8; --c6: #94A0B0;
+    --pattern: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='88' height='88' viewBox='0 0 88 88'%3E%3Cg fill='none' stroke='rgba%28110,164,240,0.06%29' stroke-width='1'%3E%3Cpath d='M44 20L68 44L44 68L20 44Z'/%3E%3Cpath d='M27 27H61V61H27Z'/%3E%3Cpath d='M44 0V20M44 68V88M0 44H20M68 44H88M0 0L27 27M88 0L61 27M0 88L27 61M88 88L61 61'/%3E%3Ccircle cx='44' cy='44' r='9'/%3E%3C/g%3E%3C/svg%3E");
     color-scheme: dark;
   }
 }
@@ -56,11 +58,12 @@ try { var t0 = localStorage.getItem("yawmi-theme"); if (t0 === "light" || t0 ===
     --accent: #6EA4F0; --accent-soft: #1A2A42; --done: #57C68A; --done-soft: #16301F;
     --star: #F5A04A; --star-soft: #3A2714; --q-now: #F27A72; --q-now-soft: #3A1C1B; --q-short: #EBC85A; --q-short-soft: #362E14;
     --c1: #6EA4F0; --c2: #57C68A; --c3: #8F98E8; --c4: #F5A04A; --c5: #C49AE8; --c6: #94A0B0;
+  --pattern: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='88' height='88' viewBox='0 0 88 88'%3E%3Cg fill='none' stroke='rgba%28110,164,240,0.06%29' stroke-width='1'%3E%3Cpath d='M44 20L68 44L44 68L20 44Z'/%3E%3Cpath d='M27 27H61V61H27Z'/%3E%3Cpath d='M44 0V20M44 68V88M0 44H20M68 44H88M0 0L27 27M88 0L61 27M0 88L27 61M88 88L61 61'/%3E%3Ccircle cx='44' cy='44' r='9'/%3E%3C/g%3E%3C/svg%3E");
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
 html { padding-top: env(safe-area-inset-top, 0px); background: var(--bg); }
-body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 16px; line-height: 1.6; direction: rtl; }
+body { margin: 0; background: var(--pattern) center top / 88px 88px repeat, var(--bg); background-attachment: fixed; color: var(--ink); font-family: var(--font-body); font-size: 16px; line-height: 1.6; direction: rtl; }
 [hidden] { display: none !important; }
 .wrap { max-width: 560px; margin: 0 auto; padding-inline: 16px; padding-block: 0 110px; display: flex; flex-direction: column; gap: 20px; }
 button, input, textarea, select { font: inherit; color: inherit; }
@@ -119,7 +122,9 @@ section, .stack { display: flex; flex-direction: column; gap: 10px; }
 .flowpath i { font-style: normal; color: var(--muted); }
 .flowcard.late { border-color: var(--q-now); }
 .tab { border: 0; background: none; border-radius: 12px; padding: 6px 4px; display: flex; flex-direction: column; align-items: center; color: var(--muted); font-size: .8rem; }
-.tab[hidden] { display: none; }
+.settabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.settabs button { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 6px 12px; font-size: .88rem; color: var(--muted); }
+.settabs button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 700; }
 .tab b { font-family: var(--font-display); font-size: 1rem; font-weight: 600; }
 .tab[aria-current="true"] { background: var(--accent-soft); color: var(--accent); }
 
@@ -2181,7 +2186,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   function settingsView() {
     var th = themeNow();
     var h = reqCardHtml() + (ui.addAsk ? '<section class="card"><h2>🔗 ربط هذا الجهاز بحسابك</h2><p class="small">فتحت رابط ربط جهاز. هذا الجهاز فيه حساب الآن، فإن تابعت يصبح حسابه الأول هو حسابك على جهازك الأساسي، وتُدمج فيه مهام هذا الجهاز، وتظهر عليه كل حساباتك.</p>' +
-      '<div class="row-wrap"><button class="btn" data-act="addYes">✓ متابعة الربط</button><button class="ghost" data-act="addNo">إلغاء</button></div></section>' : "") + (ui.teamInfo && cloud.role !== "secondary" && code ? teamLinkHtml(ui.teamInfo) : "") + '<a class="guidelink" href="guide.html">📖 دليل استخدام «يومي» <span>كل الميزات خطوة بخطوة ←</span></a>' +
+      '<div class="row-wrap"><button class="btn" data-act="addYes">✓ متابعة الربط</button><button class="ghost" data-act="addNo">إلغاء</button></div></section>' : "") + (ui.teamInfo && cloud.role !== "secondary" && code ? teamLinkHtml(ui.teamInfo) : "") + setGroup("gen") + '<a class="guidelink" href="guide.html">📖 دليل استخدام «يومي» <span>كل الميزات خطوة بخطوة ←</span></a>' +
       shareHtml();
     h += '<section><h2>المظهر</h2><div class="rangeseg">' + [["auto", "تلقائي"], ["light", "☀️ فاتح"], ["dark", "🌙 غامق"]].map(function (o) {
       return '<button data-act="theme" data-t="' + o[0] + '" aria-pressed="' + (th === o[0]) + '">' + o[1] + '</button>';
@@ -2211,6 +2216,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     h += '<p class="small muted">بدون إشعارات الخادم: يصلك صوت قصير وإشعار ما دام التطبيق مفتوحًا أو في الخلفية فقط.</p></section>';
     var sg = sleepGoal();
     h += '<section><h2>اسمك</h2><input class="field" value="' + esc(userName) + '" data-act="uname" placeholder="اسمك" aria-label="اسمك"><p class="small muted">يظهر لمسؤول الفريق مع سجل تغييراتك.</p></section>';
+    h += setGroup("acc");
     if (sb) h += myDevicesHtml();
     h += '<section id="accounts"><h2>الحسابات</h2><p class="small muted">لكل حساب يومه ومهامه وتقاريره وكوده السحابي المستقل، مثل حياتك الشخصية والعمل.</p><ul class="list">' +
       profiles.list.map(function (pf) {
@@ -2269,12 +2275,15 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
         else if (devs.length && !ui.teamInfo) h += '<p class="small muted">أُلغيت مشاركة الحساب الشخصي. هذه الأجهزة تبقى تعمل حتى تلغي ربطها.</p>';
         else h += '<ul class="list">' + devs.map(function (dv) {
           var seen = dv.last_seen ? new Date(dv.last_seen) : null;
+          var lead = ui.teamInfo ? (ui.confirmLead === dv.token
+            ? '<p class="small err">سيصبح «' + esc(dv.uname || ("جهاز " + dv.num)) + '» المسؤول، وتصبح أنت عضوًا عاديًا فيه.</p><div class="row-wrap"><button class="ghost danger" data-act="leadYes" data-n="' + dv.num + '">👑 نعم، اجعله المسؤول</button><button class="ghost" data-act="leadNo">تراجع</button></div>'
+            : '<div><button class="linkbtn" data-act="leadAsk" data-tok="' + esc(dv.token) + '">👑 اجعله المسؤول</button></div>') : "";
           return '<li class="card"><div class="left"><span class="t"><b>' + esc(dv.uname || ("جهاز رقم " + dv.num)) + '</b> · جهاز رقم ' + dv.num + ' · ' + esc(dv.label || "جهاز") +
             (seen ? '<br><span class="small muted">آخر ظهور: ' + (keyOf(seen) === keyOf(new Date()) ? "اليوم " : shortDate(keyOf(seen)) + " ") + stamp(seen.getTime()) + '</span>' : "") + '</span>' +
             (ui.confirmRevoke === dv.token
               ? '<button class="ghost danger" data-act="revokeYes" data-tok="' + esc(dv.token) + '">تأكيد الإلغاء</button><button class="ghost" data-act="revokeNo">تراجع</button>'
               : '<button class="ghost danger" data-act="revoke" data-tok="' + esc(dv.token) + '">إلغاء الربط</button>') + '</div>' +
-            (shr ? "" : changesHtml(dv)) + '</li>';
+            lead + (shr ? "" : changesHtml(dv)) + '</li>';
         }).join("") + '</ul>';
         if (PROFILE === "main") h += '<details class="box"><summary>الكود الرئيسي (للاستعادة فقط)</summary><div class="inner">' +
           '<p>احتفظ به في مكان آمن ولا تعطه لأحد. تحتاجه فقط إن ضاعت كل أجهزتك. لربط جهاز آخر استعمل «📱 أجهزتي».</p>' +
@@ -2285,6 +2294,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     if (cloud.msg) h += '<p class="err">' + esc(cloud.msg) + '</p>';
     h += '</div></section>';
 
+    h += setGroup("wor");
     var pc = prayCfg(), inList = PRAYER_CITIES.some(function (c) { return c[0] === pc.name; });
     h += '<section><h2>🕌 أوقات الصلاة</h2><p class="muted small">تظهر في جدولك مع الوقت المتبقي للصلاة التالية، ويتركها الترتيب التلقائي فارغة. تُحسب على جهازك ولا تحتاج إنترنت.</p>' +
       '<div class="row-wrap"><button class="' + (pc.on ? "btn" : "ghost") + '" data-act="prayOn" aria-pressed="' + !!pc.on + '">' + (pc.on ? "🕌 أوقات الصلاة مفعّلة" : "فعّل أوقات الصلاة") + '</button></div>';
@@ -2308,6 +2318,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     h += '</section>';
     h += quranSettingsHtml();
     if (!isTeamOnly()) h += kidsSettingsHtml();
+    h += setGroup("plan");
     h += focusSettingsHtml();
 
     if (memberLock()) h += '<section><h2>إعدادات الفريق</h2><p class="small muted">🔒 التقسيمات والمهام الدائمة والقوالب والأهداف يعدّلها مسؤول الفريق، وتصلك تلقائيًا.</p></section>';
@@ -2337,8 +2348,8 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     }).join("") + '</ul><form class="addform" data-form="cat"><input class="field grow" id="catInput" type="text" placeholder="تقسيم جديد، مثل: القراءة" autocomplete="off"><button class="btn" type="submit">أضف</button></form></section>';
 
     }
-    h += flowSettingsHtml();
-    h += resetHtml();
+    h += setGroup("acc") + flowSettingsHtml();
+    h += setGroup("data") + resetHtml();
     var archived = Object.keys(state.days).filter(function (k) { return offsetOf(k) < -SPAN; }).length;
     h += '<section><h2>الأرشيف</h2><p class="small muted">السحابة تحفظ ٧ أيام فقط، وهذا الجهاز يحتفظ بالأيام السابقة لمدة سنة. المحفوظ الآن: <b>' + archived + '</b> يومًا قديمًا. لتصفّحها اضغط على التاريخ في الأعلى. الأرشيف لا يُرفع إلى السحابة، فخذ منه نسخة احتياطية بين حين وآخر.</p></section>';
     h += '<details class="box"' + (ui.backupOpen ? " open" : "") + '><summary>نسخة احتياطية</summary><div class="inner">' +
@@ -2346,8 +2357,22 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       '<div class="row-wrap"><button class="ghost" data-act="copy">نسخ البيانات</button><button class="ghost" data-act="restore">استعادة من النص</button><button class="ghost danger" data-act="wipe">مسح بيانات هذا الجهاز</button></div>' +
       (ui.confirmWipe ? '<div class="row-wrap"><span>سيُحذف ما على هذا الجهاز. ' + (code ? "ما في السحابة يبقى ويعود عند المزامنة." : "لا يمكن التراجع.") + '</span><button class="ghost danger" data-act="wipeYes">نعم، امسح</button><button class="ghost" data-act="wipeNo">إلغاء</button></div>' : "") +
       '</div></details>';
-    h += '<div class="navrow"><span></span><button class="ghost" data-act="tab" data-tab="day">رجوع إلى جدولي</button></div>';
-    return h;
+    h += setGroup("end") + '<div class="navrow"><span></span><button class="ghost" data-act="tab" data-tab="day">رجوع إلى جدولي</button></div>';
+    return settingsTabs(h);
+  }
+  var SET_TABS = [["gen", "⚙ عام"], ["acc", "👤 الحسابات"], ["wor", "🕌 العبادة"], ["plan", "🗓 التخطيط"], ["data", "💾 البيانات"]];
+  function setGroup(k) { return "\u0001" + k + "\u0002"; }
+  // What comes before the first mark (requests, the invite link) always shows; then the chosen tab's sections
+  function settingsTabs(h) {
+    var cur = ui.setTab || "gen", top = "", parts = {};
+    h.split("\u0001").forEach(function (chunk, i) {
+      if (!i) { top = chunk; return; }
+      var j = chunk.indexOf("\u0002"), k = chunk.slice(0, j);
+      parts[k] = (parts[k] || "") + chunk.slice(j + 1);
+    });
+    return top + '<div class="settabs" role="tablist">' + SET_TABS.map(function (t) {
+      return '<button role="tab" data-act="setTab" data-k="' + t[0] + '" aria-pressed="' + (t[0] === cur) + '">' + t[1] + '</button>';
+    }).join("") + '</div>' + (parts[cur] || "") + (parts.end || "");
   }
   function removeRoutineItems(rid) {
     windowKeys().forEach(function (k) {
@@ -2644,7 +2669,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       case "newCode": createCode(); break;
       case "useCode": useCode($("codeInput").value); break;
       case "forget": forgetDevice(""); toast("فُصل الجهاز، وبياناتك باقية عليه وفي السحابة"); break;
-      case "mineStart": if (mainKey() && !ui.mineAsk) { ui.mineAsk = true; ui.tab = "settings"; render(); break; } mineStart(); break;
+      case "mineStart": ui.setTab = "acc"; if (mainKey() && !ui.mineAsk) { ui.mineAsk = true; ui.tab = "settings"; render(); break; } mineStart(); break;
       case "mineCancel": mineStop(); ui.mineAsk = false; ui.mineAdd = false; ui.mineUrl = null; render(); break;
       case "mineAdd": ui.mineAdd = true; render(); break;
       case "mineApprove": mineApprove($("mineInput").value); break;
@@ -2702,6 +2727,10 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
         break;
       case "pathCancel": ui.pathEdit = null; ui.pathName = ""; ui.pathSteps = []; render(); break;
       case "pathDel": state.settings.paths = paths().filter(function (x) { return x.id !== id; }); commit(); break;
+      case "leadAsk": ui.confirmLead = b.dataset.tok; render(); break;
+      case "leadNo": ui.confirmLead = null; render(); break;
+      case "leadYes": teamHandover(+b.dataset.n); break;
+      case "setTab": ui.setTab = b.dataset.k; render(); window.scrollTo(0, 0); break;
       case "tcfgAdd": state.settings.tcfg = { add: !membersAdd() }; commit(); toast(membersAdd() ? "يستطيع الأعضاء إضافة مهامهم" : "لا يضيف المهام إلا أنت"); break;
       case "reqSend": reqSend(); break;
       case "reqCancel": ui.req = null; render(); break;
@@ -3092,7 +3121,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     if (!b) return;
     closeProfMenu();
     if (b.dataset.go === "__manage") {
-      ui.tab = "settings"; ui.open = null; render();
+      ui.tab = "settings"; ui.setTab = "acc"; ui.open = null; render();
       var a = $("accounts"); if (a) a.scrollIntoView({ block: "start" });
     } else switchProfile(b.dataset.go);
   });
@@ -3492,7 +3521,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       if (r.error || !r.data) { toast(r.error && r.error.code === "PGRST202" ? "رابط الربط غير مفعّل بعد على الخادم" : "تعذّر إنشاء الرابط: " + netError(r.error)); return; }
       if (r.data === "limit") { reqAsk("devices"); return; }
       if (r.data === "notmain") { toast("إضافة الأجهزة من جهازك الأساسي ⭐ فقط"); return; }
-      ui.mineUrl = { url: appUrl() + "#add=" + r.data, until: Date.now() + 10 * 60000 };
+      ui.setTab = "acc"; ui.mineUrl = { url: appUrl() + "#add=" + r.data, until: Date.now() + 10 * 60000 };
       render(); mineShare();
     }, function () { toast("تعذّر الاتصال. تأكد من الإنترنت."); });
   }
@@ -3519,7 +3548,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     if (!online()) return;
     sb.rpc("yawmi_mine_start").then(function (r) {
       if (r.error || !r.data) { toast(r.error && r.error.code === "PGRST202" ? "ربط الأجهزة غير مفعّل بعد على الخادم" : "تعذّر إنشاء الرمز: " + netError(r.error)); return; }
-      ui.mine = { token: r.data, until: Date.now() + 10 * 60000 }; ui.mineAsk = false; ui.tab = "settings";
+      ui.mine = { token: r.data, until: Date.now() + 10 * 60000 }; ui.mineAsk = false; ui.tab = "settings"; ui.setTab = "acc";
       render(); var sec = $("mydevs"); if (sec) sec.scrollIntoView({ block: "start" });
       minePoll();
     }, function () { toast("تعذّر الاتصال. تأكد من الإنترنت."); });
@@ -3670,6 +3699,17 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       var nid = addTeamProfile(r.data, "main");
       toast((kind === "shared" ? "👨‍👩‍👧" : "👥") + " أُنشئ «" + teamTitle(r.data) + "». أنشئ له رابط دعوة من ⚙");
       if (nid) setTimeout(function () { switchProfile(nid); }, 1200);
+    }, function () { toast("تعذّر الاتصال. تأكد من الإنترنت."); });
+  }
+  // The leader hands the team (or shared account) to a member (supabase_v22.sql): that member becomes the leader,
+  // this person a member; each device swaps the account on its next check-in (meLoad)
+  function teamHandover(n) {
+    ui.confirmLead = null;
+    if (!online()) { render(); return; }
+    sb.rpc("yawmi_team_handover", { p_key: code, p_num: n }).then(function (r) {
+      if (r.error) { toast(r.error.code === "PGRST202" ? "نقل المسؤولية غير مفعّل بعد على الخادم" : "تعذّر: " + netError(r.error)); return; }
+      if (!r.data) { toast("تعذّر: هذا العضو انضم بالطريقة القديمة، فلا يمكن جعله المسؤول"); render(); return; }
+      toast("👑 صار المسؤول الجديد. أنت الآن عضو"); meAt = 0; meLoad();
     }, function () { toast("تعذّر الاتصال. تأكد من الإنترنت."); });
   }
   // The leader, inside the team account: an invite link that expires, or stop it
@@ -4065,6 +4105,10 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     }, function (e) {
       if (e && e.gone) {
         syncing = false;
+        var gp = currentProfile();
+        if (gp && gp.team && PROFILE !== "main") { // a team account that ended or changed hands here: drop it; meLoad brings the new form on reload
+          dropProfile(gp); toast("تغيّر هذا الحساب أو لم يعد لك فيه مكان"); setTimeout(function () { location.reload(); }, 1500); return;
+        }
         forgetDevice(cloud.role === "secondary" ? "أُلغي ربط هذا الجهاز من المسؤول الأول. بياناتك باقية عليه، ويمكنك ربطه من جديد." : "لم يُعثر على حسابك في السحابة. تأكد من الكود.");
         return;
       }
@@ -4136,7 +4180,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       openInvite(lk, cleanCode(m[2])); return;
     }
     if (m[1].toLowerCase() === "mine") {
-      ui.tab = "settings"; render();
+      ui.tab = "settings"; ui.setTab = "acc"; render();
       if (!mainKey()) { toast("افتح هذا الرابط على جهازك الذي فيه حسابك، أو اكتب الرمز فيه"); return; }
       mineApprove(m[2]); return;
     }
