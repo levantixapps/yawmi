@@ -380,6 +380,10 @@ details.box textarea { font-size: .78rem; direction: ltr; }
 .focusbar.mode-idle button:first-child { background: var(--accent); color: var(--surface); }
 /* Quran */
 .qcard { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.srow { display: flex; align-items: center; gap: 8px; }
+.srow label { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; cursor: pointer; }
+.srow .t { overflow-wrap: anywhere; font-weight: 500; }
+.srow.done .t { text-decoration: line-through; color: var(--muted); font-weight: 400; }
 .qstreak { font-size: .82rem; font-weight: 700; color: var(--star); }
 .qrow { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; align-items: center; }
 .qrow .ql { font-weight: 600; font-size: .92rem; }
@@ -484,6 +488,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     <button class="tab" data-tab="plan"><b>خطّط</b><span>صباحًا</span></button>
     <button class="tab" data-tab="day"><b>جدولي</b><span>تابع</span></button>
     <button class="tab" data-tab="review"><b>راجع</b><span>التقرير</span></button>
+    <button class="tab" data-tab="shop" hidden><b>المشتريات</b><span id="shopCount">🛒</span></button>
     <button class="tab" data-tab="flows" hidden><b>المعاملات</b><span>📨</span></button>
   </div>
 </nav>
@@ -722,7 +727,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   /* ---------- state ---------- */
   var state, storageOk = true;
   function blankState() {
-    return { v: 3, days: {}, settings: { categories: defaultCats(), routines: [], updatedAt: 0 }, dirtyDays: {}, dirtySettings: 0 };
+    return { v: 3, days: {}, settings: { categories: defaultCats(), routines: [], updatedAt: 0 }, shop: { items: [], del: {} }, dirtyDays: {}, dirtySettings: 0 };
   }
   function blankDay() { return { items: [], good: "", improve: "", notes: "", startAt: "08:00", applied: [], updatedAt: 0 }; }
   function fixState() {
@@ -732,6 +737,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     state.settings.routines = arr(state.settings.routines);
     if (!state.settings.sleep) state.settings.sleep = { hours: 7, wake: "05:00" };
     if (!state.dirtyDays) state.dirtyDays = {};
+    state.shop = mergeShop(state.shop);
     Object.keys(state.days).forEach(function (k) {
       var d = state.days[k];
       d.items = arr(d.items); d.applied = arr(d.applied);
@@ -775,8 +781,9 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   function daySnap(d) { return { m: itemsMap(d), t: textJson(d), a: JSON.stringify(d.applied), q: JSON.stringify(d.quran || null), k: JSON.stringify(d.kids || null) }; }
   function setJson() { return JSON.stringify([state.settings.categories, state.settings.routines, state.settings.sleep || null, state.settings.prayer || null, state.settings.quran || null, state.settings.templates || null, state.settings.goals || null, state.settings.team || null, state.settings.kids || null, state.settings.tcfg || null, state.settings.roles || null, state.settings.paths || null, state.settings.rejecters || null]); }
   function isEmptyDay(d) { return !d.items.length && !d.good && !d.improve && !d.notes && !(d.sleep && (d.sleep.bed || d.sleep.wake)) && !qHas(d) && !kHas(d); }
+  function shopSnap() { var m = {}; state.shop.items.forEach(function (i) { m[i.id] = itemJson(i); }); return m; }
   function takeSnap() {
-    snap = { _s: setJson() };
+    snap = { _s: setJson(), _p: shopSnap() };
     Object.keys(state.days).forEach(function (k) { snap[k] = daySnap(state.days[k]); });
   }
   /* ---------- TEAM RULES: a member of a team (not a shared account) works on the leader's tasks without reshaping them ---------- */
@@ -854,6 +861,10 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       if (any) { d.updatedAt = now; real = true; }
     });
     var s = setJson();
+    var sp = shopSnap(), op = snap._p || sp;
+    state.shop.items.forEach(function (i) { if (op[i.id] !== sp[i.id]) { i.u = now; real = true; } });
+    Object.keys(op).forEach(function (id) { if (!(id in sp)) { state.shop.del[id] = now; real = true; } });
+    snap._p = sp;
     if (snap._s !== s) { if (snap._s) logEvent("عدّل الإعدادات", "التقسيمات أو المهام الدائمة أو الصلاة أو القرآن أو القوالب أو الأهداف", "", "settings"); snap._s = s; state.settings.updatedAt = now; real = true; }
     persist();
     if (real) markDirty();
@@ -1000,6 +1011,8 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     $("next").disabled = diff >= FUTURE;
     document.querySelectorAll(".tab").forEach(function (b) { b.setAttribute("aria-current", b.dataset.tab === ui.tab ? "true" : "false"); });
     var ftab = document.querySelector('.tab[data-tab="flows"]'); if (ftab) ftab.hidden = !flowsTab();
+    var stab = document.querySelector('.tab[data-tab="shop"]'); if (stab) stab.hidden = !shopOn();
+    var sn = shopLeft().length; $("shopCount").textContent = sn ? "🛒 " + sn : "🛒";
     var dot = $("cloudDot");
     dot.hidden = cloud.status === "off" || cloud.status === "nocode";
     dot.className = "dot" + (cloud.status === "error" || cloud.status === "offline" ? " warn" : "");
@@ -1025,20 +1038,21 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
         '<div class="addform"><input class="field grow" id="unameInput" type="text" placeholder="اسمك" autocomplete="given-name"><button class="btn" type="submit">حفظ</button></div>' +
         (sb && PROFILE === "main" ? '<button class="linkbtn" type="button" data-act="mineStart">🔗 عندي حساب على جهاز آخر</button>' : "") + '</form>';
     }
-    if (offsetOf(dk()) > SPAN && ui.tab !== "settings") {
+    if (offsetOf(dk()) > SPAN && ui.tab !== "settings" && ui.tab !== "shop") {
       html += '<div class="banner"><span>📌 يوم قادم: ما تكتبه هنا محفوظ على هذا الجهاز فقط، ويُزامَن مع أجهزتك تلقائيًا قبل موعده بـ٣ أيام.</span><button class="linkbtn" data-act="goToday">ارجع إلى اليوم</button></div>';
     }
-    if (offsetOf(dk()) < -SPAN && ui.tab !== "settings") {
+    if (offsetOf(dk()) < -SPAN && ui.tab !== "settings" && ui.tab !== "shop") {
       html += '<div class="banner"><span>هذا يوم من الأرشيف، محفوظ على هذا الجهاز فقط ولا يُرفع إلى السحابة.</span><button class="linkbtn" data-act="goToday">ارجع إلى اليوم</button></div>';
     }
-    if (state.sample === dk() && ui.tab !== "settings") {
+    if (state.sample === dk() && ui.tab !== "settings" && ui.tab !== "shop") {
       html += '<div class="banner"><span>هذا يوم مثال يوضّح طريقة الاستخدام.</span><button class="linkbtn" data-act="clearSample">احذف المثال وابدأ</button></div>';
     }
     html += linkHereHtml();
     if (flowsOn() && (ui.tab === "flows" ? Date.now() - flowsAt > 20000 : Date.now() - flowsAt > 120000)) flowsLoad();
     if (ui.tab === "day" && flowsOn() && myFlows().length) html += '<div class="banner"><span>📨 عندك ' + myFlows().length + ' معاملة تنتظرك</span><button class="linkbtn" data-act="tab" data-tab="flows">افتحها</button></div>';
     if (ui.tab === "flows" && !flowsTab()) ui.tab = "day";
-    html += ui.tab === "flows" ? flowsView() : ui.tab === "settings" ? settingsView() : ui.tab === "plan" ? planView() : ui.tab === "day" ? dayView() : reviewView();
+    if (ui.tab === "shop" && !shopOn()) ui.tab = "day";
+    html += ui.tab === "shop" ? shopView() : ui.tab === "flows" ? flowsView() : ui.tab === "settings" ? settingsView() : ui.tab === "plan" ? planView() : ui.tab === "day" ? dayView() : reviewView();
     view.innerHTML = '<div class="stack" style="gap:20px;padding-top:16px">' + html + '</div>';
     drawQr();
   }
@@ -2656,6 +2670,9 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       case "step": ui.step = +b.dataset.n; render(); window.scrollTo(0, 0); break;
       case "gostep4": ui.tab = "plan"; ui.step = 4; render(); break;
       case "tab": ui.tab = b.dataset.tab; ui.step = 1; render(); break;
+      case "shopDel": state.shop.items = state.shop.items.filter(function (x) { return x.id !== b.dataset.sid; }); commit(); break;
+      case "shopClear": state.shop.items = shopLeft(); ui.shopGot = false; commit(); toast("مُسحت المشتريات السابقة"); break;
+      case "shopShare": shopShare(); break;
       case "del": d.items = d.items.filter(function (x) { return x.id !== id; }); if (ui.open === id) ui.open = null; commit(); break;
       case "set": it[b.dataset.f] = b.dataset.v === "1"; if (quad(it) === "drop" || quad(it) === "short") it.top = false; commit(); break;
       case "top":
@@ -2885,8 +2902,14 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     }
   });
 
+  view.addEventListener("toggle", function (e) { if (e.target.id === "shopGot") ui.shopGot = e.target.open; }, true);
   view.addEventListener("change", function (e) {
     var t = e.target, act = t.dataset.act, it = t.dataset.id ? find(t.dataset.id) : null;
+    if (act === "shopDone") {
+      var si = state.shop.items.filter(function (x) { return x.id === t.dataset.sid; })[0];
+      if (si) { si.done = t.checked; commit(); }
+      return;
+    }
     if (act === "done") {
       it.done = t.checked; it.spent = it.done ? (it.focus || it.dur) : null;
       if (it.done) { it.doneAt = new Date().toISOString(); it.doneBy = userName || (cloud.num ? "جهاز " + cloud.num : ""); }
@@ -2977,6 +3000,14 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       state.settings.routines.push({ id: uid(), title: v, cat: ui.lastCat, dur: +$("rDur").value, time: $("rTime").value, days: ui.newDays.slice() });
       ui.newDays = [0, 1, 2, 3, 4, 5, 6];
       commit(); toast("أُضيفت، وستنزل في أيامها تلقائيًا");
+    } else if (f === "shop") {
+      v = $("shopInput").value.trim(); if (!v) return;
+      ui.shopSec = $("shopSec").value;
+      var same = state.shop.items.filter(function (i) { return i.t.replace(/\s+/g, " ") === v.replace(/\s+/g, " "); })[0];
+      if (same && !same.done) { toast("«" + v + "» موجود في القائمة"); return; }
+      if (same) { same.done = false; same.sec = ui.shopSec; } // bought before: back on the list
+      else state.shop.items.push({ id: uid(), t: v.slice(0, 60), sec: ui.shopSec, done: false, n: userName || "" });
+      commit(); $("shopInput").focus();
     } else if (f === "uname") {
       v = $("unameInput").value.trim(); if (!v) { toast("اكتب اسمك"); return; }
       setUserName(v); render(); toast("أهلًا، " + userName + " 🌷");
@@ -3906,6 +3937,60 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       del: del, tu: Math.max(L.tu || 0, R.tu || 0), updatedAt: Math.max(L.updatedAt || 0, R.updatedAt || 0) });
   }
 
+  /* ---------- SHOPPING 🛒: what the house needs, one list per account (a shared account gives the family one list) ---------- */
+  // state.shop = { items: [{ id, t, sec, done, n, u }], del: { <id>: time } }; it travels in the cloud as settings.shop and merges item by item,
+  // so two people adding at the same time both keep their items. Tombstones older than 90 days are dropped.
+  var SHOP_SECS = [["veg", "🥬 خضار وفواكه"], ["meat", "🍗 لحوم وأسماك"], ["dairy", "🥛 ألبان وخبز"], ["food", "🥫 بقالة"], ["clean", "🧴 منظفات"], ["pharm", "💊 صيدلية"], ["other", "📦 أخرى"]];
+  function mergeShop(L, R) {
+    var del = {}, by = {}, cut = Date.now() - 90 * 864e5;
+    [L, R].forEach(function (x) {
+      if (!x) return;
+      var o = x.del && typeof x.del === "object" ? x.del : {};
+      Object.keys(o).forEach(function (id) { if (+o[id] > cut) del[id] = Math.max(del[id] || 0, +o[id]); });
+      arr(x.items).forEach(function (i) {
+        if (!i || !i.id || !i.t) return;
+        var c = by[i.id], iu = i.u || 0, cu = c ? c.u || 0 : -1;
+        if (!c || iu > cu || (iu === cu && itemJson(i) > itemJson(c))) by[i.id] = i;
+      });
+    });
+    var items = Object.keys(by).sort().map(function (id) { return by[id]; }).filter(function (i) { return !(del[i.id] >= (i.u || 0)); });
+    return { items: items, del: del };
+  }
+  function shopOn() { return !isTeamOnly(); }
+  function shopLeft() { return state.shop.items.filter(function (i) { return !i.done; }); }
+  function shopSecName(k) { var x = SHOP_SECS.filter(function (s) { return s[0] === k; })[0]; return x ? x[1] : SHOP_SECS[SHOP_SECS.length - 1][1]; }
+  function shopRow(i, who) {
+    return '<li class="srow' + (i.done ? " done" : "") + '"><label><input type="checkbox" class="check" data-act="shopDone" data-sid="' + esc(i.id) + '"' + (i.done ? " checked" : "") + '><span class="t">' + esc(i.t) + '</span></label>' +
+      (who && i.n ? '<span class="small muted">' + esc(i.n) + '</span>' : "") + '<button class="del" data-act="shopDel" data-sid="' + esc(i.id) + '" aria-label="حذف">×</button></li>';
+  }
+  function shopView() {
+    var left = shopLeft(), got = state.shop.items.filter(function (i) { return i.done; }).sort(function (a, b) { return (b.u || 0) - (a.u || 0); });
+    var pf = currentProfile(), who = !!(pf && pf.shared), sec = ui.shopSec || "food";
+    var h = '<section class="stack"><div class="sechead"><h2>🛒 المشتريات</h2>' + (left.length ? '<button class="linkbtn" data-act="shopShare">📤 أرسل القائمة</button>' : "") + '</div>' +
+      '<p class="muted small">اكتب ما ينقص البيت، وعلّم عليه عند شرائه.' + (who ? ' القائمة مشتركة: تظهر لكل أفراد الحساب.' : (code ? ' تظهر على كل أجهزتك.' : "")) + '</p>' +
+      '<form class="addform" data-form="shop"><input class="field grow" id="shopInput" type="text" maxlength="60" placeholder="مثال: حليب ٢" autocomplete="off">' +
+      '<select class="field" id="shopSec" aria-label="القسم">' + SHOP_SECS.map(function (s) { return '<option value="' + s[0] + '"' + (s[0] === sec ? " selected" : "") + '>' + s[1] + '</option>'; }).join("") + '</select>' +
+      '<button class="btn" type="submit">أضف</button></form>';
+    if (!left.length) h += '<div class="empty"><p>' + (got.length ? "اشتريت كل شيء 🎉" : "القائمة فارغة. أضف ما يحتاجه البيت.") + '</p></div>';
+    SHOP_SECS.forEach(function (s, n) {
+      var rows = left.filter(function (i) { return (SHOP_SECS.some(function (x) { return x[0] === i.sec; }) ? i.sec : "other") === s[0]; });
+      if (rows.length) h += '<div class="qcard"><h3>' + s[1] + ' <span class="small muted">' + rows.length + '</span></h3><ul class="list">' + rows.map(function (i) { return shopRow(i, who); }).join("") + '</ul></div>';
+    });
+    if (got.length) h += '<details class="box"' + (ui.shopGot ? " open" : "") + ' id="shopGot"><summary>✓ اشتريته (' + got.length + ') — اضغط على أي شيء لتعيده إلى القائمة</summary><div class="inner"><ul class="list">' +
+      got.slice(0, 40).map(function (i) { return shopRow(i, false); }).join("") + '</ul><button class="ghost" data-act="shopClear">امسح ما اشتريته</button></div></details>';
+    return h + '</section>';
+  }
+  function shopShare() {
+    var left = shopLeft(), txt = "🛒 المشتريات" + (userName ? " — " + userName : "") + "\n";
+    SHOP_SECS.forEach(function (s) {
+      var rows = left.filter(function (i) { return (SHOP_SECS.some(function (x) { return x[0] === i.sec; }) ? i.sec : "other") === s[0]; });
+      if (rows.length) txt += "\n" + s[1] + "\n" + rows.map(function (i) { return "▫️ " + i.t; }).join("\n") + "\n";
+    });
+    if (navigator.share) { navigator.share({ title: "المشتريات", text: txt }).catch(function () {}); return; }
+    try { navigator.clipboard.writeText(txt).then(function () { toast("نُسخت القائمة، الصقها في واتساب أو أي مكان"); }, function () { toast("تعذّر النسخ"); }); }
+    catch (e) { toast("تعذّر النسخ"); }
+  }
+
   /* ---------- TRANSACTIONS (supabase_v20.sql): a team's paper that passes from role to role, e.g. الديوان ← مدير المكتب ← المالية ← المدير ---------- */
   // Roles, saved paths and who may reject live in the team's settings (the leader edits them):
   // settings.roles = { "<num>": "المالية" }, settings.paths = [{ id, name, steps: [role…] }], settings.rejecters = [role…].
@@ -4137,6 +4222,9 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
         if (canon(M) !== canon(L ? normDay(L) : null)) { state.days[k] = M; snap[k] = daySnap(M); changed = true; }
         if (canon(M) !== canon(R)) upload = true;
       });
+      var rshop = row.settings && row.settings.shop, ms = mergeShop(state.shop, rshop), msj = JSON.stringify(ms);
+      if (msj !== JSON.stringify(mergeShop(state.shop))) { state.shop = ms; snap._p = shopSnap(); changed = true; }
+      if (msj !== JSON.stringify(mergeShop(rshop))) upload = true;
       var rs = row.settings, rst = rs ? (rs.updatedAt || 0) : -1, lst = state.settings.updatedAt || 0;
       if (rs && rst > lst) {
         state.settings = { categories: arr(rs.categories).length ? rs.categories : defaultCats(), routines: arr(rs.routines), sleep: rs.sleep || state.settings.sleep, prayer: rs.prayer || state.settings.prayer, quran: rs.quran || state.settings.quran, templates: rs.templates || state.settings.templates, goals: rs.goals || state.settings.goals, team: rs.team || state.settings.team, kids: rs.kids || state.settings.kids, tcfg: rs.tcfg || state.settings.tcfg, roles: rs.roles || state.settings.roles, paths: rs.paths || state.settings.paths, rejecters: rs.rejecters || state.settings.rejecters, updatedAt: rst };
@@ -4145,7 +4233,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       fixState(); persist();
       if (changed) softRender();
       if (!upload) { cloud.stamp = typeof row.stamp === "string" ? row.stamp : ""; cloud.sbase = base; saveCode(); return; }
-      var data = { base_date: todayKey, settings: { categories: state.settings.categories, routines: state.settings.routines, sleep: state.settings.sleep, prayer: state.settings.prayer || null, quran: state.settings.quran || null, templates: state.settings.templates || null, goals: state.settings.goals || null, team: state.settings.team || null, kids: state.settings.kids || null, tcfg: state.settings.tcfg || null, roles: state.settings.roles || null, paths: state.settings.paths || null, rejecters: state.settings.rejecters || null, updatedAt: state.settings.updatedAt || 0 } };
+      var data = { base_date: todayKey, settings: { categories: state.settings.categories, routines: state.settings.routines, sleep: state.settings.sleep, prayer: state.settings.prayer || null, quran: state.settings.quran || null, templates: state.settings.templates || null, goals: state.settings.goals || null, team: state.settings.team || null, kids: state.settings.kids || null, tcfg: state.settings.tcfg || null, roles: state.settings.roles || null, paths: state.settings.paths || null, rejecters: state.settings.rejecters || null, shop: state.shop, updatedAt: state.settings.updatedAt || 0 } };
       windowKeys().forEach(function (k, i) { data[COLS[i]] = merged[k] ? toRemote(k, merged[k]) : null; });
       return rpc("save", { p_code: code, p_data: data }).then(function (r2) {
         if (r2.error) throw r2.error;
