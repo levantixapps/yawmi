@@ -3883,6 +3883,8 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   function isLeader() { return cloud.role === "primary"; }
   function canAct(f) { return f.status === "open" && (isLeader() || (myRole() && f.steps[f.pos] === myRole())); }
   function flowLate(f) { return f.status === "open" && f.days && Date.now() - Date.parse(f.step_at) > f.days * 86400000; }
+  function flowOverdue(f) { return f.status === "open" && f.due && keyOf(new Date()) > f.due; }
+  function dateText(k) { var d = parseKey(k); return d.getDate() + "/" + (d.getMonth() + 1) + "/" + d.getFullYear(); }
   function sinceText(iso) {
     var m = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60000));
     if (m < 60) return m <= 1 ? "الآن" : "منذ " + m + " دقيقة";
@@ -3897,23 +3899,35 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   function flowsLoad() {
     if (!flowsOn()) return;
     flowsAt = Date.now();
+    sb.rpc("yawmi_flows_stamp", { p_key: code }).then(function (st) {
+      var stamp = st.error ? "" : String(st.data || "");
+      if (stamp && stamp === ui.flowsStamp && ui.flows) return; // nothing changed: a few bytes instead of the whole list
+      flowsList(stamp);
+    }, function () {});
+  }
+  function flowsList(stamp) {
     sb.rpc("yawmi_flows_list", { p_key: code }).then(function (r) {
       if (r.error) { if (r.error.code === "PGRST202") ui.flowsOff = true; return; }
       var was = JSON.stringify(ui.flows || null);
-      ui.flows = arr(r.data);
+      ui.flows = arr(r.data); ui.flowsStamp = stamp;
       if (was !== JSON.stringify(ui.flows) && (ui.tab === "flows" || ui.tab === "day")) softRender(); else renderHeader();
     }, function () {});
   }
   function myFlows() { return arr(ui.flows).filter(function (f) { return f.status === "open" && myRole() && f.steps[f.pos] === myRole(); }); }
-  function keepFlowForm() { ui.fTitle = ($("fTitle") || {}).value || ui.fTitle || ""; ui.fRef = ($("fRef") || {}).value || ui.fRef || ""; }
+  function keepFlowForm() {
+    ["fTitle", "fRef", "fDoc", "fDue"].forEach(function (k) { var el = $(k); if (el) ui[k] = el.value; });
+  }
   function flowNew() {
-    var title = ($("fTitle") || {}).value || "", steps = arr(ui.flowSteps);
+    var title = ($("fTitle") || {}).value || "", steps = arr(ui.flowSteps), doc = ($("fDoc") || {}).value || null, due = ($("fDue") || {}).value || null;
     if (!title.trim()) { toast("اكتب عنوان المعاملة"); return; }
     if (!steps.length) { toast("اختر مسار المعاملة"); return; }
     if (!online()) return;
-    sb.rpc("yawmi_flow_new", { p_key: code, p_title: title.trim(), p_ref: ($("fRef") || {}).value || "", p_steps: steps, p_days: +($("fDays") || {}).value || 0 }).then(function (r) {
+    var args = { p_key: code, p_title: title.trim(), p_ref: ($("fRef") || {}).value || "", p_steps: steps, p_days: +($("fDays") || {}).value || 0 };
+    sb.rpc("yawmi_flow_new", Object.assign({ p_doc: doc, p_due: due }, args)).then(function (r) {
+      return r.error && r.error.code === "PGRST202" ? sb.rpc("yawmi_flow_new", args) : r; // a server before v24
+    }).then(function (r) {
       if (r.error || !r.data) { toast("تعذّر تسجيل المعاملة: " + netError(r.error)); return; }
-      ui.flowSteps = []; ui.flowForm = false; ui.fTitle = ui.fRef = ""; toast("📨 سُجّلت المعاملة"); flowsLoad(); nudge();
+      ui.flowSteps = []; ui.flowForm = false; ui.fTitle = ui.fRef = ui.fDoc = ui.fDue = ""; toast("📨 سُجّلت المعاملة"); flowsLoad(); nudge();
     }, function () { toast("تعذّر الاتصال. تأكد من الإنترنت."); });
   }
   function flowAct(id, act) {
@@ -3935,10 +3949,11 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     }).join('<i>←</i>') + '</div>';
   }
   function flowCard(f, mine) {
-    var cur = f.steps[f.pos], late = flowLate(f), last = f.pos >= f.steps.length - 1;
+    var cur = f.steps[f.pos], late = flowLate(f) || flowOverdue(f), last = f.pos >= f.steps.length - 1;
     var res = f.status === "done" ? "✅ مُنجزة" : f.status === "rejected" ? "❌ مرفوضة" : "";
     var h = '<li class="card flowcard' + (late ? " late" : "") + '"><div class="top"><span class="ttl"><span><b>' + esc(f.title) + '</b></span>' +
-      '<span class="small muted">رقم ' + f.no + (f.ref ? ' · ' + esc(f.ref) : "") + '</span>' +
+      '<span class="small muted">رقم ' + f.no + (f.ref ? ' · ' + esc(f.ref) : "") + (f.doc_date ? ' · بتاريخ ' + dateText(f.doc_date) : "") + '</span>' +
+      (f.due && f.status === "open" ? '<span class="small' + (flowOverdue(f) ? " err" : "") + '">' + (flowOverdue(f) ? "⏰ تجاوزت موعدها النهائي " : "📅 تنتهي قبل ") + dateText(f.due) + '</span>' : "") +
       (res ? '<span class="small"><b>' + res + '</b> · استغرقت ' + spanText(f.created_at, f.updated_at) + '</span>'
         : '<span class="small">عند <b>' + esc(cur) + '</b>' + (roleHolders(cur) ? ' (' + esc(roleHolders(cur)) + ')' : "") + ' · الخطوة ' + (f.pos + 1) + ' من ' + f.steps.length + ' · ' + sinceText(f.step_at) +
           (late ? ' · <b class="err">⏰ متأخرة</b>' : "") + '</span>') + '</span></div>' + pathLine(f);
@@ -3972,6 +3987,8 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
           paths().map(function (p) { return '<option value="' + esc(p.id) + '">' + esc(p.name) + '</option>'; }).join("") + '</select></div>' : "") +
         '<p class="small">المسار: ' + (steps.length ? esc(steps.join(" ← ")) + ' <button class="del" data-act="flowPop" aria-label="احذف آخر خطوة">⌫</button>' : '<span class="muted">اضغط الأدوار بالترتيب</span>') + '</p>' +
         '<div class="row-wrap">' + rl.map(function (r) { return '<button class="ghost" data-act="flowStep" data-r="' + esc(r) + '">+ ' + esc(r) + '</button>'; }).join("") + '</div>' +
+        '<div class="addform"><span class="small">تاريخ المعاملة</span><input class="field" id="fDoc" type="date" aria-label="تاريخ المعاملة (اختياري)" value="' + esc(ui.fDoc || "") + '"></div>' +
+        '<div class="addform"><span class="small">موعد نهائي</span><input class="field" id="fDue" type="date" aria-label="الموعد النهائي (اختياري)" value="' + esc(ui.fDue || "") + '"></div>' +
         '<div class="addform"><span class="small">مهلة كل خطوة</span><select class="field" id="fDays"><option value="0">بلا مهلة</option>' +
           [1, 2, 3, 5, 7].map(function (d) { return '<option value="' + d + '">' + (d === 1 ? "يوم" : d === 2 ? "يومان" : d + " أيام") + '</option>'; }).join("") + '</select></div>' +
         '<div class="row-wrap"><button class="btn" data-act="flowNew">📨 سجّلها وأرسلها</button><button class="ghost" data-act="flowClose">إلغاء</button></div></div>';
