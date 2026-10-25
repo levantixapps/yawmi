@@ -778,9 +778,9 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   function itemJson(i) { var o = {}; Object.keys(i).forEach(function (k) { if (k !== "u") o[k] = i[k]; }); return JSON.stringify(o); }
   function itemsMap(d) { var m = {}; d.items.forEach(function (i) { m[i.id] = itemJson(i); }); return m; }
   function textJson(d) { return JSON.stringify([d.good, d.improve, d.notes, d.startAt, d.sleep || null]); }
-  function daySnap(d) { return { m: itemsMap(d), t: textJson(d), a: JSON.stringify(d.applied), q: JSON.stringify(d.quran || null), k: JSON.stringify(d.kids || null) }; }
-  function setJson() { return JSON.stringify([state.settings.categories, state.settings.routines, state.settings.sleep || null, state.settings.prayer || null, state.settings.quran || null, state.settings.templates || null, state.settings.goals || null, state.settings.team || null, state.settings.kids || null, state.settings.tcfg || null, state.settings.roles || null, state.settings.paths || null, state.settings.rejecters || null]); }
-  function isEmptyDay(d) { return !d.items.length && !d.good && !d.improve && !d.notes && !(d.sleep && (d.sleep.bed || d.sleep.wake)) && !qHas(d) && !kHas(d); }
+  function daySnap(d) { return { m: itemsMap(d), t: textJson(d), a: JSON.stringify(d.applied), q: JSON.stringify(d.quran || null), k: JSON.stringify(d.kids || null), r: JSON.stringify(d.rmd || null) }; }
+  function setJson() { return JSON.stringify([state.settings.categories, state.settings.routines, state.settings.sleep || null, state.settings.prayer || null, state.settings.quran || null, state.settings.templates || null, state.settings.goals || null, state.settings.team || null, state.settings.kids || null, state.settings.tcfg || null, state.settings.roles || null, state.settings.paths || null, state.settings.rejecters || null, state.settings.ramadan || null]); }
+  function isEmptyDay(d) { return !d.items.length && !d.good && !d.improve && !d.notes && !(d.sleep && (d.sleep.bed || d.sleep.wake)) && !qHas(d) && !kHas(d) && !rHas(d); }
   function shopSnap() { var m = {}; state.shop.items.forEach(function (i) { m[i.id] = itemJson(i); }); return m; }
   function takeSnap() {
     snap = { _s: setJson(), _p: shopSnap() };
@@ -837,7 +837,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     Object.keys(state.days).forEach(function (k) {
       var d = state.days[k], cur = daySnap(d), old = snap[k], any = false, fresh = !old;
       snap[k] = cur;
-      if (!old) { if (isEmptyDay(d)) return; old = { m: {}, t: textJson(blankDay()), a: "[]", q: "null", k: "null" }; }
+      if (!old) { if (isEmptyDay(d)) return; old = { m: {}, t: textJson(blankDay()), a: "[]", q: "null", k: "null", r: "null" }; }
       d.items.forEach(function (i) {
         if (old.m[i.id] === cur.m[i.id]) return;
         i.u = now; any = true;
@@ -858,6 +858,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       if (old.a !== cur.a) any = true;
       if (old.q !== cur.q) { d.qu = now; any = true; if (!fresh) logEvent("سجّل ورد القرآن", "", k, "quran:" + k); }
       if (old.k !== cur.k) { d.ku = now; any = true; if (!fresh) logEvent("سجّل نجوم الأبناء", "", k, "kids:" + k); }
+      if (old.r !== cur.r) { d.ru = now; any = true; }
       if (any) { d.updatedAt = now; real = true; }
     });
     var s = setJson();
@@ -1161,6 +1162,57 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       cur += len + 10;
     });
     save(); render(); toast("تم الترتيب، عدّل ما تشاء");
+  }
+
+  /* ---------- RAMADAN 🌙: a card in «جدولي» through the month of Ramadan (Umm al-Qura), all worked out on the device ---------- */
+  // Each day: d.rmd = { f: 1 fasted, t: 1 prayed taraweeh } with its own edit time d.ru. Settings: state.settings.ramadan = { off }.
+  function rmdOf(k) { var x = hijriMD(parseKey(k)); return x && x.m === 9 ? x.d : 0; }
+  function rmdOn(k) { return !(state.settings.ramadan || {}).off && !isTeamOnly() && rmdOf(k) > 0; }
+  function rDay(d) { var r = (d && d.rmd) || {}; return { f: r.f ? 1 : 0, t: r.t ? 1 : 0 }; }
+  function rHas(d) { var r = rDay(d); return !!(r.f || r.t); }
+  // Which day of Ramadan k is, the month's first day, and how many days of it come after k
+  function rmdSpan(k) {
+    var n = rmdOf(k), left = 0;
+    while (left < 30 && rmdOf(keyOf(addDays(parseKey(k), left + 1)))) left++;
+    return { n: n, start: addDays(parseKey(k), 1 - n), left: left };
+  }
+  function rmdCountdown(s) {
+    if (!prayOn()) return '<p class="small muted">فعّل أوقات الصلاة من ⚙ ← العبادة، فيظهر هنا موعد الإفطار والسحور.</p>';
+    var n = new Date(), nm = n.getHours() * 60 + n.getMinutes();
+    var at = function (k, key) { return prayList(k).filter(function (p) { return p.key === key; })[0]; };
+    var line = function (label, m, t) { return '<p class="praynext">' + label + ' <b>' + leftText(m) + '</b> <span class="muted small">(' + fmt12(t) + ')</span></p>'; };
+    var fj = at(keyOf(n), "fajr"), mg = at(keyOf(n), "maghrib");
+    if (!fj || !mg) return "";
+    if (nm < fj.min) return line("🌙 يبقى على أذان الفجر", fj.min - nm, fj.time);
+    if (nm < mg.min) return line("🍽 الإفطار بعد", mg.min - nm, mg.time);
+    if (!s.left) return '<p class="praynext">🎉 غدًا العيد، تقبّل الله منا ومنكم</p>';
+    var tf = at(keyOf(addDays(today(), 1)), "fajr");
+    return tf ? line("🌙 السحور: يبقى على أذان الفجر", tf.min + 1440 - nm, tf.time) : "";
+  }
+  function ramadanCard() {
+    var k = dk(), o = offsetOf(k);
+    if (o > 0 || !rmdOn(k)) return "";
+    var s = rmdSpan(k), d = day(), r = rDay(d), fast = 0, tar = 0, night = s.n + 1;
+    for (var i = 0; i < s.n; i++) { var x = rDay(state.days[keyOf(addDays(s.start, i))]); fast += x.f; tar += x.t; }
+    var h = '<div class="qcard"><div class="sechead"><h3>🌙 رمضان مبارك</h3><span class="small muted">اليوم ' + s.n + ' من رمضان</span></div>' + (o === 0 ? rmdCountdown(s) : "") +
+      '<div class="row-wrap"><button class="' + (r.f ? "btn" : "ghost") + '" data-act="rmd" data-f="f" aria-pressed="' + !!r.f + '">' + (r.f ? "✓ صمت اليوم" : "صمت اليوم؟") + '</button>' +
+      '<button class="' + (r.t ? "btn" : "ghost") + '" data-act="rmd" data-f="t" aria-pressed="' + !!r.t + '">' + (r.t ? "✓ صلّيت التراويح" : "صلّيت التراويح؟") + '</button></div>' +
+      '<p class="small">حتى الآن: صمت <b>' + fast + '</b> من ' + s.n + ' · التراويح <b>' + tar + '</b> ' + (tar >= 3 && tar <= 10 ? "ليالٍ" : "ليلة") + '</p>';
+    var g = qCfg();
+    if (o === 0 && g.on) {
+      var read = qDay(d).read, rest = Q_PAGES - g.page + 1 + read, need = Math.ceil(rest / (s.left + 1));
+      if (need > 60) h += '<p class="small">📖 بقي من ختمتك ' + pagesText(rest - read) + '، اقرأ ما تيسّر وتقبّل الله منك</p>';
+      else h += '<p class="small">📖 لتختم قبل العيد: <b>' + pagesText(need) + '</b> كل يوم' + (read ? ' · قرأت اليوم ' + pagesText(read, true) + (read >= need ? " ✓" : "") : "") +
+        (g.read !== need ? ' <button class="linkbtn" data-act="rmdGoal" data-v="' + need + '">اجعلها هدف وردك</button>' : "") + '</p>';
+    } else if (o === 0) h += '<p class="small muted">📖 فعّل «الحفظ والورد» من ⚙ ← العبادة، فيحسب لك كم تقرأ كل يوم لتختم قبل العيد.</p>';
+    if (o === 0 && s.left && night >= 21) h += '<p class="small">🌟 ' + (night % 2 ? "الليلة ليلة " + night + "، من الليالي الوترية في العشر الأواخر، تُرجى فيها ليلة القدر" : "أنت في العشر الأواخر، الليلة ليلة " + night) + '</p>';
+    return h + '</div>';
+  }
+  function ramadanSettingsHtml() {
+    if (isTeamOnly()) return "";
+    var on = !(state.settings.ramadan || {}).off;
+    return '<section><h2>🌙 رمضان</h2><p class="muted small">تظهر في «جدولي» بطاقة رمضان تلقائيًا طوال الشهر: موعد الإفطار والسحور، ومتابعة الصيام والتراويح، وكم تقرأ كل يوم لتختم قبل العيد.</p>' +
+      '<div class="row-wrap"><button class="' + (on ? "btn" : "ghost") + '" data-act="rmdOff" aria-pressed="' + on + '">' + (on ? "🌙 بطاقة رمضان مفعّلة" : "فعّل بطاقة رمضان") + '</button></div></section>';
   }
 
   /* ---------- QURAN: daily reading, new memorization and review ---------- */
@@ -1740,7 +1792,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   }
   function dayView() {
     var d = day(), items = active(d).filter(function (i) { return !ui.mine || isMine(i); });
-    if (!d.items.length) return sleepCard() + prayCard(dk()) + quranCard() + kidsCard() + '<div class="empty"><p>لم تخطّط لهذا اليوم بعد.</p><button class="btn" data-act="tab" data-tab="plan">خطّط ليومك في ٤ خطوات</button></div>' +
+    if (!d.items.length) return sleepCard() + ramadanCard() + prayCard(dk()) + quranCard() + kidsCard() + '<div class="empty"><p>لم تخطّط لهذا اليوم بعد.</p><button class="btn" data-act="tab" data-tab="plan">خطّط ليومك في ٤ خطوات</button></div>' +
       quickAddHtml("أو أضف مهمة أو ملاحظة سريعة", "مثل: موعد طبيب الأسنان");
     var st = dayStats(d), pct = Math.min(100, Math.round(st.rate * 100));
     var h = shareAskHtml() + teamFilterHtml(d) + '<div class="progress"><span>إنجاز اليوم</span><div class="bar"><i style="width:' + pct + '%"></i></div><b>' + pct + '%</b></div>' + catSummary(items);
@@ -1758,7 +1810,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       var n = new Date(), nm = n.getHours() * 60 + n.getMinutes();
       timed.forEach(function (i) { var s = toMin(i.time); if (nm >= s && nm < s + (i.dur || 60)) nowId = i.id; });
     }
-    var side = sleepCard() + prayCard(dk()) + quranCard() + kidsCard() + h; h = "";
+    var side = sleepCard() + ramadanCard() + prayCard(dk()) + quranCard() + kidsCard() + h; h = "";
     h += '<section><div class="sechead"><h2>جدول اليوم</h2><span class="muted small">اضغط على أي بند لتعديله</span></div>';
     if (!timed.length) h += '<div class="empty">لا توجد أوقات محددة. <button class="linkbtn" data-act="gostep4">حدّد الأوقات</button></div>';
     else {
@@ -2337,7 +2389,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
         (pc.alert ? '<p class="small muted">تنبيه الصلاة يعمل والتطبيق مفتوح.</p>' : "") + prayCard(keyOf(new Date()));
     }
     h += '</section>';
-    h += quranSettingsHtml();
+    h += ramadanSettingsHtml() + quranSettingsHtml();
     if (!isTeamOnly()) h += kidsSettingsHtml();
     h += setGroup("plan");
     h += focusSettingsHtml();
@@ -2822,6 +2874,9 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       case "focusWork": focusCfg.work = +b.dataset.v; try { localStorage.setItem(FOCUS_CFG_KEY, JSON.stringify(focusCfg)); } catch (e) {} render(); break;
       case "focusBrk": focusCfg.brk = +b.dataset.v; try { localStorage.setItem(FOCUS_CFG_KEY, JSON.stringify(focusCfg)); } catch (e) {} render(); break;
       case "qOn": setQuran({ on: !qCfg().on }); commit(); break;
+      case "rmd": var rr = rDay(d); rr[b.dataset.f] = rr[b.dataset.f] ? 0 : 1; if (rr.f || rr.t) d.rmd = rr; else delete d.rmd; commit(); break;
+      case "rmdGoal": setQuran({ read: +b.dataset.v }); commit(); toast("هدف وردك اليوم: " + pagesText(+b.dataset.v)); break;
+      case "rmdOff": state.settings.ramadan = { off: !(state.settings.ramadan || {}).off }; commit(); break;
       case "qAdd": qChange(dk(), b.dataset.f, qDay(d)[b.dataset.f] + +b.dataset.v); break;
       case "prayAsr": setPray({ hanafi: b.dataset.v === "1" }); break;
       case "prayLoc": prayLocate(); break;
@@ -3887,7 +3942,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   }
 
   function toRemote(k, d) {
-    return { date: k, items: d.items, good: d.good, improve: d.improve, notes: d.notes, startAt: d.startAt, sleep: d.sleep || null, quran: d.quran || null, qu: d.qu || 0, kids: d.kids || null, ku: d.ku || 0, applied: d.applied, del: d.del || {}, tu: d.tu || 0, updatedAt: d.updatedAt || 0 };
+    return { date: k, items: d.items, good: d.good, improve: d.improve, notes: d.notes, startAt: d.startAt, sleep: d.sleep || null, quran: d.quran || null, qu: d.qu || 0, kids: d.kids || null, ku: d.ku || 0, rmd: d.rmd || null, ru: d.ru || 0, applied: d.applied, del: d.del || {}, tu: d.tu || 0, updatedAt: d.updatedAt || 0 };
   }
   function normDay(v) {
     var items = arr(v.items).slice().sort(function (a, b) { return a.id < b.id ? -1 : a.id > b.id ? 1 : 0; });
@@ -3898,6 +3953,8 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     if (v.qu) o.qu = v.qu;
     if (kHas(v)) o.kids = v.kids;
     if (v.ku) o.ku = v.ku;
+    if (rHas(v)) o.rmd = rDay(v);
+    if (v.ru) o.ru = v.ru;
     return o;
   }
   function canon(v) {
@@ -3932,8 +3989,9 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     var src = rt > lt || (rt === lt && textJson(R) > textJson(L)) ? R : L, applied = arr(L.applied).slice();
     var lq = L.qu || 0, rq = R.qu || 0, qsrc = rq > lq || (rq === lq && JSON.stringify(R.quran || null) > JSON.stringify(L.quran || null)) ? R : L;
     var lk = L.ku || 0, rk = R.ku || 0, ksrc = rk > lk || (rk === lk && JSON.stringify(R.kids || null) > JSON.stringify(L.kids || null)) ? R : L;
+    var lr = L.ru || 0, rr = R.ru || 0, rsrc = rr > lr || (rr === lr && JSON.stringify(R.rmd || null) > JSON.stringify(L.rmd || null)) ? R : L;
     arr(R.applied).forEach(function (a) { if (applied.indexOf(a) < 0) applied.push(a); });
-    return normDay({ items: items, good: src.good, improve: src.improve, notes: src.notes, startAt: src.startAt, sleep: src.sleep, quran: qsrc.quran, qu: Math.max(lq, rq), kids: ksrc.kids, ku: Math.max(lk, rk), applied: applied,
+    return normDay({ items: items, good: src.good, improve: src.improve, notes: src.notes, startAt: src.startAt, sleep: src.sleep, quran: qsrc.quran, qu: Math.max(lq, rq), kids: ksrc.kids, ku: Math.max(lk, rk), rmd: rsrc.rmd, ru: Math.max(lr, rr), applied: applied,
       del: del, tu: Math.max(L.tu || 0, R.tu || 0), updatedAt: Math.max(L.updatedAt || 0, R.updatedAt || 0) });
   }
 
@@ -4227,13 +4285,13 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       if (msj !== JSON.stringify(mergeShop(rshop))) upload = true;
       var rs = row.settings, rst = rs ? (rs.updatedAt || 0) : -1, lst = state.settings.updatedAt || 0;
       if (rs && rst > lst) {
-        state.settings = { categories: arr(rs.categories).length ? rs.categories : defaultCats(), routines: arr(rs.routines), sleep: rs.sleep || state.settings.sleep, prayer: rs.prayer || state.settings.prayer, quran: rs.quran || state.settings.quran, templates: rs.templates || state.settings.templates, goals: rs.goals || state.settings.goals, team: rs.team || state.settings.team, kids: rs.kids || state.settings.kids, tcfg: rs.tcfg || state.settings.tcfg, roles: rs.roles || state.settings.roles, paths: rs.paths || state.settings.paths, rejecters: rs.rejecters || state.settings.rejecters, updatedAt: rst };
+        state.settings = { categories: arr(rs.categories).length ? rs.categories : defaultCats(), routines: arr(rs.routines), sleep: rs.sleep || state.settings.sleep, prayer: rs.prayer || state.settings.prayer, quran: rs.quran || state.settings.quran, templates: rs.templates || state.settings.templates, goals: rs.goals || state.settings.goals, team: rs.team || state.settings.team, kids: rs.kids || state.settings.kids, tcfg: rs.tcfg || state.settings.tcfg, roles: rs.roles || state.settings.roles, paths: rs.paths || state.settings.paths, rejecters: rs.rejecters || state.settings.rejecters, ramadan: rs.ramadan || state.settings.ramadan, updatedAt: rst };
         snap._s = setJson(); changed = true;
       } else if (lst > rst) upload = true;
       fixState(); persist();
       if (changed) softRender();
       if (!upload) { cloud.stamp = typeof row.stamp === "string" ? row.stamp : ""; cloud.sbase = base; saveCode(); return; }
-      var data = { base_date: todayKey, settings: { categories: state.settings.categories, routines: state.settings.routines, sleep: state.settings.sleep, prayer: state.settings.prayer || null, quran: state.settings.quran || null, templates: state.settings.templates || null, goals: state.settings.goals || null, team: state.settings.team || null, kids: state.settings.kids || null, tcfg: state.settings.tcfg || null, roles: state.settings.roles || null, paths: state.settings.paths || null, rejecters: state.settings.rejecters || null, shop: state.shop, updatedAt: state.settings.updatedAt || 0 } };
+      var data = { base_date: todayKey, settings: { categories: state.settings.categories, routines: state.settings.routines, sleep: state.settings.sleep, prayer: state.settings.prayer || null, quran: state.settings.quran || null, templates: state.settings.templates || null, goals: state.settings.goals || null, team: state.settings.team || null, kids: state.settings.kids || null, tcfg: state.settings.tcfg || null, roles: state.settings.roles || null, paths: state.settings.paths || null, rejecters: state.settings.rejecters || null, ramadan: state.settings.ramadan || null, shop: state.shop, updatedAt: state.settings.updatedAt || 0 } };
       windowKeys().forEach(function (k, i) { data[COLS[i]] = merged[k] ? toRemote(k, merged[k]) : null; });
       return rpc("save", { p_code: code, p_data: data }).then(function (r2) {
         if (r2.error) throw r2.error;
