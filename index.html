@@ -90,7 +90,7 @@ section, .stack { display: flex; flex-direction: column; gap: 10px; }
 
 /* Day bar */
 /* Brand strip: app logo and name, with the Levantix mark */
-.profchip { display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-body); font-size: .8rem; font-weight: 600; color: var(--accent); background: var(--accent-soft); border: 0; border-radius: 99px; padding: 3px 10px; }
+.profchip { display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-body); font-size: .8rem; font-weight: 600; color: var(--accent); background: var(--accent-soft); border: 0; border-radius: 99px; padding: 3px 12px; min-height: 36px; }
 .brandbar { position: relative; }
 .profmenu { position: absolute; top: calc(100% + 6px); inset-inline-end: 0; z-index: 20; min-width: 220px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 12px 32px rgba(0,0,0,.18); padding: 6px; display: flex; flex-direction: column; }
 .profmenu button { border: 0; background: none; text-align: start; padding: 10px 12px; border-radius: 10px; font-size: .95rem; display: flex; justify-content: space-between; gap: 10px; align-items: center; }
@@ -148,9 +148,9 @@ select.field { padding-inline: 8px; }
 .addform .grow { flex: 1 1 170px; }
 .btn { height: 44px; padding-inline: 18px; border-radius: 12px; border: 0; background: var(--accent); color: var(--surface); font-weight: 600; }
 .ghost { height: 40px; padding-inline: 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); font-size: .9rem; }
-.linkbtn { border: 0; background: none; color: var(--accent); font-weight: 600; padding: 4px 0; }
+.linkbtn { border: 0; background: none; color: var(--accent); font-weight: 600; padding: 10px 2px; margin: -6px 0; } /* a finger-sized target without taller lines */
 .danger { color: var(--q-now); border-color: var(--q-now); }
-.del { border: 0; background: none; color: var(--muted); width: 32px; height: 32px; border-radius: 8px; font-size: 1.15rem; line-height: 1; flex: none; }
+.del { border: 0; background: none; color: var(--muted); width: 40px; height: 40px; border-radius: 8px; font-size: 1.15rem; line-height: 1; flex: none; }
 .del:hover { color: var(--q-now); background: var(--bg); }
 textarea { width: 100%; min-height: 90px; resize: vertical; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); line-height: 1.8; }
 .empty { color: var(--muted); font-size: .9rem; padding: 16px; border: 1px dashed var(--line); border-radius: 12px; text-align: center; display: flex; flex-direction: column; gap: 10px; align-items: center; }
@@ -401,7 +401,7 @@ details.box textarea { font-size: .78rem; direction: ltr; }
 .qrow .qctl { grid-row: 1 / span 2; grid-column: 2; display: flex; align-items: center; gap: 4px; }
 .qrow .bar { grid-column: 1 / -1; }
 .qrow.met .qgoal { color: var(--done); font-weight: 600; }
-.qbtn { width: 34px; height: 34px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); font-size: 1.15rem; line-height: 1; padding: 0; }
+.qbtn { width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); font-size: 1.15rem; line-height: 1; padding: 0; }
 .kid { border-top: 1px solid var(--line); padding-top: 8px; display: flex; flex-direction: column; gap: 8px; }
 .kid:first-of-type { border-top: 0; padding-top: 0; }
 .kidhd { display: flex; justify-content: space-between; align-items: center; background: none; border: 0; padding: 0; font: inherit; color: inherit; text-align: start; }
@@ -1042,12 +1042,20 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     var html = ui.tab === "settings" ? "" : focusBar();
     if (ui.tab === "day" || ui.tab === "plan") html += tipHtml();
     if (ui.tab === "day") html += teamBarHtml();
+    var nameFirst = !userName && !ui.nameLater && ui.tab !== "settings";
+    if (nameFirst) html = "";
     if (!userName && ui.tab !== "settings") {
       html += '<form class="namecard" data-form="uname"><b>أهلًا بك في «يومي» 👋 ما اسمك؟</b>' +
         (teamPending() ? '<span class="small"><b>👥 بعد كتابة اسمك تنضم إلى الفريق تلقائيًا.</b></span>' : "") +
         '<span class="small muted">يظهر اسمك في أعلى التطبيق، ويعرف به المسؤول من أجرى كل تغيير إن شاركت الحساب.</span>' +
         '<div class="addform"><input class="field grow" id="unameInput" type="text" placeholder="اسمك" autocomplete="given-name"><button class="btn" type="submit">حفظ</button></div>' +
-        (sb && PROFILE === "main" ? '<button class="linkbtn" type="button" data-act="mineStart">🔗 عندي حساب على جهاز آخر</button>' : "") + '</form>';
+        (sb && PROFILE === "main" ? '<button class="linkbtn" type="button" data-act="mineStart">🔗 عندي حساب على جهاز آخر</button>' : "") +
+        (nameFirst ? '<button class="linkbtn" type="button" data-act="nameLater">لاحقًا، أرني التطبيق</button>' : "") + '</form>';
+    }
+    if (nameFirst) {
+      view.innerHTML = '<div class="stack" style="gap:20px;padding-top:16px">' + html + linkHereHtml() + '</div>';
+      labelFields(); drawQr();
+      return;
     }
     if (offsetOf(dk()) > SPAN && ui.tab !== "settings" && ui.tab !== "shop") {
       html += '<div class="banner"><span>📌 يوم قادم: ما تكتبه هنا محفوظ على هذا الجهاز فقط، ويُزامَن مع أجهزتك تلقائيًا قبل موعده بـ٣ أيام.</span><button class="linkbtn" data-act="goToday">ارجع إلى اليوم</button></div>';
@@ -1065,7 +1073,15 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     if (ui.tab === "shop" && !shopOn()) ui.tab = "day";
     html += ui.tab === "shop" ? shopView() : ui.tab === "flows" ? flowsView() : ui.tab === "settings" ? settingsView() : ui.tab === "plan" ? planView() : ui.tab === "day" ? dayView() : reviewView();
     view.innerHTML = '<div class="stack" style="gap:20px;padding-top:16px">' + html + '</div>';
-    drawQr();
+    labelFields(); drawQr();
+  }
+  // Screen readers need a name for every field: one without a label gets its placeholder, or the text just before it
+  function labelFields() {
+    view.querySelectorAll("input, select, textarea").forEach(function (el) {
+      if (el.type === "hidden" || el.type === "checkbox" || el.hasAttribute("aria-label") || el.closest("label")) return;
+      var prev = el.previousElementSibling, t = el.getAttribute("placeholder") || (prev && prev.tagName === "SPAN" ? prev.textContent : "");
+      if (t) el.setAttribute("aria-label", t.replace(/^(مثال|مثل):\s*/, "").trim());
+    });
   }
   function drawQr() {
     view.querySelectorAll(".qrbox[data-qr]").forEach(function (box) {
@@ -2732,6 +2748,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       case "step": ui.step = +b.dataset.n; render(); window.scrollTo(0, 0); break;
       case "gostep4": ui.tab = "plan"; ui.step = 4; render(); break;
       case "tab": ui.tab = b.dataset.tab; ui.step = 1; render(); break;
+      case "nameLater": ui.nameLater = true; render(); break;
       case "shopDel": state.shop.items = state.shop.items.filter(function (x) { return x.id !== b.dataset.sid; }); commit(); break;
       case "shopClear": state.shop.items = shopLeft(); ui.shopGot = false; commit(); toast("مُسحت المشتريات السابقة"); break;
       case "shopShare": shopShare(); break;
