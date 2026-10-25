@@ -1210,11 +1210,12 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     var line = function (label, m, t) { return '<p class="praynext">' + label + ' <b>' + leftText(m) + '</b> <span class="muted small">(' + fmt12(t) + ')</span></p>'; };
     var fj = at(keyOf(n), "fajr"), mg = at(keyOf(n), "maghrib");
     if (!fj || !mg) return "";
+    if (nm < fj.min - 10) return line("🌙 الإمساك بعد", fj.min - 10 - nm, fromMin(fj.min - 10)); // ten minutes before fajr, as the calendars print it
     if (nm < fj.min) return line("🌙 يبقى على أذان الفجر", fj.min - nm, fj.time);
     if (nm < mg.min) return line("🍽 الإفطار بعد", mg.min - nm, mg.time);
     if (!s.left) return '<p class="praynext">🎉 غدًا العيد، تقبّل الله منا ومنكم</p>';
     var tf = at(keyOf(addDays(today(), 1)), "fajr");
-    return tf ? line("🌙 السحور: يبقى على أذان الفجر", tf.min + 1440 - nm, tf.time) : "";
+    return tf ? line("🌙 السحور: يبقى على الإمساك", tf.min - 10 + 1440 - nm, fromMin(tf.min - 10)) : "";
   }
   function ramadanCard() {
     var k = dk(), o = offsetOf(k);
@@ -1223,7 +1224,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     if (o > 0) { // a day still to come: its times only
       var pt = {}; prayList(k).forEach(function (p) { pt[p.key] = p.time; });
       return '<div class="qcard"><div class="sechead"><h3>🌙 رمضان</h3><span class="small muted">اليوم ' + s.n + ' من رمضان</span></div>' +
-        (pt.fajr && pt.maghrib ? '<p class="small">🌙 الإمساك مع أذان الفجر <b>' + fmt12(pt.fajr) + '</b> · 🍽 الإفطار <b>' + fmt12(pt.maghrib) + '</b></p>' :
+        (pt.fajr && pt.maghrib ? '<p class="small">🌙 الإمساك <b>' + fmt12(fromMin(toMin(pt.fajr) - 10)) + '</b> · الفجر <b>' + fmt12(pt.fajr) + '</b> · 🍽 الإفطار <b>' + fmt12(pt.maghrib) + '</b></p>' :
           '<p class="small muted">فعّل أوقات الصلاة من ⚙ ← العبادة، فيظهر هنا موعد الإمساك والإفطار.</p>') +
         '<p class="small muted">في يومه تظهر هنا متابعة الصيام والتراويح وخطة الختمة.</p></div>';
     }
