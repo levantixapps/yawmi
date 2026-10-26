@@ -989,7 +989,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     var k = dk();
     state.sample = k;
     var ex = function (title, cat, imp, urg, top, time, dur, done, note, rid) {
-      return { id: uid(), title: title, cat: cat, important: imp, urgent: urg, top: top, time: time, dur: dur, done: done, spent: done ? dur : null, note: note || "", rid: rid };
+      return { id: uid(), title: title, cat: cat, important: imp, urgent: urg, top: top, time: time, dur: dur, done: done, spent: done ? dur : null, note: note || "", rid: rid, ex: 1 };
     };
     state.settings.routines = [{ id: "ex-quran", title: "قراءة القرآن", cat: "worship", dur: 30, time: "13:00", days: [0, 1, 2, 3, 4, 5, 6], sample: true }];
     state.days[k] = {
@@ -1006,9 +1006,18 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       good: "", improve: "", notes: "", startAt: "08:00", applied: ["ex-quran"], updatedAt: 0
     };
   }
+  // The example day goes, but anything the person added to it stays: example items carry `ex`
+  // (older ones have no edit time `u`, which every item the person adds or changes gets)
   function dropSample() {
     if (!state.sample) return;
-    delete state.days[state.sample]; delete state.dirtyDays[state.sample]; delete snap[state.sample];
+    var k = state.sample, d = state.days[k];
+    if (d) {
+      d.items = d.items.filter(function (i) { return !i.ex && i.u && i.rid !== "ex-quran"; });
+      d.applied = arr(d.applied).filter(function (a) { return a !== "ex-quran"; });
+      if (isEmptyDay(d)) { delete state.days[k]; delete state.dirtyDays[k]; }
+      else d.updatedAt = Date.now();
+    }
+    delete snap[k];
     state.settings.routines = state.settings.routines.filter(function (r) { return !r.sample; });
     delete state.sample;
   }
@@ -2850,10 +2859,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       case "open": ui.open = ui.open === id ? null : id; render(); break;
       case "move": if (lockedItem(it)) break; moveToTomorrow(it); commit(); toast("نُقلت إلى الغد"); break;
       case "moveAll": active(d).filter(function (i) { return !i.done && !i.rid && !lockedItem(i); }).forEach(moveToTomorrow); commit(); toast("نُقل المتبقي إلى الغد"); break;
-      case "clearSample":
-        state.days[state.sample] = blankDay();
-        state.settings.routines = state.settings.routines.filter(function (r) { return !r.sample; });
-        delete state.sample; ui.tab = "plan"; ui.step = 1; commit(); break;
+      case "clearSample": dropSample(); ui.tab = "plan"; ui.step = 1; commit(); break;
       case "newwd": toggleIn(ui.newDays, +b.dataset.wd); render(); break;
       case "allwd": ui.newDays = [0, 1, 2, 3, 4, 5, 6]; render(); break;
       case "rwd":
