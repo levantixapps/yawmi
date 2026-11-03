@@ -1468,16 +1468,22 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       '<p class="small">أتممت وردك في <b>' + t.met + ' من ' + n + '</b> أيام' + (p.read || p.hifz || p.rev ? '، وفي ' + (n === 7 ? "الأسبوع" : "الشهر") + ' الذي قبله: ' + p.met + '.' : ".") +
       ' معدّل قراءتك ' + (t.read % n ? num(t.read / n) + ' صفحة' : pagesText(t.read / n)) + ' يوميًا.</p></section>';
   }
-  /* ---------- BOOKS 📚: reviewing a list of books at a daily number of pages, one book after another (like the Quran card) ---------- */
-  // Settings: state.settings.books = { on, goal (pages a day), list: [{ id, name, pages, page (next page to read), done }] }.
-  // Each day: d.bk = { <bookId>: pages read } with its own edit time d.bu. The book in hand is the first one not done.
+  /* ---------- BOOKS 📚: reviewing several books at once, each at its own pages a day (like the Quran card) ---------- */
+  // Settings: state.settings.books = { on, goal (default for a new book), list: [{ id, name, pages, goal (pages a day), page (next page to read), done }] }.
+  // Each day: d.bk = { <bookId>: pages read } with its own edit time d.bu. Every book not finished shows in «جدولي».
   function bCfg() { var b = state.settings.books || {}; return { on: !!b.on, goal: b.goal == null ? 20 : b.goal, list: arr(b.list) }; }
   function setBooks(ch) { var b = bCfg(); Object.keys(ch).forEach(function (k) { b[k] = ch[k]; }); state.settings.books = b; }
   function booksOn() { return bCfg().on && !isTeamOnly(); }
-  function bookNow() { return bCfg().list.filter(function (x) { return !x.done; })[0] || null; }
+  function bGoalOf(b) { return b.goal == null ? bCfg().goal : b.goal; }
+  function bOpen() { return bCfg().list.filter(function (x) { return !x.done; }); }
   function bHas(d) { return !!(d && d.bk && Object.keys(d.bk).some(function (k) { return d.bk[k] > 0; })); }
   function bTotal(d) { return bHas(d) ? Object.keys(d.bk).reduce(function (t, k) { return t + (+d.bk[k] || 0); }, 0) : 0; }
-  function bMet(d) { var g = bCfg().goal; return g > 0 && bTotal(d) >= g; }
+  // A day counts when every book still in hand (with a goal) got its pages; a book finished that day counts as met
+  function bMet(d) {
+    var m = (d && d.bk) || {}, any = false, ok = true;
+    bCfg().list.forEach(function (b) { var g = bGoalOf(b); if (!(g > 0) || (b.done && !m[b.id])) return; any = true; if ((+m[b.id] || 0) < g && !b.done) ok = false; });
+    return any && ok;
+  }
   function bookOf(id) { return bCfg().list.filter(function (x) { return x.id === id; })[0]; }
   // Changing a day's pages for a book moves that book's place; reaching its last page finishes it
   function bChange(k, id, v) {
@@ -1490,35 +1496,34 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     if (Object.keys(m).length) d.bk = m; else delete d.bk;
     setBooks({ list: bCfg().list.map(function (x) { return x.id !== id ? x : Object.assign({}, x, { page: page, done: page > x.pages }); }) });
     commit();
-    if (!was && page > b.pages) { var nx = bookNow(); toast("أتممت مراجعة «" + b.name + "» 🎉" + (nx ? " التالي: «" + nx.name + "»" : " وأنهيت كل الكتب، بارك الله فيك")); }
+    if (!was && page > b.pages) toast("أتممت مراجعة «" + b.name + "» 🎉" + (bOpen().length ? "" : " وأنهيت كل الكتب، بارك الله فيك"));
   }
   function bookRow(b, v, goal) {
     var left = goal - v, pct = goal ? Math.min(100, Math.round(v / goal * 100)) : 100, from = b.page || 1, to = Math.min(b.pages, from + Math.max(left, 0) - 1);
+    var rest = b.pages - from + 1;
     return '<div class="qrow' + (goal && v >= goal ? " met" : "") + '"><span class="ql">' + esc(b.name) + '</span>' +
       '<span class="qctl"><button class="qbtn" data-act="bAdd" data-b="' + esc(b.id) + '" data-v="-1" aria-label="أنقص صفحة">−</button>' +
       '<input class="field qnum" type="number" inputmode="numeric" min="0" max="' + b.pages + '" value="' + v + '" data-act="bSet" data-b="' + esc(b.id) + '" aria-label="صفحات ' + esc(b.name) + ' اليوم">' +
       '<button class="qbtn" data-act="bAdd" data-b="' + esc(b.id) + '" data-v="1" aria-label="زد صفحة">+</button></span>' +
       '<span class="qgoal">' + (goal ? (v >= goal ? "✓ " : "") + "من " + pagesText(goal) : "صفحة") +
-      (b.done ? " · أتممته ✓" : left > 0 ? " · التالي: ص " + from + (to > from ? "–" + to : "") : " · وصلت إلى ص " + from) + '</span>' +
+      (b.done ? " · أتممته ✓" : (left > 0 ? " · التالي: ص " + from + (to > from ? "–" + to : "") : " · وصلت إلى ص " + from) +
+        " · " + Math.round((from - 1) / b.pages * 100) + "٪" + (goal ? "، تنهيه بعد نحو " + daysCount(Math.ceil(rest / goal)) : "")) + '</span>' +
       (goal ? '<div class="bar"><i style="width:' + pct + '%"></i></div>' : "") + '</div>';
   }
   function booksCard() {
     var g = bCfg(), k = dk(), o = offsetOf(k);
     if (!booksOn() || o > 0) return "";
-    var d = day(), cur = bookNow(), st = streakOf(bMet), done = bTotal(d);
+    var d = day(), st = streakOf(bMet), m = d.bk || {};
     if (!g.list.length) return '<div class="qcard"><h3>📚 مراجعة الكتب</h3><p class="small muted">أضف كتبك من ⚙ ← 🗓 التخطيط ← مراجعة الكتب.</p></div>';
     var h = '<div class="qcard"><div class="sechead"><h3>📚 مراجعة الكتب' + (o < 0 ? ' <span class="small muted">لهذا اليوم</span>' : "") + '</h3>' +
       (st ? '<span class="qstreak">🔥 ' + st + ' ' + daysWord(st) + '</span>' : "") + '</div>';
-    // the book in hand, and any other book read that day
-    var shown = g.list.filter(function (b) { return (cur && b.id === cur.id) || (d.bk && d.bk[b.id] > 0); });
-    shown.forEach(function (b) { var v = +((d.bk || {})[b.id]) || 0; h += bookRow(b, v, cur && b.id === cur.id ? Math.max(0, g.goal - (done - v)) : 0); });
-    var rest = g.list.reduce(function (t, b) { return t + (b.done ? 0 : b.pages - (b.page || 1) + 1); }, 0), nDone = g.list.filter(function (b) { return b.done; }).length;
-    if (cur) {
-      var cl = cur.pages - (cur.page || 1) + 1;
-      h += '<p class="small muted qfoot">«' + esc(cur.name) + '»: وصلت إلى صفحة <b>' + (cur.page || 1) + '</b> من ' + cur.pages + ' (' + Math.round(((cur.page || 1) - 1) / cur.pages * 100) + '٪)' +
-        (g.goal ? '، تنهيه بعد نحو ' + daysCount(Math.ceil(cl / g.goal)) : "") +
-        '<br>الكتب: أتممت <b>' + nDone + ' من ' + g.list.length + '</b>' + (g.goal ? ' · بقي ' + pagesText(rest) + '، نحو ' + daysCount(Math.ceil(rest / g.goal)) + ' بهذا المعدّل' : "") + '</p>';
-    } else h += '<p class="small qfoot">🎉 أتممت مراجعة الكتب كلها (' + g.list.length + '). أضف غيرها من ⚙ متى شئت.</p>';
+    // every book in hand, and a finished one still shows on the day its pages were logged
+    var shown = g.list.filter(function (b) { return !b.done || m[b.id] > 0; });
+    shown.forEach(function (b) { h += bookRow(b, +m[b.id] || 0, b.done ? 0 : bGoalOf(b)); });
+    var open = bOpen(), nDone = g.list.length - open.length;
+    var days = open.reduce(function (t, b) { var gg = bGoalOf(b); return gg > 0 ? Math.max(t, Math.ceil((b.pages - (b.page || 1) + 1) / gg)) : t; }, 0);
+    if (open.length) h += '<p class="small muted qfoot">الكتب: أتممت <b>' + nDone + ' من ' + g.list.length + '</b>' + (days ? ' · تنهيها كلها بعد نحو ' + daysCount(days) + ' بهذا المعدّل' : "") + '</p>';
+    else h += '<p class="small qfoot">🎉 أتممت مراجعة الكتب كلها (' + g.list.length + '). أضف غيرها من ⚙ متى شئت.</p>';
     return h + '</div>';
   }
   function daysCount(n) { return n === 1 ? "يوم واحد" : n === 2 ? "يومين" : n <= 10 ? n + " أيام" : n + " يومًا"; }
@@ -1540,19 +1545,20 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   function booksSettingsHtml() {
     if (isTeamOnly()) return "";
     var g = bCfg();
-    var h = '<section id="books"><h2>📚 مراجعة الكتب</h2><p class="muted small">قائمة كتب تراجعها بالترتيب بعدد صفحات كل يوم، مثل ورد القرآن: عدّاد في «جدولي»، وموضعك في كل كتاب، ومتى تنتهي.</p>' +
+    var h = '<section id="books"><h2>📚 مراجعة الكتب</h2><p class="muted small">كتب تراجعها معًا، ولكل كتاب عدد صفحاته كل يوم، مثل ورد القرآن: عدّاد لكل كتاب في «جدولي»، وموضعك فيه، ومتى تنهيه.</p>' +
       '<div class="row-wrap"><button class="' + (g.on ? "btn" : "ghost") + '" data-act="bOn" aria-pressed="' + g.on + '">' + (g.on ? "📚 مراجعة الكتب مفعّلة" : "فعّل مراجعة الكتب") + '</button></div>';
     if (!g.on) return h + '</section>';
-    h += '<div class="qset"><label>الهدف اليومي <input class="field qnum" type="number" inputmode="numeric" min="0" max="500" value="' + g.goal + '" data-act="bGoal"> صفحة</label></div>';
     if (g.list.length) h += '<ul class="list">' + g.list.map(function (b, i) {
       return '<li class="catedit"><span class="grow">' + (b.done ? "✓ " : "") + esc(b.name) + ' <span class="small muted">(' + b.pages + ' ص)</span></span>' +
+        '<label class="small">كل يوم <input class="field qnum" type="number" inputmode="numeric" min="0" max="500" value="' + bGoalOf(b) + '" data-act="bGoal" data-b="' + esc(b.id) + '"> ص</label>' +
         '<label class="small">وصلت إلى ص <input class="field qnum" type="number" inputmode="numeric" min="1" max="' + (b.pages + 1) + '" value="' + (b.page || 1) + '" data-act="bPage" data-b="' + esc(b.id) + '"></label>' +
         (i ? '<button class="del" data-act="bUp" data-b="' + esc(b.id) + '" aria-label="قدّمه">↑</button>' : "") +
         '<button class="del" data-act="bDel" data-b="' + esc(b.id) + '" aria-label="حذف">×</button></li>';
     }).join("") + '</ul>';
     return h + '<form class="addform" data-form="book"><input class="field grow" id="bookName" type="text" maxlength="60" placeholder="اسم الكتاب" autocomplete="off">' +
-      '<input class="field qnum" id="bookPages" type="number" inputmode="numeric" min="1" max="5000" placeholder="صفحاته" aria-label="عدد الصفحات"><button class="btn" type="submit">أضف</button></form>' +
-      '<p class="small muted">تُراجع الكتب بالترتيب: حين تنهي كتابًا ينتقل العدّاد إلى الذي بعده. ↑ يقدّم الكتاب في الترتيب.</p></section>';
+      '<input class="field qnum" id="bookPages" type="number" inputmode="numeric" min="1" max="5000" placeholder="صفحاته" aria-label="عدد صفحات الكتاب">' +
+      '<input class="field qnum" id="bookGoal" type="number" inputmode="numeric" min="1" max="500" placeholder="يوميًا" value="' + g.goal + '" aria-label="صفحات كل يوم"><button class="btn" type="submit">أضف</button></form>' +
+      '<p class="small muted">اكتب اسم الكتاب، وعدد صفحاته، وكم صفحة تراجع منه كل يوم. وتغيّر ذلك متى شئت من القائمة أعلاه. ↑ يقدّم الكتاب في الترتيب.</p></section>';
   }
 
   /* ---------- KIDS: a gold star for a good deed, a red fire for a bad one ---------- */
@@ -3226,7 +3232,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     else if (t.id === "gHow") ui.gHow = t.value;
     else if (act === "qSet") qChange(dk(), t.dataset.f, +t.value);
     else if (act === "bSet") bChange(dk(), t.dataset.b, +t.value);
-    else if (act === "bGoal") { setBooks({ goal: Math.max(0, Math.min(500, Math.round(+t.value) || 0)) }); commit(); }
+    else if (act === "bGoal") { var bg = Math.max(0, Math.min(500, Math.round(+t.value) || 0)); setBooks({ list: bCfg().list.map(function (x) { return x.id !== t.dataset.b ? x : Object.assign({}, x, { goal: bg }); }) }); commit(); }
     else if (act === "bPage") { var bpg = +t.value; setBooks({ list: bCfg().list.map(function (x) { if (x.id !== t.dataset.b) return x; var pg = Math.max(1, Math.min(x.pages + 1, Math.round(bpg) || 1)); return Object.assign({}, x, { page: pg, done: pg > x.pages }); }) }); commit(); }
     else if (act === "qCfg") {
       var qmax = t.dataset.f === "hifz" ? 20 : Q_PAGES, qmin = /page$/.test(t.dataset.f) ? 1 : 0, qv = Math.max(qmin, Math.min(qmax, Math.round(+t.value) || 0)), qc = {};
@@ -3294,9 +3300,9 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       ui.newDays = [0, 1, 2, 3, 4, 5, 6];
       commit(); toast("أُضيفت، وستنزل في أيامها تلقائيًا");
     } else if (f === "book") {
-      v = $("bookName").value.trim(); var bp = Math.round(+$("bookPages").value);
+      v = $("bookName").value.trim(); var bp = Math.round(+$("bookPages").value), bgl = Math.max(1, Math.min(500, Math.round(+$("bookGoal").value) || bCfg().goal));
       if (!v || !(bp > 0)) { toast("اكتب اسم الكتاب وعدد صفحاته"); return; }
-      setBooks({ list: bCfg().list.concat([{ id: uid(), name: v.slice(0, 60), pages: Math.min(5000, bp), page: 1 }]) }); commit(); toast("أُضيف «" + v + "» 📚");
+      setBooks({ goal: bgl, list: bCfg().list.concat([{ id: uid(), name: v.slice(0, 60), pages: Math.min(5000, bp), goal: bgl, page: 1 }]) }); commit(); toast("أُضيف «" + v + "» 📚");
     } else if (f === "shop") {
       v = $("shopInput").value.trim(); if (!v) return;
       ui.shopSec = $("shopSec").value;
@@ -4373,20 +4379,23 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       { say: "وفعّل «الإشعارات» ليصلك التنبيه حتى والتطبيق مغلق، وجرّبها بالإشعار التجريبي", go: '[data-act="pushOn"]', act: "point", wait: 3200 }
     ] },
     books: { name: "📚 مراجعة الكتب", setup: function (st) { st.settings.books = { on: false, goal: 20, list: [] }; }, steps: [
-      { say: "مثال: سنراجع كتابين بـ٢٠ صفحة كل يوم. تابع اليد 👆", act: "wait", wait: 2200 },
+      { say: "مثال: سنراجع كتابين معًا، لكل منهما عدد صفحاته. تابع اليد 👆", act: "wait", wait: 2200 },
       { say: "افتح ⚙ الإعدادات", go: "#setBtn", act: "click" },
       { say: "ثم تبويب «🗓 التخطيط»", go: '[data-act="setTab"][data-k="plan"]', act: "click" },
       { say: "فعّل «مراجعة الكتب»", go: '[data-act="bOn"]', act: "click" },
       { say: "اكتب اسم الكتاب", go: "#bookName", act: "type", text: "القانون المدني" },
-      { say: "وعدد صفحاته، ثم «أضف»", go: "#bookPages", act: "type", text: "300" },
+      { say: "وعدد صفحاته", go: "#bookPages", act: "type", text: "300" },
+      { say: "وكم صفحة تراجع منه كل يوم، ثم «أضف»", go: "#bookGoal", act: "type", text: "20" },
       { go: 'form[data-form="book"] button[type=submit]', act: "click" },
-      { say: "وأضف الكتب الأخرى بالترتيب", go: "#bookName", act: "type", text: "أصول الفقه" },
-      { go: "#bookPages", act: "type", text: "200", wait: 500 },
+      { say: "وأضف الكتاب الثاني بعدد صفحاته اليومي", go: "#bookName", act: "type", text: "أصول الفقه" },
+      { go: "#bookPages", act: "type", text: "200", wait: 400 },
+      { go: "#bookGoal", act: "type", text: "10", wait: 400 },
       { go: 'form[data-form="book"] button[type=submit]', act: "click" },
-      { say: "والهدف اليومي ٢٠ صفحة، وتغيّره من هنا", go: 'input[data-act="bGoal"]', act: "point", wait: 2200 },
-      { say: "ارجع إلى «جدولي»", go: '.tab[data-tab="day"]', act: "click" },
-      { say: "بعد كل جلسة سجّل صفحاتك", go: 'input[data-act="bSet"]', act: "type", text: "20" },
-      { say: "فيظهر أين وصلت، ومتى تنهي الكتاب وكل الكتب", go: ".qfoot", act: "point", wait: 3200 }
+      { say: "وتغيّر صفحات أي كتاب متى شئت من هنا", go: 'input[data-act="bGoal"]', act: "point", wait: 2400 },
+      { say: "ارجع إلى «جدولي»: الكتابان معًا، لكلٍّ عدّاده", go: '.tab[data-tab="day"]', act: "click" },
+      { say: "بعد كل جلسة سجّل صفحات كل كتاب", go: 'input[data-act="bSet"]', act: "type", text: "20" },
+      { go: '.qcard .qrow:nth-child(3) input[data-act="bSet"]', act: "type", text: "10" },
+      { say: "ولكل كتاب أين وصلت ومتى تنهيه", go: ".qfoot", act: "point", wait: 3200 }
     ] },
     accounts: { name: "👨‍👩‍👧 الحسابات والمشاركة", setup: function () {}, steps: [
       { say: "مثال: الحسابات. لكل حساب مهامه وتقاريره وإعداداته المستقلة", act: "wait", wait: 2600 },
