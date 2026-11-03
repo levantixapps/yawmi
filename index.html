@@ -4250,7 +4250,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     var left = shopLeft(), got = state.shop.items.filter(function (i) { return i.done; }).sort(function (a, b) { return (b.u || 0) - (a.u || 0); });
     var pf = currentProfile(), who = !!(pf && pf.shared), sec = ui.shopSec || "food";
     var h = '<section class="stack"><div class="sechead"><h2>🛒 المشتريات</h2>' + (left.length ? '<button class="linkbtn" data-act="shopShare">📤 أرسل القائمة</button>' : "") + '</div>' +
-      '<p class="muted small">اكتب ما ينقص البيت، وعلّم عليه عند شرائه.' + (who ? ' القائمة مشتركة: تظهر لكل أفراد الحساب.' : (code ? ' تظهر على كل أجهزتك.' : "")) + '</p>' +
+      '<p class="muted small">اكتب ما ينقص البيت، وعلّم عليه عند شرائه.' + (who ? ' القائمة مشتركة: تظهر لكل أفراد الحساب.' : (code ? ' تظهر على كل أجهزتك.' : "")) + ' <a class="linkbtn" href="guide.html#shop">🎬 شاهد كيف</a></p>' +
       '<form class="addform" data-form="shop"><input class="field grow" id="shopInput" type="text" maxlength="60" placeholder="مثال: حليب ٢" autocomplete="off">' +
       '<select class="field" id="shopSec" aria-label="القسم">' + SHOP_SECS.map(function (s) { return '<option value="' + s[0] + '"' + (s[0] === sec ? " selected" : "") + '>' + s[1] + '</option>'; }).join("") + '</select>' +
       '<button class="btn" type="submit">أضف</button></form>';
