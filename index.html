@@ -1308,7 +1308,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   var adCat = null, adCount = { d: "", c: {} };
   try { adCount = JSON.parse(localStorage.getItem("yawmi-adhkar") || "null") || adCount; } catch (e) {}
   function adDone(k) { if (adCount.d !== keyOf(new Date())) adCount = { d: keyOf(new Date()), c: {} }; return adCount.c[k] || 0; }
-  function adSave() { try { localStorage.setItem("yawmi-adhkar", JSON.stringify(adCount)); } catch (e) {} }
+  function adSave() { if (demo) return; try { localStorage.setItem("yawmi-adhkar", JSON.stringify(adCount)); } catch (e) {} }
   // Morning from fajr to dhuhr, evening from asr to isha (by the prayer times when they're on)
   function adNow() {
     var n = new Date(), nm = n.getHours() * 60 + n.getMinutes(), t = {};
@@ -4299,6 +4299,95 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   // Each step: { say, go (selector), act: "click" | "type" | "pick" | "point" | "wait", text / value, wait }. `go` is looked up fresh
   // each time, after the app re-renders. While a demo runs, persist / sync / log do nothing; at the end the real state returns.
   var DEMOS = {
+    plan: { name: "🌅 خطّط ليومك", tab: "plan", setup: function (st) { st.days[keyOf(today())] = blankDay(); delete st.sample; }, steps: [
+      { say: "مثال: سنخطّط ليوم كامل في ٤ خطوات. تابع اليد 👆", act: "wait", wait: 2400 },
+      { say: "١. اكتب كل ما عليك اليوم، مع تقسيمه ومدته", go: "#dumpInput", act: "type", text: "مراجعة الفصل الثالث" },
+      { go: "#dumpCat", act: "pick", value: "study", wait: 500 },
+      { go: "#dumpDur", act: "pick", value: "120", wait: 500 },
+      { go: 'form[data-form="dump"] button[type=submit]', act: "click" },
+      { say: "وأضف الباقي بالطريقة نفسها", go: "#dumpInput", act: "type", text: "زيارة الوالدين" },
+      { go: "#dumpCat", act: "pick", value: "family", wait: 400 },
+      { go: 'form[data-form="dump"] button[type=submit]', act: "click", wait: 500 },
+      { go: "#dumpInput", act: "type", text: "تصفّح الجوال" },
+      { go: "#dumpCat", act: "pick", value: "other", wait: 400 },
+      { go: "#dumpDur", act: "pick", value: "30", wait: 400 },
+      { go: 'form[data-form="dump"] button[type=submit]', act: "click" },
+      { say: "٢. انتقل إلى «ميّز المهم»", go: '.stepbtn[data-n="2"]', act: "click" },
+      { say: "لكل بند: هل هو مهم؟ وهل هو عاجل؟", go: '.list > li:nth-child(1) [data-f="important"][data-v="1"]', act: "click", wait: 600 },
+      { go: '.list > li:nth-child(1) [data-f="urgent"][data-v="1"]', act: "click", wait: 600 },
+      { go: '.list > li:nth-child(2) [data-f="important"][data-v="1"]', act: "click", wait: 600 },
+      { go: '.list > li:nth-child(2) [data-f="urgent"][data-v="0"]', act: "click", wait: 600 },
+      { say: "وما ليس مهمًّا ولا عاجلًا اتركه اليوم", go: '.list > li:nth-child(3) [data-f="important"][data-v="0"]', act: "click", wait: 600 },
+      { go: '.list > li:nth-child(3) [data-f="urgent"][data-v="0"]', act: "click" },
+      { say: "٣. اختر أهم ٣ أشياء ليومك", go: '.stepbtn[data-n="3"]', act: "click" },
+      { go: '.list > li:nth-child(1) [data-act="top"]', act: "click", wait: 600 },
+      { go: '.list > li:nth-child(2) [data-act="top"]', act: "click" },
+      { say: "٤. ضع لكل شيء وقتًا", go: '.stepbtn[data-n="4"]', act: "click" },
+      { say: "اضغط «رتّب» فيُوزَّع يومك على الساعات وحده", go: '[data-act="auto"]', act: "click", wait: 1800 },
+      { say: "ثم «ابدأ يومي»", go: '[data-act="startDay"]', act: "click" },
+      { say: "هذا جدولك. وعند الإنجاز اضغط ✓", go: '.top3 [data-act="done"]', act: "click", wait: 2200 }
+    ] },
+    quran: { name: "📖 ورد القرآن", setup: function (st) { st.settings.quran = { on: false, read: 5, hifz: 1, rev: 5, page: 1, hpage: 1, rpage: 1, mem: 0, khatmat: 0 }; }, steps: [
+      { say: "مثال: سنفعّل متابعة ورد القرآن. تابع اليد 👆", act: "wait", wait: 2200 },
+      { say: "افتح ⚙ الإعدادات", go: "#setBtn", act: "click" },
+      { say: "ثم تبويب «🕌 العبادة»", go: '[data-act="setTab"][data-k="wor"]', act: "click" },
+      { say: "فعّل «الحفظ والورد»", go: '[data-act="qOn"]', act: "click" },
+      { say: "اكتب هدفك اليومي من القراءة بالصفحات", go: 'input[data-act="qCfg"][data-f="read"]', act: "type", text: "10" },
+      { say: "ومن أي صفحة تبدأ القراءة", go: 'input[data-act="qCfg"][data-f="page"]', act: "type", text: "250" },
+      { say: "وكذلك هدف الحفظ والمراجعة (٠ يخفي العدّاد)", go: 'input[data-act="qCfg"][data-f="hifz"]', act: "point", wait: 2000 },
+      { say: "ارجع إلى «جدولي»", go: '.tab[data-tab="day"]', act: "click" },
+      { say: "بعد القراءة اضغط + لكل صفحة", go: '[data-act="qAdd"][data-f="read"][data-v="1"]', act: "click", wait: 700 },
+      { go: '[data-act="qAdd"][data-f="read"][data-v="1"]', act: "click", wait: 700 },
+      { go: '[data-act="qAdd"][data-f="read"][data-v="1"]', act: "click" },
+      { say: "أو اكتب العدد مباشرة", go: 'input[data-act="qSet"][data-f="read"]', act: "type", text: "10" },
+      { say: "فتتحرك ختمتك وحدها، وتظهر سلسلة 🔥 لأيامك المتتالية", go: ".qfoot", act: "point", wait: 3000 }
+    ] },
+    adhkar: { name: "🤲 الأذكار", setup: function () {}, steps: [
+      { say: "مثال: سنقرأ أذكار الصباح. تابع اليد 👆", act: "wait", wait: 2200 },
+      { say: "اضغط 🤲 في أعلى الشاشة", go: "#adBtn", act: "click" },
+      { say: "اختر القسم، مثلًا «أذكار الصباح»", go: '.dcat[data-c="m"]', act: "click" },
+      { say: "اقرأ الذكر ثم اضغط عليه ليُعدّ: ٣ ← ٢ ← ١ ← ✓", go: '.dhikr[data-k="m:1"]', act: "click", wait: 800 },
+      { go: '.dhikr[data-k="m:1"]', act: "click", wait: 800 },
+      { go: '.dhikr[data-k="m:1"]', act: "click" },
+      { say: "ارجع إلى الأقسام", go: '[data-ad="back"]', act: "click" },
+      { say: "وفيها أذكار بعد الصلاة والنوم والسفر والكرب، وأدعية من القرآن والسنة", go: '.dcat[data-c="qd"]', act: "point", wait: 2800 },
+      { say: "وتُغلق القائمة من ✕", go: '.dhead [data-ad="close"]', act: "click" }
+    ] },
+    prayer: { name: "🕌 أوقات الصلاة", setup: function (st) { st.settings.prayer = { on: false }; }, steps: [
+      { say: "مثال: سنفعّل أوقات الصلاة. تابع اليد 👆", act: "wait", wait: 2200 },
+      { say: "افتح ⚙ الإعدادات", go: "#setBtn", act: "click" },
+      { say: "ثم تبويب «🕌 العبادة»", go: '[data-act="setTab"][data-k="wor"]', act: "click" },
+      { say: "اضغط «فعّل أوقات الصلاة»", go: '[data-act="prayOn"]', act: "click" },
+      { say: "اختر مدينتك، أو اضغط «📍 موقعي» ليحدّدها الجوال", go: 'select[data-act="prayCity"]', act: "pick", value: "0" },
+      { say: "وطريقة الحساب تُختار وحدها حسب بلدك", go: 'select[data-act="prayMethod"]', act: "point", wait: 2200 },
+      { say: "ولكل صلاة وقت يتركه الترتيب التلقائي فارغًا", go: 'select[data-act="prayBlock"]', act: "point", wait: 2200 },
+      { say: "ارجع إلى «جدولي»", go: '.tab[data-tab="day"]', act: "click" },
+      { say: "فتظهر أوقات اليوم والمتبقي للصلاة التالية", go: ".praycard", act: "point", wait: 3200 }
+    ] },
+    alert: { name: "🔔 تنبيه على موعد", setup: function (st) { var k = keyOf(today()); delete st.sample; st.days[k] = blankDay(); st.days[k].items = [{ id: "demo-a", title: "موعد طبيب الأسنان", cat: "health", dur: 60, time: "", important: true, urgent: true, top: false, done: false, spent: null, note: "" }]; }, steps: [
+      { say: "مثال: تنبيه على موعد طبيب الأسنان. تابع اليد 👆", act: "wait", wait: 2200 },
+      { say: "اضغط على المهمة لتفتحها", go: '.slot [data-act="open"], [data-act="open"]', act: "click" },
+      { say: "اكتب وقتها", go: 'input[data-act="time"]', act: "type", text: "17:30" },
+      { say: "ثم افتح ⚙ الإعدادات", go: "#setBtn", act: "click" },
+      { say: "في «⚙ عام» فعّل التنبيهات: صوت وإشعار في وقت المهمة", go: '[data-act="alertsOn"]', act: "point", wait: 2800 },
+      { say: "وفعّل «الإشعارات» ليصلك التنبيه حتى والتطبيق مغلق، وجرّبها بالإشعار التجريبي", go: '[data-act="pushOn"]', act: "point", wait: 3200 }
+    ] },
+    books: { name: "📚 مراجعة الكتب", setup: function (st) { st.settings.books = { on: false, goal: 20, list: [] }; }, steps: [
+      { say: "مثال: سنراجع كتابين بـ٢٠ صفحة كل يوم. تابع اليد 👆", act: "wait", wait: 2200 },
+      { say: "افتح ⚙ الإعدادات", go: "#setBtn", act: "click" },
+      { say: "ثم تبويب «🗓 التخطيط»", go: '[data-act="setTab"][data-k="plan"]', act: "click" },
+      { say: "فعّل «مراجعة الكتب»", go: '[data-act="bOn"]', act: "click" },
+      { say: "اكتب اسم الكتاب", go: "#bookName", act: "type", text: "القانون المدني" },
+      { say: "وعدد صفحاته، ثم «أضف»", go: "#bookPages", act: "type", text: "300" },
+      { go: 'form[data-form="book"] button[type=submit]', act: "click" },
+      { say: "وأضف الكتب الأخرى بالترتيب", go: "#bookName", act: "type", text: "أصول الفقه" },
+      { go: "#bookPages", act: "type", text: "200", wait: 500 },
+      { go: 'form[data-form="book"] button[type=submit]', act: "click" },
+      { say: "والهدف اليومي ٢٠ صفحة، وتغيّره من هنا", go: 'input[data-act="bGoal"]', act: "point", wait: 2200 },
+      { say: "ارجع إلى «جدولي»", go: '.tab[data-tab="day"]', act: "click" },
+      { say: "بعد كل جلسة سجّل صفحاتك", go: 'input[data-act="bSet"]', act: "type", text: "20" },
+      { say: "فيظهر أين وصلت، ومتى تنهي الكتاب وكل الكتب", go: ".qfoot", act: "point", wait: 3200 }
+    ] },
     shop: { name: "🛒 المشتريات", setup: function (st) { st.shop = { items: [], del: {} }; }, steps: [
       { say: "مثال: سنكتب مشتريات البيت. تابع اليد 👆", act: "wait", wait: 2200 },
       { say: "اضغط «المشتريات» أسفل الشاشة", go: '.tab[data-tab="shop"]', act: "click" },
@@ -4322,9 +4411,10 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     var D = DEMOS[id];
     if (!D || demo) return;
     save();
-    demo = { id: id, real: JSON.stringify(state), tab: ui.tab, day: current, i: 0, open: ui.open };
+    demo = { id: id, real: JSON.stringify(state), tab: ui.tab, day: current, i: 0, open: ui.open, step: ui.step, setTab: ui.setTab, ad: JSON.stringify(adCount) };
     var st = JSON.parse(demo.real); D.setup(st); state = st; fixState(); takeSnap();
-    ui.tab = "day"; ui.open = null; current = today(); render(); window.scrollTo(0, 0);
+    adCount = { d: keyOf(new Date()), c: {} };
+    ui.tab = D.tab || "day"; ui.step = 1; ui.setTab = "gen"; ui.open = null; current = today(); render(); window.scrollTo(0, 0);
     dEls = { shield: document.createElement("div"), hand: document.createElement("span"), ring: document.createElement("span"), bub: document.createElement("div") };
     dEls.shield.className = "dshield"; dEls.hand.className = "dhand"; dEls.hand.textContent = "👆"; dEls.ring.className = "dring"; dEls.bub.className = "dbubble bot";
     dEls.bub.innerHTML = '<p></p><button type="button">✕ إنهاء</button>';
@@ -4361,7 +4451,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
         (function key() {
           if (!demo) return;
           el.value = st.text.slice(0, ++n); el.dispatchEvent(new Event("input", { bubbles: true }));
-          if (n < st.text.length) dTimer = setTimeout(key, 140); else next();
+          if (n < st.text.length) dTimer = setTimeout(key, 140); else { el.dispatchEvent(new Event("change", { bubbles: true })); next(); }
         })();
       }
       else next();
@@ -4372,7 +4462,8 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     clearTimeout(dTimer);
     var d0 = demo; demo = null;
     state = JSON.parse(d0.real); fixState(); takeSnap();
-    ui.tab = d0.tab; ui.open = d0.open; current = d0.day;
+    adCount = JSON.parse(d0.ad); if (!$("adhkar").hidden) adClose();
+    ui.tab = d0.tab; ui.open = d0.open; ui.step = d0.step; ui.setTab = d0.setTab; current = d0.day;
     if (dEls) Object.keys(dEls).forEach(function (k) { dEls[k].remove(); });
     dEls = null; render();
   }
