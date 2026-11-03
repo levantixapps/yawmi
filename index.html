@@ -4416,30 +4416,31 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       st.settings.roles = {}; st.settings.paths = []; st.settings.rejecters = [];
       delete st.sample; st.days[k] = blankDay();
       st.days[k].items = [{ id: "demo-t", title: "تجهيز تقرير الشهر", cat: "other", dur: 60, time: "10:00", important: true, urgent: true, top: false, done: false, spent: null, note: "" }];
-    }, flows: function () {
-      var h = 3600000, t = Date.now();
-      return [{ id: 1, no: 17, title: "طلب صرف مكافأة", ref: "", steps: ["الديوان", "المدير", "المالية"], pos: 1, status: "open", days: 2, created_at: new Date(t - 5 * h).toISOString(),
-        updated_at: new Date(t - 2 * h).toISOString(), step_at: new Date(t - 2 * h).toISOString(),
-        log: [{ at: new Date(t - 5 * h).toISOString(), who: "سعيد", role: "الديوان", act: "start" }, { at: new Date(t - 2 * h).toISOString(), who: "سعيد", role: "الديوان", act: "next" }] }];
-    }, steps: [
+    }, flows: function () { return []; }, steps: [
       { say: "مثال: فريق من ٣ أعضاء وأنت مسؤوله", act: "wait", wait: 2400 },
       { say: "افتح أي مهمة", go: '[data-act="open"]', act: "click" },
       { say: "ومن «👤 لمن؟» اختر العضو، فتصله المهمة على جواله", go: 'select[data-act="assign"]', act: "pick", value: "2" },
       { say: "وللمعاملات: افتح ⚙ ← «👤 الحسابات»", go: "#setBtn", act: "click" },
       { go: '[data-act="setTab"][data-k="acc"]', act: "click" },
-      { say: "اكتب دور كل عضو", go: 'input[data-act="roleSet"][data-n="1"]', act: "type", text: "المدير" },
-      { go: 'input[data-act="roleSet"][data-n="2"]', act: "type", text: "الديوان", wait: 500 },
+      { say: "اكتب دور كل عضو: أنت «مدير المكتب»", go: 'input[data-act="roleSet"][data-n="1"]', act: "type", text: "مدير المكتب" },
+      { say: "وسعيد «الديوان»، وخالد «المالية»", go: 'input[data-act="roleSet"][data-n="2"]', act: "type", text: "الديوان", wait: 500 },
       { go: 'input[data-act="roleSet"][data-n="3"]', act: "type", text: "المالية" },
-      { say: "واختر من يحق له رفض المعاملات", go: '[data-act="rejToggle"]', act: "point", wait: 2400 },
-      { say: "واحفظ المسارات المتكررة: اضغط الأدوار بالترتيب", go: '[data-act="pathStep"][data-r="الديوان"]', act: "click", wait: 600 },
-      { go: '[data-act="pathStep"][data-r="المدير"]', act: "click", wait: 600 },
-      { go: '[data-act="pathStep"][data-r="المالية"]', act: "click" },
-      { say: "وسمِّ المسار ثم احفظه", go: "#pathName", act: "type", text: "طلب صرف" },
+      { say: "ثم احفظ مسار القرارات: اضغط الأدوار بالترتيب: الديوان ← مدير المكتب ← الديوان", go: '[data-act="pathStep"][data-r="الديوان"]', act: "click", wait: 700 },
+      { go: '[data-act="pathStep"][data-r="مدير المكتب"]', act: "click", wait: 700 },
+      { go: '[data-act="pathStep"][data-r="الديوان"]', act: "click" },
+      { say: "وسمِّ المسار ثم احفظه", go: "#pathName", act: "type", text: "قرار" },
       { go: 'form[data-form="path"] button[type=submit]', act: "click" },
       { say: "فيظهر تبويب «📨 المعاملات»", go: '.tab[data-tab="flows"]', act: "click" },
-      { say: "«➕ معاملة جديدة»: عنوانها ومسارها، فتنتقل من دور إلى دور", go: '[data-act="flowStart"]', act: "point", wait: 3000 },
-      { say: "وما يصلك تتصرّف فيه: أرسلها للتالي، أو أرجعها، أو حوّلها، أو ارفضها", go: '[data-act="flowAct"][data-a="next"]', act: "point", wait: 3600 },
-      { say: "ولكل معاملة سجل كامل بمن تصرّف فيها ومتى", go: ".flowcard details summary", act: "point", wait: 3000 }
+      { say: "سعيد في «الديوان» سجّل «قرار تكليف» على مسار «قرار»، فانتقل إليك مباشرة", act: "run", wait: 3200, run: function () {
+        demoFlow({ pos: 1, log: [["سعيد", "الديوان", "start", 3]] }); toast("🔔 📨 معاملة وصلتك: قرار تكليف · من سعيد"); } },
+      { say: "المسار ظاهر عليها، والملوّن مكانها الآن: عندك أنت", go: ".flowcard .flowpath", act: "point", wait: 3000 },
+      { say: "بعد أن توقّعه اضغط «✓ أرسلها إلى «الديوان»»", go: '[data-act="flowAct"][data-a="next"]', act: "run", run: function () {
+        demoFlow({ pos: 2, log: [["سعيد", "الديوان", "start", 3], ["أنت", "مدير المكتب", "next", 0]] }); toast("أُرسلت إلى «الديوان»"); } },
+      { say: "فعادت إلى الديوان (الخطوة ٣ من ٣)، ووصل سعيد إشعار بها", go: ".flowcard .flowpath", act: "point", wait: 3200 },
+      { say: "وحين يحفظها الديوان وينهيها يصلك إشعار: «✅ انتهت المعاملة»", act: "run", wait: 3600, run: function () {
+        demoFlow({ status: "done", pos: 2, log: [["سعيد", "الديوان", "start", 3], ["أنت", "مدير المكتب", "next", 1], ["سعيد", "الديوان", "next", 0]] }); toast("🔔 ✅ انتهت المعاملة: قرار تكليف · أنهاها سعيد"); } },
+      { say: "وتجدها في «المنتهية»", go: "#view details.box > summary", act: "click" },
+      { say: "ولكل معاملة سجل كامل بمن تصرّف فيها ومتى", go: "#view details.box .flowcard details.changes > summary", act: "click", wait: 3400 }
     ] },
     shop: { name: "🛒 المشتريات", setup: function (st) { st.shop = { items: [], del: {} }; }, steps: [
       { say: "مثال: سنكتب مشتريات البيت. تابع اليد 👆", act: "wait", wait: 2200 },
@@ -4460,6 +4461,12 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     ] }
   };
   var dEls = null, dTimer = null;
+  function demoFlow(o) {
+    var h = 3600000, t = Date.now(), steps = ["الديوان", "مدير المكتب", "الديوان"];
+    var log = o.log.map(function (l) { return { at: new Date(t - l[3] * h - 60000).toISOString(), who: l[0], role: l[1], act: l[2] }; });
+    ui.flows = [{ id: 1, no: 17, title: "قرار تكليف", ref: "", steps: steps, pos: o.pos, status: o.status || "open", days: 2, created_at: log[0].at,
+      updated_at: log[log.length - 1].at, step_at: log[log.length - 1].at, log: log }];
+  }
   function demoStart(id) {
     var D = DEMOS[id];
     if (!D || demo) return;
@@ -4495,13 +4502,14 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     if (r) { dEls.hand.style.left = (r.left + r.width / 2) + "px"; dEls.hand.style.top = (r.top + r.height / 2) + "px"; }
     dTimer = setTimeout(function () {
       if (!demo) return;
-      if (el && st.act !== "wait") {
+      if (el && st.act !== "wait" && st.act !== "point") {
         dEls.ring.style.left = dEls.hand.style.left; dEls.ring.style.top = dEls.hand.style.top;
         dEls.hand.classList.remove("tap"); dEls.ring.classList.remove("go"); void dEls.hand.offsetWidth;
         dEls.hand.classList.add("tap"); dEls.ring.classList.add("go");
       }
       var next = function () { demo.i++; dTimer = setTimeout(demoStep, st.wait || 1100); };
       if (st.act === "click") { el.click(); next(); }
+      else if (st.act === "run") { st.run(); render(); next(); }
       else if (st.act === "pick") { el.value = st.value; el.dispatchEvent(new Event("change", { bubbles: true })); next(); }
       else if (st.act === "type") {
         var n = 0; el.value = "";
