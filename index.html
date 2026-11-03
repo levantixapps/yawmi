@@ -4388,6 +4388,50 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       { say: "بعد كل جلسة سجّل صفحاتك", go: 'input[data-act="bSet"]', act: "type", text: "20" },
       { say: "فيظهر أين وصلت، ومتى تنهي الكتاب وكل الكتب", go: ".qfoot", act: "point", wait: 3200 }
     ] },
+    accounts: { name: "👨‍👩‍👧 الحسابات والمشاركة", setup: function () {}, steps: [
+      { say: "مثال: الحسابات. لكل حساب مهامه وتقاريره وإعداداته المستقلة", act: "wait", wait: 2600 },
+      { say: "من هنا تنتقل بين حساباتك", go: "#profBtn", act: "click", wait: 2400 },
+      { go: "#profBtn", act: "click", wait: 500 },
+      { say: "ولإنشاء حساب جديد افتح ⚙ الإعدادات", go: "#setBtn", act: "click" },
+      { say: "ثم تبويب «👤 الحسابات»", go: '[data-act="setTab"][data-k="acc"]', act: "click" },
+      { say: "اكتب اسم الحساب", go: "#profInput", act: "type", text: "عائلتي" },
+      { say: "«👤 شخصي»: لك وحدك، ويظهر على كل أجهزتك", go: 'form[data-form="profile"] button[type=submit]', act: "point", wait: 2800 },
+      { say: "«👨‍👩‍👧 مشترك»: للعائلة، كلكم فيه سواء، وفيه «⭐ أبنائي»", go: '[data-act="profTeam"][data-k="shared"]', act: "point", wait: 3000 },
+      { say: "«👥 فريق»: للعمل، أنت مسؤوله، توزّع المهام وترى ما يغيّره كل عضو", go: '[data-act="profTeam"][data-k="team"]', act: "point", wait: 3200 },
+      { say: "بعد إنشاء المشترك أو الفريق تجد في أعلى ⚙ داخله بطاقة «🔗 دعوة أعضاء»: أنشئ الرابط وأرسله بواتساب، ومن يفتحه ينضم", act: "wait", wait: 5000 },
+      { say: "ولتكون حساباتك على جوالك وحاسوبك معًا: «📱 أجهزتي» ← «أضف جهازًا لي»", go: "#mydevs", act: "point", wait: 3400 }
+    ] },
+    team: { name: "👥 الفريق والمعاملات", team: true, setup: function (st) {
+      var k = keyOf(today());
+      st.settings.team = [{ num: 1, name: "أنت" }, { num: 2, name: "سعيد" }, { num: 3, name: "خالد" }];
+      st.settings.roles = {}; st.settings.paths = []; st.settings.rejecters = [];
+      delete st.sample; st.days[k] = blankDay();
+      st.days[k].items = [{ id: "demo-t", title: "تجهيز تقرير الشهر", cat: "other", dur: 60, time: "10:00", important: true, urgent: true, top: false, done: false, spent: null, note: "" }];
+    }, flows: function () {
+      var h = 3600000, t = Date.now();
+      return [{ id: 1, no: 17, title: "طلب صرف مكافأة", ref: "", steps: ["الديوان", "المدير", "المالية"], pos: 1, status: "open", days: 2, created_at: new Date(t - 5 * h).toISOString(),
+        updated_at: new Date(t - 2 * h).toISOString(), step_at: new Date(t - 2 * h).toISOString(),
+        log: [{ at: new Date(t - 5 * h).toISOString(), who: "سعيد", role: "الديوان", act: "start" }, { at: new Date(t - 2 * h).toISOString(), who: "سعيد", role: "الديوان", act: "next" }] }];
+    }, steps: [
+      { say: "مثال: فريق من ٣ أعضاء وأنت مسؤوله", act: "wait", wait: 2400 },
+      { say: "افتح أي مهمة", go: '[data-act="open"]', act: "click" },
+      { say: "ومن «👤 لمن؟» اختر العضو، فتصله المهمة على جواله", go: 'select[data-act="assign"]', act: "pick", value: "2" },
+      { say: "وللمعاملات: افتح ⚙ ← «👤 الحسابات»", go: "#setBtn", act: "click" },
+      { go: '[data-act="setTab"][data-k="acc"]', act: "click" },
+      { say: "اكتب دور كل عضو", go: 'input[data-act="roleSet"][data-n="1"]', act: "type", text: "المدير" },
+      { go: 'input[data-act="roleSet"][data-n="2"]', act: "type", text: "الديوان", wait: 500 },
+      { go: 'input[data-act="roleSet"][data-n="3"]', act: "type", text: "المالية" },
+      { say: "واختر من يحق له رفض المعاملات", go: '[data-act="rejToggle"]', act: "point", wait: 2400 },
+      { say: "واحفظ المسارات المتكررة: اضغط الأدوار بالترتيب", go: '[data-act="pathStep"][data-r="الديوان"]', act: "click", wait: 600 },
+      { go: '[data-act="pathStep"][data-r="المدير"]', act: "click", wait: 600 },
+      { go: '[data-act="pathStep"][data-r="المالية"]', act: "click" },
+      { say: "وسمِّ المسار ثم احفظه", go: "#pathName", act: "type", text: "طلب صرف" },
+      { go: 'form[data-form="path"] button[type=submit]', act: "click" },
+      { say: "فيظهر تبويب «📨 المعاملات»", go: '.tab[data-tab="flows"]', act: "click" },
+      { say: "«➕ معاملة جديدة»: عنوانها ومسارها، فتنتقل من دور إلى دور", go: '[data-act="flowStart"]', act: "point", wait: 3000 },
+      { say: "وما يصلك تتصرّف فيه: أرسلها للتالي، أو أرجعها، أو حوّلها، أو ارفضها", go: '[data-act="flowAct"][data-a="next"]', act: "point", wait: 3600 },
+      { say: "ولكل معاملة سجل كامل بمن تصرّف فيها ومتى", go: ".flowcard details summary", act: "point", wait: 3000 }
+    ] },
     shop: { name: "🛒 المشتريات", setup: function (st) { st.shop = { items: [], del: {} }; }, steps: [
       { say: "مثال: سنكتب مشتريات البيت. تابع اليد 👆", act: "wait", wait: 2200 },
       { say: "اضغط «المشتريات» أسفل الشاشة", go: '.tab[data-tab="shop"]', act: "click" },
@@ -4414,6 +4458,10 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     demo = { id: id, real: JSON.stringify(state), tab: ui.tab, day: current, i: 0, open: ui.open, step: ui.step, setTab: ui.setTab, ad: JSON.stringify(adCount) };
     var st = JSON.parse(demo.real); D.setup(st); state = st; fixState(); takeSnap();
     adCount = { d: keyOf(new Date()), c: {} };
+    if (D.team) {
+      demo.env = { code: code, role: cloud.role, num: cloud.num, teamInfo: ui.teamInfo, flows: ui.flows, flowsAt: flowsAt };
+      code = code || "demo"; cloud.role = "primary"; cloud.num = 1; ui.teamInfo = { tk: "team" }; ui.flows = D.flows(); flowsAt = Date.now();
+    }
     ui.tab = D.tab || "day"; ui.step = 1; ui.setTab = "gen"; ui.open = null; current = today(); render(); window.scrollTo(0, 0);
     dEls = { shield: document.createElement("div"), hand: document.createElement("span"), ring: document.createElement("span"), bub: document.createElement("div") };
     dEls.shield.className = "dshield"; dEls.hand.className = "dhand"; dEls.hand.textContent = "👆"; dEls.ring.className = "dring"; dEls.bub.className = "dbubble bot";
@@ -4463,6 +4511,8 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     var d0 = demo; demo = null;
     state = JSON.parse(d0.real); fixState(); takeSnap();
     adCount = JSON.parse(d0.ad); if (!$("adhkar").hidden) adClose();
+    if (d0.env) { code = d0.env.code; cloud.role = d0.env.role; cloud.num = d0.env.num; ui.teamInfo = d0.env.teamInfo; ui.flows = d0.env.flows; flowsAt = d0.env.flowsAt; }
+    ui.pathSteps = []; ui.pathName = ""; ui.pathEdit = null; ui.flowForm = false;
     ui.tab = d0.tab; ui.open = d0.open; ui.step = d0.step; ui.setTab = d0.setTab; current = d0.day;
     if (dEls) Object.keys(dEls).forEach(function (k) { dEls[k].remove(); });
     dEls = null; render();
@@ -4473,7 +4523,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   // Roles, saved paths and who may reject live in the team's settings (the leader edits them):
   // settings.roles = { "<num>": "المالية" }, settings.paths = [{ id, name, steps: [role…] }], settings.rejecters = [role…].
   // The flows themselves live on the server; the holder of the current step (or the leader) moves them on.
-  function flowsOn() { return isTeamOnly() && !!sb && !!code; }
+  function flowsOn() { return isTeamOnly() && (!!sb || !!demo) && !!code; }
   function flowsTab() { return flowsOn() && (paths().length > 0 || arr(ui.flows).some(function (f) { return f.status === "open"; })); }
   function roles() { return state.settings.roles || {}; }
   function roleList() { var seen = {}, out = []; Object.keys(roles()).sort().forEach(function (n) { var r = (roles()[n] || "").trim(); if (r && !seen[r]) { seen[r] = 1; out.push(r); } }); return out; }
@@ -4498,7 +4548,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   }
   var flowsAt = 0;
   function flowsLoad() {
-    if (!flowsOn()) return;
+    if (!flowsOn() || demo) return;
     flowsAt = Date.now();
     sb.rpc("yawmi_flows_stamp", { p_key: code }).then(function (st) {
       var stamp = st.error ? "" : String(st.data || "");
