@@ -410,6 +410,21 @@ details.box textarea { font-size: .78rem; direction: ltr; }
 .srow { display: flex; align-items: center; gap: 8px; }
 .srow label { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; cursor: pointer; }
 .srow .t { overflow-wrap: anywhere; font-weight: 500; }
+/* Live demo: a hand that uses the real app on a throwaway copy */
+.dshield { position: fixed; inset: 0; z-index: 40; background: transparent; }
+.dhand { position: fixed; z-index: 42; left: 50%; top: 70%; font-size: 2.3rem; line-height: 1; transform: translate(-38%, -6%); transition: left .75s ease-in-out, top .75s ease-in-out; filter: drop-shadow(0 3px 4px rgba(0, 0, 0, .4)); pointer-events: none; }
+.dhand.tap { animation: dtap .45s ease-in-out; }
+@keyframes dtap { 50% { transform: translate(-38%, -6%) scale(.8); } }
+.dring { position: fixed; z-index: 41; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%; border: 3px solid var(--star); opacity: 0; pointer-events: none; }
+.dring.go { animation: dring .7s ease-out; }
+@keyframes dring { 0% { opacity: .95; transform: scale(.4); } 100% { opacity: 0; transform: scale(1.5); } }
+.dbubble { position: fixed; z-index: 43; inset-inline: 12px; margin: 0 auto; max-width: 520px; background: var(--ink); color: var(--bg); border-radius: 16px; padding: 12px 14px; display: flex; align-items: center; gap: 10px; box-shadow: 0 8px 24px rgba(0, 0, 0, .3); font-size: 1rem; line-height: 1.6; }
+.dbubble.top { top: calc(10px + env(safe-area-inset-top, 0px)); }
+.dbubble.bot { bottom: calc(86px + env(safe-area-inset-bottom, 0px)); }
+.dbubble p { margin: 0; flex: 1; }
+.dbubble small { display: block; opacity: .7; font-size: .78rem; }
+.dbubble button { flex: none; border: 0; border-radius: 10px; padding: 8px 12px; background: rgba(255, 255, 255, .16); color: inherit; font: inherit; font-size: .88rem; min-height: 40px; cursor: pointer; }
+@media (prefers-reduced-motion: reduce) { .dhand { transition: none; } .dhand.tap, .dring.go { animation: none; } }
 .srow.done .t { text-decoration: line-through; color: var(--muted); font-weight: 400; }
 .qstreak { font-size: .82rem; font-weight: 700; color: var(--star); }
 .qrow { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; align-items: center; }
@@ -760,7 +775,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   function qtag(it) { var q = quad(it); return q ? '<span class="qtag ' + q + '">' + QUAD[q].label + '</span>' : ""; }
 
   /* ---------- state ---------- */
-  var state, storageOk = true;
+  var state, storageOk = true, demo = null;
   function blankState() {
     return { v: 3, days: {}, settings: { categories: defaultCats(), routines: [], updatedAt: 0 }, shop: { items: [], del: {} }, dirtyDays: {}, dirtySettings: 0 };
   }
@@ -803,6 +818,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     return "";
   }
   function persist() {
+    if (demo) return;
     try { localStorage.setItem(KEY, JSON.stringify(state)); }
     catch (e) { if (storageOk) toast("تعذّر الحفظ على هذا الجهاز"); storageOk = false; }
   }
@@ -914,6 +930,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   var pendingLog = {};
   try { pendingLog = JSON.parse(localStorage.getItem(LOG_KEY) || "{}") || {}; } catch (e) {}
   function logEvent(action, title, dayKey, key) {
+    if (demo) return;
     if (typeof code !== "string" || !code || cloud.role !== "secondary" || (currentProfile() || {}).shared) return;
     var n = new Date(), dm = function (d) { return d.getDate() + "/" + (d.getMonth() + 1); };
     var line = dm(n) + " " + pad(n.getHours()) + ":" + pad(n.getMinutes()) + " — " + action +
@@ -2472,6 +2489,8 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     var th = themeNow();
     var h = reqCardHtml() + (ui.addAsk ? '<section class="card"><h2>🔗 ربط هذا الجهاز بحسابك</h2><p class="small">فتحت رابط ربط جهاز. هذا الجهاز فيه حساب الآن، فإن تابعت يصبح حسابه الأول هو حسابك على جهازك الأساسي، وتُدمج فيه مهام هذا الجهاز، وتظهر عليه كل حساباتك.</p>' +
       '<div class="row-wrap"><button class="btn" data-act="addYes">✓ متابعة الربط</button><button class="ghost" data-act="addNo">إلغاء</button></div></section>' : "") + (ui.teamInfo && cloud.role !== "secondary" && code ? teamLinkHtml(ui.teamInfo) : "") + setGroup("gen") + '<a class="guidelink" href="guide.html">📖 دليل استخدام «يومي» <span>كل الميزات خطوة بخطوة ←</span></a>' +
+      '<section><h2>🎬 شاهد كيف يعمل</h2><p class="small muted">يد تستعمل التطبيق أمامك على مثال، ثم يعود كل شيء كما كان.</p><div class="row-wrap">' +
+      Object.keys(DEMOS).map(function (k) { return '<button class="ghost" data-act="demo" data-d="' + k + '">' + DEMOS[k].name + '</button>'; }).join("") + '</div></section>' +
       shareHtml();
     h += '<section><h2>المظهر</h2><div class="rangeseg">' + [["auto", "تلقائي"], ["light", "☀️ فاتح"], ["dark", "🌙 غامق"]].map(function (o) {
       return '<button data-act="theme" data-t="' + o[0] + '" aria-pressed="' + (th === o[0]) + '">' + o[1] + '</button>';
@@ -2936,6 +2955,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       case "gostep4": ui.tab = "plan"; ui.step = 4; render(); break;
       case "tab": ui.tab = b.dataset.tab; ui.step = 1; render(); break;
       case "nameLater": ui.nameLater = true; render(); break;
+      case "demo": demoStart(b.dataset.d); break;
       case "shopDel": state.shop.items = state.shop.items.filter(function (x) { return x.id !== b.dataset.sid; }); commit(); break;
       case "shopClear": state.shop.items = shopLeft(); ui.shopGot = false; commit(); toast("مُسحت المشتريات السابقة"); break;
       case "shopShare": shopShare(); break;
@@ -3599,10 +3619,11 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   // Smart sync (supabase_v15.sql): the cloud row carries a stamp (its last edit time). When nothing changed here
   // and the stamp is the same, a sync costs a few bytes instead of downloading the whole account.
   var dirtyGen = 0;
-  function markDirty() { dirtyGen++; try { localStorage.setItem(pkey("yawmi-dirty"), "1"); } catch (e) {} }
+  function markDirty() { if (demo) return; dirtyGen++; try { localStorage.setItem(pkey("yawmi-dirty"), "1"); } catch (e) {} }
   function isDirty() { try { return localStorage.getItem(pkey("yawmi-dirty")) === "1"; } catch (e) { return true; } }
   function sameStamp(a, b) { return !!a && !!b && Date.parse(a) === Date.parse(b); }
   function scheduleUpload() {
+    if (demo) return;
     if (!sb || !code) return;
     clearTimeout(uploadTimer);
     uploadTimer = setTimeout(syncNow, 1500);
@@ -4250,7 +4271,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     var left = shopLeft(), got = state.shop.items.filter(function (i) { return i.done; }).sort(function (a, b) { return (b.u || 0) - (a.u || 0); });
     var pf = currentProfile(), who = !!(pf && pf.shared), sec = ui.shopSec || "food";
     var h = '<section class="stack"><div class="sechead"><h2>🛒 المشتريات</h2>' + (left.length ? '<button class="linkbtn" data-act="shopShare">📤 أرسل القائمة</button>' : "") + '</div>' +
-      '<p class="muted small">اكتب ما ينقص البيت، وعلّم عليه عند شرائه.' + (who ? ' القائمة مشتركة: تظهر لكل أفراد الحساب.' : (code ? ' تظهر على كل أجهزتك.' : "")) + ' <a class="linkbtn" href="guide.html#shop">🎬 شاهد كيف</a></p>' +
+      '<p class="muted small">اكتب ما ينقص البيت، وعلّم عليه عند شرائه.' + (who ? ' القائمة مشتركة: تظهر لكل أفراد الحساب.' : (code ? ' تظهر على كل أجهزتك.' : "")) + ' <button class="linkbtn" data-act="demo" data-d="shop">🎬 شاهد كيف</button></p>' +
       '<form class="addform" data-form="shop"><input class="field grow" id="shopInput" type="text" maxlength="60" placeholder="مثال: حليب ٢" autocomplete="off">' +
       '<select class="field" id="shopSec" aria-label="القسم">' + SHOP_SECS.map(function (s) { return '<option value="' + s[0] + '"' + (s[0] === sec ? " selected" : "") + '>' + s[1] + '</option>'; }).join("") + '</select>' +
       '<button class="btn" type="submit">أضف</button></form>';
@@ -4273,6 +4294,89 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     try { navigator.clipboard.writeText(txt).then(function () { toast("نُسخت القائمة، الصقها في واتساب أو أي مكان"); }, function () { toast("تعذّر النسخ"); }); }
     catch (e) { toast("تعذّر النسخ"); }
   }
+
+  /* ---------- LIVE DEMO 🎬: a hand uses the real app on a copy of the data, then everything goes back ---------- */
+  // Each step: { say, go (selector), act: "click" | "type" | "pick" | "point" | "wait", text / value, wait }. `go` is looked up fresh
+  // each time, after the app re-renders. While a demo runs, persist / sync / log do nothing; at the end the real state returns.
+  var DEMOS = {
+    shop: { name: "🛒 المشتريات", setup: function (st) { st.shop = { items: [], del: {} }; }, steps: [
+      { say: "مثال: سنكتب مشتريات البيت. تابع اليد 👆", act: "wait", wait: 2200 },
+      { say: "اضغط «المشتريات» أسفل الشاشة", go: '.tab[data-tab="shop"]', act: "click" },
+      { say: "اكتب ما ينقص البيت", go: "#shopInput", act: "type", text: "حليب ٢" },
+      { say: "اختر قسمه", go: "#shopSec", act: "pick", value: "dairy" },
+      { say: "ثم اضغط «أضف»", go: 'form[data-form="shop"] button[type=submit]', act: "click" },
+      { say: "وأضف غيره بالطريقة نفسها", go: "#shopInput", act: "type", text: "طماطم" },
+      { go: "#shopSec", act: "pick", value: "veg", wait: 500 },
+      { go: 'form[data-form="shop"] button[type=submit]', act: "click", wait: 500 },
+      { go: "#shopInput", act: "type", text: "صابون" },
+      { go: "#shopSec", act: "pick", value: "clean", wait: 500 },
+      { go: 'form[data-form="shop"] button[type=submit]', act: "click" },
+      { say: "القائمة مرتّبة حسب الأقسام. عند الشراء اضغط على المربع", go: '[data-act="shopDone"]', act: "click" },
+      { say: "ما اشتريته ينتقل إلى «اشتريته»", go: "#shopGot summary", act: "click" },
+      { say: "وإن احتجته مرة أخرى أعده إلى القائمة بضغطة", go: '#shopGot [data-act="shopDone"]', act: "click" },
+      { say: "ومن «📤 أرسل القائمة» ترسلها عبر واتساب لمن يذهب إلى السوق", go: '[data-act="shopShare"]', act: "point", wait: 3000 }
+    ] }
+  };
+  var dEls = null, dTimer = null;
+  function demoStart(id) {
+    var D = DEMOS[id];
+    if (!D || demo) return;
+    save();
+    demo = { id: id, real: JSON.stringify(state), tab: ui.tab, day: current, i: 0, open: ui.open };
+    var st = JSON.parse(demo.real); D.setup(st); state = st; fixState(); takeSnap();
+    ui.tab = "day"; ui.open = null; current = today(); render(); window.scrollTo(0, 0);
+    dEls = { shield: document.createElement("div"), hand: document.createElement("span"), ring: document.createElement("span"), bub: document.createElement("div") };
+    dEls.shield.className = "dshield"; dEls.hand.className = "dhand"; dEls.hand.textContent = "👆"; dEls.ring.className = "dring"; dEls.bub.className = "dbubble bot";
+    dEls.bub.innerHTML = '<p></p><button type="button">✕ إنهاء</button>';
+    dEls.bub.querySelector("button").addEventListener("click", demoEnd);
+    [dEls.shield, dEls.ring, dEls.hand, dEls.bub].forEach(function (e) { document.body.appendChild(e); });
+    dTimer = setTimeout(demoStep, 400);
+  }
+  function demoSay(text, el) {
+    var D = DEMOS[demo.id], r = el ? el.getBoundingClientRect() : null;
+    if (text) dEls.bub.querySelector("p").innerHTML = esc(text) + '<small>' + D.name + ' · مثال للتوضيح، لا يُحفظ منه شيء</small>';
+    dEls.bub.className = "dbubble " + (r && r.top > innerHeight * .55 ? "top" : "bot");
+  }
+  function demoStep() {
+    var D = DEMOS[demo.id], st = D.steps[demo.i];
+    if (!st) { demoSay("انتهى المثال ✓ والآن جرّبه بنفسك"); dEls.hand.style.top = "120%"; dTimer = setTimeout(demoEnd, 2600); return; }
+    var el = st.go ? document.querySelector(st.go) : null;
+    if (st.go && !el) { demo.i++; dTimer = setTimeout(demoStep, 100); return; } // the screen changed: skip quietly
+    if (el) { var r0 = el.getBoundingClientRect(); if (r0.top < 70 || r0.bottom > innerHeight - 90) el.scrollIntoView({ block: "center" }); }
+    demoSay(st.say, el);
+    var r = el ? el.getBoundingClientRect() : null;
+    if (r) { dEls.hand.style.left = (r.left + r.width / 2) + "px"; dEls.hand.style.top = (r.top + r.height / 2) + "px"; }
+    dTimer = setTimeout(function () {
+      if (!demo) return;
+      if (el && st.act !== "wait") {
+        dEls.ring.style.left = dEls.hand.style.left; dEls.ring.style.top = dEls.hand.style.top;
+        dEls.hand.classList.remove("tap"); dEls.ring.classList.remove("go"); void dEls.hand.offsetWidth;
+        dEls.hand.classList.add("tap"); dEls.ring.classList.add("go");
+      }
+      var next = function () { demo.i++; dTimer = setTimeout(demoStep, st.wait || 1100); };
+      if (st.act === "click") { el.click(); next(); }
+      else if (st.act === "pick") { el.value = st.value; el.dispatchEvent(new Event("change", { bubbles: true })); next(); }
+      else if (st.act === "type") {
+        var n = 0; el.value = "";
+        (function key() {
+          if (!demo) return;
+          el.value = st.text.slice(0, ++n); el.dispatchEvent(new Event("input", { bubbles: true }));
+          if (n < st.text.length) dTimer = setTimeout(key, 140); else next();
+        })();
+      }
+      else next();
+    }, el ? 850 : 0);
+  }
+  function demoEnd() {
+    if (!demo) return;
+    clearTimeout(dTimer);
+    var d0 = demo; demo = null;
+    state = JSON.parse(d0.real); fixState(); takeSnap();
+    ui.tab = d0.tab; ui.open = d0.open; current = d0.day;
+    if (dEls) Object.keys(dEls).forEach(function (k) { dEls[k].remove(); });
+    dEls = null; render();
+  }
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && demo) demoEnd(); });
 
   /* ---------- TRANSACTIONS (supabase_v20.sql): a team's paper that passes from role to role, e.g. الديوان ← مدير المكتب ← المالية ← المدير ---------- */
   // Roles, saved paths and who may reject live in the team's settings (the leader edits them):
@@ -4465,6 +4569,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       : '<div class="row-wrap"><button class="ghost danger" data-act="resetAsk">🧹 ابدأ من جديد</button></div></section>');
   }
   function syncNow() {
+    if (demo) return;
     if (!sb || !code) return;
     if (syncing) { again = true; return; }
     if (!navigator.onLine) { cloud.status = "offline"; refreshCloud(); return; }
