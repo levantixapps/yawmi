@@ -367,18 +367,18 @@ details.box textarea { font-size: .78rem; direction: ltr; }
 .cycnow b { font-family: var(--font-display); }
 .cycnow span { font-size: .85rem; }
 .cy-p { background: var(--cyc-soft); } .cycnow.cy-p b { color: var(--cyc); }
-.cy-f { background: var(--q-now-soft); } .cycnow.cy-f b, .cycnow.cy-k b { color: var(--q-now); }
+.cy-f { background: var(--star-soft); } .cycnow.cy-f b { color: var(--star); } .cycnow.cy-k b { color: var(--q-now); }
 .cy-k { background: var(--q-now-soft); } .cycnow.cy-k { border: 2px solid var(--q-now); }
-.cy-s { background: var(--done-soft); } .cycnow.cy-s b { color: var(--done); }
+.cy-s, .cy-a { background: var(--done-soft); } .cycnow.cy-s b, .cycnow.cy-a b { color: var(--done); }
 .cy-l { background: var(--q-short-soft); } .cycnow.cy-l b { color: var(--q-short); }
 .cday.cyd { cursor: default; padding: 5px 0 6px; }
 .cday.cyd small { color: inherit; opacity: .75; }
 .cday.cyd.today { border: 3px solid var(--accent); box-shadow: 0 0 0 2px var(--surface) inset, 0 2px 8px rgba(31, 95, 191, .45); transform: scale(1.08); z-index: 1; }
 .cday.cyd em { font-style: normal; font-size: .58rem; font-weight: 700; line-height: 1; margin-top: 2px; padding: 2px 5px; border-radius: 6px; background: var(--accent); color: var(--surface); }
 .cday.cyd.cy-p { background: var(--cyc-soft); color: var(--cyc); }
-.cday.cyd.cy-f { background: var(--q-now-soft); color: var(--q-now); }
+.cday.cyd.cy-f { background: var(--star-soft); color: var(--star); }
 .cday.cyd.cy-k, .cyclg i.cy-k { background: var(--q-now); color: var(--surface); }
-.cday.cyd.cy-s { background: var(--done-soft); }
+.cday.cyd.cy-s, .cday.cyd.cy-a { background: var(--done-soft); }
 .cday.cyd.cy-l { background: var(--q-short-soft); }
 .cday.cyd.fut:not(.today), .cyclg i.fut { border: 1px dashed var(--muted); }
 .cyclg { display: flex; flex-wrap: wrap; gap: 6px 14px; }
@@ -1687,9 +1687,11 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   // Sealed with a secret word only the couple knows (AES-GCM, key from PBKDF2), so a family account carries it to both
   // of them while the rest of the family sees nothing. state.settings.cyc = { s: salt, i: iv, c: sealed } in base64,
   // or { off: 1 } once deleted. Inside: { st: [{ d: "2026-10-20", n: 5 }], len: 28 }. Each device keeps the word in yawmi-cyc.
-  // Fertile days follow the calendar method: cycle day (shortest cycle − 18) to (longest − 11); the peak is the 3 days to ovulation.
+  // Four stages around ovulation (cycle length − 14; day 14 of 28), as the owner's table: low before, rising from 6 days before
+  // ovulation (8–11 of 28: start abstaining), peak from 2 before to 2 after (12–16: abstain fully), then low after it (17–28).
+  // With uneven cycles the rising stage starts from the shortest cycle and the peak ends with the longest.
   var CYC_KEY = "yawmi-cyc", cyc = null, cycSeen, cycBusy = false;
-  var CYC_T = { p: ["🩸", "أيام الدورة"], k: ["🔴", "خطر جدًا: أعلى احتمال للحمل"], f: ["🔴", "خطر: احتمال الحمل مرتفع"], s: ["🟢", "آمن نسبيًا: احتمال الحمل ضعيف"], l: ["⚠️", "الدورة متأخرة"] };
+  var CYC_T = { p: ["🩸", "أيام الدورة"], k: ["🔴", "ذروة الخصوبة: عزل تام"], f: ["🟠", "خصوبة متصاعدة: يُفضَّل البدء بالعزل"], s: ["🟢", "خصوبة منخفضة جدًا: أمان نسبي"], a: ["🟢", "ما بعد الإباضة: خصوبة منخفضة جدًا"], l: ["⚠️", "الدورة متأخرة"] };
   function cycWord() { try { return localStorage.getItem(pkey(CYC_KEY)) || ""; } catch (e) { return ""; } }
   function cycBox() { var b = state.settings.cyc; return b && b.c ? b : null; }
   function cycOn() { return !isTeamOnly() && !!cycBox() && !!cyc; }
@@ -1742,7 +1744,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     var len = gaps.length ? mean(gaps) : (cyc && cyc.len) || 28, two = gaps.length >= 2;
     var sh = two ? Math.min.apply(null, gaps) : len, lg = two ? Math.max.apply(null, gaps) : len;
     return { st: st, len: len, sh: sh, lg: lg, gaps: gaps, n: st.length ? mean(st.slice(0, 6).map(function (x) { return x.n; })) : 5,
-      from: Math.max(1, sh - 18), to: lg - 11, ov: len - 14, odd: two && lg - sh > 7,
+      from: Math.max(1, sh - 20), pk: sh - 16, to: lg - 12, odd: two && lg - sh > 7,
       late: st.length ? cycGap(keyOf(today()), st[0].d) + 1 - len : 0 }; // late > 0: the next period is that many days late
   }
   // A day is p period, k peak, f fertile, s relatively safe, or l late (the period was due and is not recorded)
@@ -1754,7 +1756,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       if (c.late > 0) return k <= keyOf(today()) ? { t: "l", cd: cd } : null;
       cd = (cd - 1) % c.len + 1; n = c.n; // a predicted cycle
     }
-    return { t: cd <= n ? "p" : cd >= c.ov - 2 && cd <= c.ov ? "k" : cd >= c.from && cd <= c.to ? "f" : "s", cd: cd };
+    return { t: cd <= n ? "p" : cd < c.from ? "s" : cd < c.pk ? "f" : cd <= c.to ? "k" : "a", cd: cd };
   }
   function cycAddStart(d, n) {
     cycPut(function (x) {
@@ -1784,7 +1786,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       try { hd = hijriDayFmt.format(dt); } catch (e) {}
       h += '<span class="cday cyd' + (x ? " cy-" + x.t : "") + (k > tk ? " fut" : "") + (k === tk ? " today" : "") + '"' + (x ? ' title="' + CYC_T[x.t][1] + '"' : "") + '><b>' + d + '</b><small>' + hd + '</small>' + (k === tk ? '<em>اليوم</em>' : "") + '</span>';
     }
-    return h + '</div><div class="cyclg small"><span><i class="cy-p"></i> الدورة</span><span><i class="cy-f"></i> خطرة</span><span><i class="cy-k"></i> الأخطر</span><span><i class="cy-s"></i> آمنة نسبيًا</span><span><i class="fut"></i> متوقَّع</span><span><i class="tdy"></i> اليوم</span></div>' +
+    return h + '</div><div class="cyclg small"><span><i class="cy-p"></i> الدورة</span><span><i class="cy-s"></i> منخفضة</span><span><i class="cy-f"></i> متصاعدة</span><span><i class="cy-k"></i> الذروة</span><span><i class="fut"></i> متوقَّع</span><span><i class="tdy"></i> اليوم</span></div>' +
       (ui.cycM ? '<div><button class="linkbtn" data-act="cycM" data-v="0">↩ ارجع إلى هذا الشهر</button></div>' : "");
   }
   function cycCard() {
@@ -1792,21 +1794,21 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     if (!cycOn() || offsetOf(dk()) !== 0) return "";
     var c = cycCalc(), tk = keyOf(today()), open = !!ui.cycOpen;
     var h = '<div class="qcard"><div class="sechead"><h3>🌸 الدورة الشهرية</h3>' + (c.st.length ? '<button class="linkbtn" data-act="cycOpen" aria-expanded="' + open + '">' + (open ? "إخفاء" : "التقويم والسجل") + '</button>' : "") + '</div>';
-    if (!c.st.length) return h + '<p class="small muted">سجّلي أول يوم من آخر دورة وعدد أيامها، فيحسب التطبيق الأيام الخطرة والآمنة.</p>' + cycForm(c) + '</div>';
+    if (!c.st.length) return h + '<p class="small muted">سجّلي أول يوم من آخر دورة وعدد أيامها، فيحسب التطبيق أيام العزل والأمان.</p>' + cycForm(c) + '</div>';
     var x = cycDay(c, tk), last = c.st[0], lcd = cycGap(tk, last.d) + 1;
     h += '<div class="cycnow cy-' + x.t + '"><b>' + CYC_T[x.t][0] + ' اليوم: ' + CYC_T[x.t][1] + '</b><span>' +
       (x.t === "l" ? "بـ" + c.late + " " + daysWord(c.late) + ". سجّلي بدايتها متى بدأت." : x.t === "p" && lcd <= last.n ? "اليوم " + lcd + " من " + last.n : "اليوم " + x.cd + " من " + c.len + " في الدورة") + '</span></div>';
     if (c.late <= 0) {
       var nx = keyOf(addDays(parseKey(last.d), c.len)), left = cycGap(nx, tk), base = parseKey(last.d);
       if (lcd > c.to) base = addDays(base, c.len);
-      h += '<p class="small">🩸 الدورة القادمة: <b><bdi>' + shortDate(nx) + '</bdi></b> (بعد ' + left + ' ' + daysWord(left) + ')<br>🔴 الأيام الخطرة: من <b><bdi>' + shortDate(keyOf(addDays(base, c.from - 1))) + '</bdi></b> إلى <b><bdi>' + shortDate(keyOf(addDays(base, c.to - 1))) + '</bdi></b></p>';
+      h += '<p class="small">🩸 الدورة القادمة: <b><bdi>' + shortDate(nx) + '</bdi></b> (بعد ' + left + ' ' + daysWord(left) + ')<br>🟠🔴 العزل: من <b><bdi>' + shortDate(keyOf(addDays(base, c.from - 1))) + '</bdi></b> إلى <b><bdi>' + shortDate(keyOf(addDays(base, c.to - 1))) + '</bdi></b></p>';
     }
     h += '<div class="row-wrap">' + (lcd <= last.n + 4 ? '<button class="ghost" data-act="cycEnd">✓ انتهت الدورة اليوم</button>' : '<button class="btn" data-act="cycNow">🩸 بدأت الدورة اليوم</button>') +
       '<button class="ghost" data-act="cycAdd" aria-expanded="' + !!ui.cycAdd + '">📅 بتاريخ آخر</button></div>';
     if (ui.cycAdd) h += cycForm(c);
     if (open) {
       h += cycCal(c) + '<p class="small">طول دورتك: <b>' + c.len + ' يومًا</b>' + (c.gaps.length > 1 && c.sh !== c.lg ? " (أقصرها " + c.sh + " وأطولها " + c.lg + ")" : c.gaps.length ? "" : " (من ⚙ حتى تُسجَّل دورتان)") + ' · أيامها: <b>' + c.n + '</b></p>' +
-        (c.odd ? '<p class="small">⚠️ دورتك غير منتظمة، فالأيام الخطرة أطول والحساب أقل دقة.</p>' : "") +
+        (c.odd ? '<p class="small">⚠️ دورتك غير منتظمة، فأيام العزل أطول والحساب أقل دقة.</p>' : "") +
         '<details class="box"><summary>السجل (' + c.st.length + ')</summary><div class="inner"><ul class="kev small">' + c.st.map(function (s, i) {
           var g = c.st[i + 1] ? cycGap(s.d, c.st[i + 1].d) : 0;
           return '<li>🩸 ' + cycFull(s.d) + ' · ' + s.n + ' ' + daysWord(s.n) + (g ? ' · طول الدورة ' + g + ' ' + daysWord(g) : "") + ' <button class="linkbtn" data-act="cycDel" data-k="' + s.d + '" aria-label="حذف">×</button></li>';
@@ -1821,7 +1823,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   function cycSettingsHtml() {
     cycFresh();
     var box = cycBox(), h = '<section id="cyc"><h2>🌸 الدورة الشهرية <span class="small muted">للزوجين فقط</span></h2>';
-    if (!box) return h + '<p class="muted small">تسجّل الزوجة أول يوم من دورتها وعدد أيامها، فيظهر في «جدولي» كل يوم: 🩸 أيام الدورة، و🔴 الأيام الخطرة (احتمال الحمل مرتفع)، و🟢 الأيام الآمنة نسبيًا، وموعد الدورة القادمة، مع تقويم ملوّن.</p>' +
+    if (!box) return h + '<p class="muted small">تسجّل الزوجة أول يوم من دورتها وعدد أيامها، فيظهر في «جدولي» كل يوم: 🩸 أيام الدورة، و🟢 الخصوبة المنخفضة، و🟠 المتصاعدة (يُفضَّل البدء بالعزل)، و🔴 الذروة (عزل تام)، وموعد الدورة القادمة، مع تقويم ملوّن.</p>' +
       '<p class="muted small">🔒 تُشفَّر بكلمة سرية تختارانها أنتما، فتتزامن بين جهازيكما ولا يقرؤها أحد غيركما، حتى من معكما في الحساب نفسه. اكتبا الكلمة نفسها على الجهازين، وإن نُسيت لا يمكن فتح البيانات.</p>' + cycWordForm("ابدأ") + '</section>';
     if (!cyc) return h + '<p class="muted small">' + (ui.cycBad ? "تغيّرت الكلمة السرية أو كُتبت خطأ. اكتبها من جديد." : "🔒 مقفلة على هذا الجهاز. اكتب الكلمة السرية لفتحها.") + '</p>' + cycWordForm("افتح") + '</section>';
     var c = cycCalc(), len = cyc.len || 28, opts = "";
