@@ -371,7 +371,10 @@ details.box textarea { font-size: .78rem; direction: ltr; }
 .cy-k { background: var(--q-now-soft); } .cycnow.cy-k { border: 2px solid var(--q-now); }
 .cy-s { background: var(--done-soft); } .cycnow.cy-s b { color: var(--done); }
 .cy-l { background: var(--q-short-soft); } .cycnow.cy-l b { color: var(--q-short); }
-.cday.cyd { cursor: default; padding: 7px 0; }
+.cday.cyd { cursor: default; padding: 5px 0 6px; }
+.cday.cyd small { color: inherit; opacity: .75; }
+.cday.cyd.today { border: 2px solid var(--ink); box-shadow: 0 0 0 2px var(--surface) inset; }
+.cday.cyd em { font-style: normal; font-size: .58rem; font-weight: 700; line-height: 1; margin-top: 1px; }
 .cday.cyd.cy-p { background: var(--cyc-soft); color: var(--cyc); }
 .cday.cyd.cy-f { background: var(--q-now-soft); color: var(--q-now); }
 .cday.cyd.cy-k, .cyclg i.cy-k { background: var(--q-now); color: var(--surface); }
@@ -379,6 +382,7 @@ details.box textarea { font-size: .78rem; direction: ltr; }
 .cday.cyd.cy-l { background: var(--q-short-soft); }
 .cday.cyd.fut:not(.today), .cyclg i.fut { border: 1px dashed var(--muted); }
 .cyclg { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.cyclg i.tdy { border: 2px solid var(--ink); }
 .cyclg i { display: inline-block; width: 12px; height: 12px; border-radius: 4px; vertical-align: -2px; }
 /* Sleep */
 .praycard { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
@@ -1768,17 +1772,20 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   }
   function cycCal(c) {
     var t = today(), first = new Date(t.getFullYear(), t.getMonth() + (ui.cycM || 0), 1), lead = (first.getDay() + 1) % 7; // weeks start on Saturday
-    var days = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate(), tk = keyOf(t);
+    var days = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate(), tk = keyOf(t), hm = "";
+    try { hm = hijriMonthFmt.format(first) + " – " + hijriMonthFmt.format(new Date(first.getFullYear(), first.getMonth(), days)); } catch (e) {}
     var h = '<div class="calhead"><button class="iconbtn" data-act="cycM" data-v="-1" aria-label="الشهر السابق">→</button>' +
-      '<div class="calt"><b>' + (monthFmt ? monthFmt.format(first) : (first.getMonth() + 1) + "/" + first.getFullYear()) + '</b></div>' +
+      '<div class="calt"><b>' + (monthFmt ? monthFmt.format(first) : (first.getMonth() + 1) + "/" + first.getFullYear()) + '</b><span>' + esc(hm) + '</span></div>' +
       '<button class="iconbtn" data-act="cycM" data-v="1" aria-label="الشهر التالي">←</button></div>' +
       '<div class="calgrid">' + WD_ORDER.map(function (w) { return '<span class="wdh">' + WD_SHORT[w] + '</span>'; }).join("");
     for (var i = 0; i < lead; i++) h += '<span></span>';
     for (var d = 1; d <= days; d++) {
-      var k = keyOf(new Date(first.getFullYear(), first.getMonth(), d)), x = cycDay(c, k);
-      h += '<span class="cday cyd' + (x ? " cy-" + x.t : "") + (k > tk ? " fut" : "") + (k === tk ? " today" : "") + '"' + (x ? ' title="' + CYC_T[x.t][1] + '"' : "") + '><b>' + d + '</b></span>';
+      var dt = new Date(first.getFullYear(), first.getMonth(), d), k = keyOf(dt), x = cycDay(c, k), hd = "";
+      try { hd = hijriDayFmt.format(dt); } catch (e) {}
+      h += '<span class="cday cyd' + (x ? " cy-" + x.t : "") + (k > tk ? " fut" : "") + (k === tk ? " today" : "") + '"' + (x ? ' title="' + CYC_T[x.t][1] + '"' : "") + '><b>' + d + '</b><small>' + hd + '</small>' + (k === tk ? '<em>اليوم</em>' : "") + '</span>';
     }
-    return h + '</div><div class="cyclg small"><span><i class="cy-p"></i> الدورة</span><span><i class="cy-f"></i> خطرة</span><span><i class="cy-k"></i> الأخطر</span><span><i class="cy-s"></i> آمنة نسبيًا</span><span><i class="fut"></i> متوقَّع</span></div>';
+    return h + '</div><div class="cyclg small"><span><i class="cy-p"></i> الدورة</span><span><i class="cy-f"></i> خطرة</span><span><i class="cy-k"></i> الأخطر</span><span><i class="cy-s"></i> آمنة نسبيًا</span><span><i class="fut"></i> متوقَّع</span><span><i class="tdy"></i> اليوم</span></div>' +
+      (ui.cycM ? '<div><button class="linkbtn" data-act="cycM" data-v="0">↩ ارجع إلى هذا الشهر</button></div>' : "");
   }
   function cycCard() {
     cycFresh();
@@ -3290,7 +3297,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       case "prayInList": setPray({ inList: !prayCfg().inList }); break;
       case "cycOpen": ui.cycOpen = !ui.cycOpen; render(); break;
       case "cycAdd": ui.cycAdd = !ui.cycAdd; render(); break;
-      case "cycM": ui.cycM = Math.max(-12, Math.min(12, (ui.cycM || 0) + +b.dataset.v)); render(); break;
+      case "cycM": ui.cycM = +b.dataset.v ? Math.max(-12, Math.min(12, (ui.cycM || 0) + +b.dataset.v)) : 0; render(); break;
       case "cycNow": cycAddStart(keyOf(today()), cycCalc().n); break;
       case "cycEnd":
         var cyd = cycCalc().st[0].d, cyl = cycGap(keyOf(today()), cyd) + 1;
