@@ -381,6 +381,9 @@ details.box textarea { font-size: .78rem; direction: ltr; }
 .cday.cyd.cy-s, .cday.cyd.cy-a { background: var(--done-soft); }
 .cday.cyd.cy-l { background: var(--q-short-soft); }
 .cday.cyd.fut:not(.today), .cyclg i.fut { border: 1px dashed var(--muted); }
+button.cday.cyd { cursor: pointer; font: inherit; color: inherit; }
+.cday.cyd.pick { outline: 3px solid var(--cyc); outline-offset: 1px; z-index: 1; }
+.cysig.past { background: var(--cyc-soft); margin-inline: -14px; padding-inline: 14px; padding-bottom: 10px; }
 .cydate { direction: ltr; font-family: var(--font-mono); }
 .cysig { border-top: 1px solid var(--line); padding-top: 10px; display: flex; flex-direction: column; gap: 8px; }
 .cymu { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -1824,9 +1827,12 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     for (var d = 1; d <= days; d++) {
       var dt = new Date(first.getFullYear(), first.getMonth(), d), k = keyOf(dt), x = cycDay(c, k), hd = "";
       try { hd = hijriDayFmt.format(dt); } catch (e) {}
-      h += '<span class="cday cyd' + (x ? " cy-" + x.t : "") + (k > tk ? " fut" : "") + (k === tk ? " today" : "") + '"' + (x ? ' title="' + CYC_T[x.t][1] + '"' : "") + '><b>' + d + '</b><small>' + hd + '</small>' + (k === tk ? '<em>اليوم</em>' : "") + cycMark(k) + '</span>';
+      var tag = k <= tk ? "button" : "span";
+      h += '<' + tag + ' class="cday cyd' + (x ? " cy-" + x.t : "") + (k > tk ? " fut" : "") + (k === tk ? " today" : "") + (k === cycSel() && k !== tk ? " pick" : "") + '"' +
+        (k <= tk ? ' data-act="cycPick" data-k="' + k + '"' : "") + (x ? ' title="' + CYC_T[x.t][1] + '"' : "") + '><b>' + d + '</b><small>' + hd + '</small>' + (k === tk ? '<em>اليوم</em>' : "") + cycMark(k) + '</' + tag + '>';
     }
     return h + '</div><div class="cyclg small"><span><i class="cy-p"></i> الدورة</span><span><i class="cy-s"></i> منخفضة</span><span><i class="cy-f"></i> متصاعدة</span><span><i class="cy-k"></i> الذروة</span><span><i class="fut"></i> متوقَّع</span><span>💧 ☁️ 🌡 علامات مسجّلة</span><span><i class="tdy"></i> اليوم</span></div>' +
+      '<p class="small muted">اضغطي على يوم مضى لتري حالته وتسجّلي علاماته.</p>' +
       (ui.cycM ? '<div><button class="linkbtn" data-act="cycM" data-v="0">↩ ارجع إلى هذا الشهر</button></div>' : "");
   }
   function cycCard() {
@@ -1870,15 +1876,20 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     return m ? '<i class="cyo">' + m + '</i>' : "";
   }
   // The wife's signs for today, and what they say so far in this cycle
+  function cycSel() { var tk = keyOf(today()); return ui.cycSel && ui.cycSel < tk ? ui.cycSel : tk; }
   function cycSignsHtml(c, tk) {
-    var o = ((cyc && cyc.ob) || {})[tk] || {}, g = cycSigns(c, c.st[0]), say = [];
-    var h = '<div class="cysig"><b>📝 علامات اليوم <span class="small muted">اختيارية، وتزيد الدقة</span></b>' +
+    var now = tk; tk = cycSel();
+    var rec = c.st.filter(function (x) { return x.d <= tk; })[0], back = tk !== now ? ' <button class="linkbtn" data-act="cycPick" data-k="' + now + '">↩ اليوم</button>' : "";
+    if (!rec) return '<div class="cysig"><b>📝 علامات ' + cycFull(tk) + back + '</b><p class="small muted">هذا اليوم قبل أول دورة مسجّلة. سجّلي بداية تلك الدورة أولًا من «📅 بتاريخ آخر».</p></div>';
+    var o = ((cyc && cyc.ob) || {})[tk] || {}, g = cycSigns(c, rec), say = [], xd = cycDay(c, tk);
+    var h = '<div class="cysig' + (back ? " past" : "") + '"><b>📝 ' + (back ? "علامات يوم " + cycFull(tk) : "علامات اليوم") + ' <span class="small muted">اختيارية، وتزيد الدقة</span>' + back + '</b>' +
+      (back && xd ? '<div class="cycnow cy-' + xd.t + '"><b>' + CYC_T[xd.t][0] + ' ' + (xd.by && xd.t === "a" ? "انتهت الإباضة ✓ خصوبة منخفضة جدًا" : CYC_T[xd.t][1]) + '</b><span>اليوم ' + xd.cd + ' في تلك الدورة' + (xd.by ? " · ✓ بحسب العلامات" : "") + '</span></div>' : "") +
       '<div class="cymu">' + CYC_M.map(function (m) { return '<button class="ghost" data-act="cycSig" data-v="' + m[0] + '" aria-pressed="' + (o.m === m[0]) + '">' + m[1] + ' ' + m[2] + '</button>'; }).join("") + '</div>' +
       '<form class="addform" data-form="cycT"><label class="small grow">🌡 الحرارة فور الاستيقاظ وقبل النهوض <input class="field qnum" id="cycT" type="text" inputmode="decimal" maxlength="5" placeholder="36.45" value="' + (o.t || "") + '"></label>' +
       '<button class="btn" type="submit">سجّل</button></form>';
     if (g.lastE) say.push(g.mConf > tk ? "💧 آخر إفرازات شفافة مطاطية: " + shortDate(g.lastE) + "، فالعزل التام حتى " + shortDate(cycPlus(g.mConf, -1)) + " على الأقل." : "💧 انتهت ذروة الإفرازات (٣ أيام بعد " + shortDate(g.lastE) + ").");
     if (g.tConf) say.push("🌡 ارتفعت الحرارة ٣ أيام متتالية فوق " + g.cover.toFixed(2) + "°، فقد انتهت الإباضة.");
-    else if (g.ts.length) say.push("🌡 " + g.ts.length + " " + (g.ts.length > 10 ? "قراءة" : "قراءات") + " في هذه الدورة. تنتهي الإباضة حين ترتفع ٣ أيام متتالية ٠٫٢° فوق أعلى ٦ قراءات قبلها.");
+    else if (g.ts.length) say.push("🌡 " + (g.ts.length === 1 ? "قراءة واحدة" : g.ts.length === 2 ? "قراءتان" : g.ts.length + " " + (g.ts.length > 10 ? "قراءة" : "قراءات")) + " في هذه الدورة. تنتهي الإباضة حين ترتفع ٣ أيام متتالية ٠٫٢° فوق أعلى ٦ قراءات قبلها.");
     if (g.ts.length && g.lastE && !g.conf) say.push("⏳ ننتظر العلامتين معًا (الإفرازات والحرارة) قبل القول بالأمان.");
     if (say.length) h += '<p class="small">' + say.join("<br>") + '</p>';
     if (g.ts.length > 1) h += cycChart(g);
@@ -3392,7 +3403,8 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
         cycPut(function (x) { x.st.forEach(function (s) { if (s.d === cyd) s.n = cyl; }); }); toast("سُجّلت " + cyl + " " + daysWord(cyl) + " 🌸"); break;
       case "cycDel": if (confirm("حذف دورة " + cycFull(b.dataset.k) + "؟")) cycPut(function (x) { x.st = arr(x.st).filter(function (s) { return s.d !== b.dataset.k; }); }); break;
       case "cycAgo": ui.cycD = keyOf(addDays(today(), -b.dataset.v)); $("cycDate").value = ui.cycD; break;
-      case "cycSig": var cyo = ((cyc && cyc.ob) || {})[keyOf(today())] || {}; cycSign(keyOf(today()), { m: cyo.m === b.dataset.v ? "" : b.dataset.v }); break;
+      case "cycPick": ui.cycSel = b.dataset.k; render(); var cys = document.querySelector(".cysig"); if (cys && b.dataset.k < keyOf(today())) cys.scrollIntoView({ block: "center", behavior: "smooth" }); break;
+      case "cycSig": var cyo = ((cyc && cyc.ob) || {})[cycSel()] || {}; cycSign(cycSel(), { m: cyo.m === b.dataset.v ? "" : b.dataset.v }); break;
       case "cycLock": cycLock(); render(); toast("أُقفلت على هذا الجهاز 🔒"); break;
       case "cycWipeAsk": ui.cycWipe = true; render(); break;
       case "cycWipeNo": ui.cycWipe = false; render(); break;
@@ -3601,7 +3613,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     } else if (f === "cycT") {
       var ctr = $("cycT").value.trim().replace(/[٠-٩]/g, function (ch) { return "٠١٢٣٤٥٦٧٨٩".indexOf(ch); }).replace(/[,٫]/, "."), ctv = Math.round(parseFloat(ctr) * 100) / 100;
       if (ctr && !(ctv >= 35 && ctv <= 38.5)) { toast("اكتبي الحرارة بين 35 و38.5، مثل 36.45"); return; }
-      cycSign(keyOf(today()), { t: ctr ? ctv : 0 }); toast(ctr ? "سُجّلت الحرارة " + ctv + "° 🌡" : "حُذفت قراءة اليوم");
+      cycSign(cycSel(), { t: ctr ? ctv : 0 }); toast(ctr ? "سُجّلت الحرارة " + ctv + "° 🌡" : "حُذفت قراءة اليوم");
     } else if (f === "cycWord") {
       cycStart($("cycWord").value);
     } else if (f === "kid") {
