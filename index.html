@@ -381,6 +381,7 @@ details.box textarea { font-size: .78rem; direction: ltr; }
 .cday.cyd.cy-s, .cday.cyd.cy-a { background: var(--done-soft); }
 .cday.cyd.cy-l { background: var(--q-short-soft); }
 .cday.cyd.fut:not(.today), .cyclg i.fut { border: 1px dashed var(--muted); }
+.cydate { direction: ltr; font-family: var(--font-mono); }
 .cysig { border-top: 1px solid var(--line); padding-top: 10px; display: flex; flex-direction: column; gap: 8px; }
 .cymu { display: flex; flex-wrap: wrap; gap: 6px; }
 .cymu button { font-size: .85rem; padding: 6px 10px; }
@@ -1794,18 +1795,22 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     return { t: t, cd: cd };
   }
   function cycAddStart(d, n) {
+    var was = arr(cyc && cyc.st).filter(function (s) { return Math.abs(cycGap(s.d, d)) < 10; })[0];
     cycPut(function (x) {
       x.st = arr(x.st).filter(function (s) { return Math.abs(cycGap(s.d, d)) >= 10; }); // a start this close is a correction
       x.st.push({ d: d, n: n });
       x.st.sort(function (a, b) { return a.d < b.d ? 1 : -1; }); x.st = x.st.slice(0, 24);
     });
-    toast("سُجّلت 🌸");
+    toast(was && was.d !== d ? "صُحّحت دورة " + cycFull(was.d) + " إلى " + cycFull(d) + " 🌸" : "سُجّلت دورة " + cycFull(d) + " 🌸");
   }
   function cycFull(k) { var p = k.split("-"); return +p[2] + "/" + +p[1] + "/" + p[0]; }
   function cycForm(c) {
     var tk = keyOf(today());
-    return '<form class="addform" data-form="cyc"><label class="small">أول يوم <input class="field" id="cycDate" type="date" max="' + tk + '" value="' + tk + '"></label>' +
-      '<label class="small">عدد الأيام <input class="field qnum" id="cycN" type="number" inputmode="numeric" min="1" max="15" value="' + c.n + '"></label><button class="btn" type="submit">سجّل</button></form>';
+    // What was picked is kept in ui, so a sync that redraws the card meanwhile doesn't put the date back to today
+    var dv = ui.cycD && ui.cycD <= tk ? ui.cycD : tk;
+    return '<form class="addform" data-form="cyc"><label class="small">أول يوم <input class="field cydate" id="cycDate" data-act="cycD" type="date" max="' + tk + '" value="' + dv + '"></label>' +
+      '<label class="small">عدد الأيام <input class="field qnum" id="cycN" data-act="cycN" type="number" inputmode="numeric" min="1" max="15" value="' + (ui.cycN || c.n) + '"></label><button class="btn" type="submit">سجّل</button>' +
+      '<span class="small muted">أو: ' + [1, 2, 3, 5, 7].map(function (n) { return '<button class="linkbtn" type="button" data-act="cycAgo" data-v="' + n + '">' + (n === 1 ? "أمس" : "قبل " + n + " أيام") + '</button>'; }).join(" · ") + '</span></form>';
   }
   function cycCal(c) {
     var t = today(), first = new Date(t.getFullYear(), t.getMonth() + (ui.cycM || 0), 1), lead = (first.getDay() + 1) % 7; // weeks start on Saturday
@@ -3386,6 +3391,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
         var cyd = cycCalc().st[0].d, cyl = cycGap(keyOf(today()), cyd) + 1;
         cycPut(function (x) { x.st.forEach(function (s) { if (s.d === cyd) s.n = cyl; }); }); toast("سُجّلت " + cyl + " " + daysWord(cyl) + " 🌸"); break;
       case "cycDel": if (confirm("حذف دورة " + cycFull(b.dataset.k) + "؟")) cycPut(function (x) { x.st = arr(x.st).filter(function (s) { return s.d !== b.dataset.k; }); }); break;
+      case "cycAgo": ui.cycD = keyOf(addDays(today(), -b.dataset.v)); $("cycDate").value = ui.cycD; break;
       case "cycSig": var cyo = ((cyc && cyc.ob) || {})[keyOf(today())] || {}; cycSign(keyOf(today()), { m: cyo.m === b.dataset.v ? "" : b.dataset.v }); break;
       case "cycLock": cycLock(); render(); toast("أُقفلت على هذا الجهاز 🔒"); break;
       case "cycWipeAsk": ui.cycWipe = true; render(); break;
@@ -3508,6 +3514,8 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       qc[t.dataset.f] = qv; setQuran(qc); commit();
     }
     else if (act === "prayBlock") setPray({ block: +t.value });
+    else if (act === "cycD") ui.cycD = t.value;
+    else if (act === "cycN") ui.cycN = +t.value || null;
     else if (act === "cycLen") cycPut(function (x) { x.len = +t.value; });
     else if (act === "resetSetBox") ui.resetSet = t.checked;
     else if (act === "roleSet") { var rs2 = Object.assign({}, roles()); if (t.value.trim()) rs2[t.dataset.n] = t.value.trim().slice(0, 30); else delete rs2[t.dataset.n]; state.settings.roles = rs2; commit(); }
@@ -3587,8 +3595,9 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       if (sb && !code && cloud.status === "nocode" && !ui.mine && !(currentProfile() || {}).join) createCode(true); // a cloud account in the person's name, so the admin can add them to a team
     } else if (f === "cyc") {
       var cdv = $("cycDate").value, cn = Math.max(1, Math.min(15, Math.round(+$("cycN").value) || 5));
-      if (!cdv || cdv > keyOf(today())) { toast("اختاري تاريخًا حتى اليوم"); return; }
-      ui.cycAdd = false; cycAddStart(cdv, cn);
+      if (!cdv) { toast("اختاري التاريخ كاملًا: اليوم والشهر والسنة"); return; }
+      if (cdv > keyOf(today())) { toast("لا يُسجَّل تاريخ بعد اليوم"); return; }
+      ui.cycAdd = false; ui.cycD = ui.cycN = null; cycAddStart(cdv, cn);
     } else if (f === "cycT") {
       var ctr = $("cycT").value.trim().replace(/[٠-٩]/g, function (ch) { return "٠١٢٣٤٥٦٧٨٩".indexOf(ch); }).replace(/[,٫]/, "."), ctv = Math.round(parseFloat(ctr) * 100) / 100;
       if (ctr && !(ctv >= 35 && ctv <= 38.5)) { toast("اكتبي الحرارة بين 35 و38.5، مثل 36.45"); return; }
