@@ -1811,9 +1811,10 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   function cycForm(c) {
     var tk = keyOf(today());
     // What was picked is kept in ui, so a sync that redraws the card meanwhile doesn't put the date back to today
-    var dv = ui.cycD && ui.cycD <= tk ? ui.cycD : tk;
-    return '<form class="addform" data-form="cyc"><label class="small">أول يوم <input class="field cydate" id="cycDate" data-act="cycD" type="date" max="' + tk + '" value="' + dv + '"></label>' +
-      '<label class="small">عدد الأيام <input class="field qnum" id="cycN" data-act="cycN" type="number" inputmode="numeric" min="1" max="15" value="' + (ui.cycN || c.n) + '"></label><button class="btn" type="submit">سجّل</button>' +
+    var dv = ui.cycD && ui.cycD <= tk ? ui.cycD : tk, ed = ui.cycEdit;
+    return (ed ? '<p class="small"><b>✏️ تعديل دورة ' + cycFull(ed) + '</b></p>' : "") + '<form class="addform" data-form="cyc"><label class="small">أول يوم <input class="field cydate" id="cycDate" data-act="cycD" type="date" max="' + tk + '" value="' + dv + '"></label>' +
+      '<label class="small">عدد الأيام <input class="field qnum" id="cycN" data-act="cycN" type="number" inputmode="numeric" min="1" max="15" value="' + (ui.cycN || c.n) + '"></label><button class="btn" type="submit">' + (ed ? "احفظ التعديل" : "سجّل") + '</button>' +
+      (ed ? '<button class="ghost" type="button" data-act="cycEditNo">إلغاء</button>' : "") +
       '<span class="small muted">أو: ' + [1, 2, 3, 5, 7].map(function (n) { return '<button class="linkbtn" type="button" data-act="cycAgo" data-v="' + n + '">' + (n === 1 ? "أمس" : "قبل " + n + " أيام") + '</button>'; }).join(" · ") + '</span></form>';
   }
   function cycCal(c) {
@@ -1857,13 +1858,13 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     h += '<div class="row-wrap">' + (lcd <= last.n + 4 ? '<button class="ghost" data-act="cycEnd">✓ انتهت الدورة اليوم</button>' : '<button class="btn" data-act="cycNow">🩸 بدأت الدورة اليوم</button>') +
       '<button class="ghost" data-act="cycAdd" aria-expanded="' + !!ui.cycAdd + '">📅 بتاريخ آخر</button></div>';
     if (ui.cycAdd) h += cycForm(c);
-    if (x.t !== "l") h += cycSignsHtml(c, tk);
+    h += cycSignsHtml(c, tk);
     if (open) {
       h += cycCal(c) + '<p class="small">طول دورتك: <b>' + c.len + ' يومًا</b>' + (c.gaps.length > 1 && c.sh !== c.lg ? " (أقصرها " + c.sh + " وأطولها " + c.lg + ")" : c.gaps.length ? "" : " (من ⚙ حتى تُسجَّل دورتان)") + ' · أيامها: <b>' + c.n + '</b></p>' +
         (c.odd ? '<p class="small">⚠️ دورتك غير منتظمة، فأيام العزل أطول والحساب أقل دقة.</p>' : "") +
         '<details class="box"><summary>السجل (' + c.st.length + ')</summary><div class="inner"><ul class="kev small">' + c.st.map(function (s, i) {
           var g = c.st[i + 1] ? cycGap(s.d, c.st[i + 1].d) : 0;
-          return '<li>🩸 ' + cycFull(s.d) + ' · ' + s.n + ' ' + daysWord(s.n) + (g ? ' · طول الدورة ' + g + ' ' + daysWord(g) : "") + ' <button class="linkbtn" data-act="cycDel" data-k="' + s.d + '" aria-label="حذف">×</button></li>';
+          return '<li>🩸 ' + cycFull(s.d) + ' · ' + s.n + ' ' + daysWord(s.n) + (g ? ' · طول الدورة ' + g + ' ' + daysWord(g) : "") + ' <button class="linkbtn" data-act="cycEditAsk" data-k="' + s.d + '" data-n="' + s.n + '" aria-label="تعديل">✏️</button> <button class="linkbtn" data-act="cycDel" data-k="' + s.d + '" aria-label="حذف">×</button></li>';
         }).join("") + '</ul></div></details>' +
         '<p class="small muted">⚠️ حساب تقريبي بطريقة التقويم: يدقّ أكثر كلما سُجّلت دورات أكثر وكانت منتظمة، وليس وسيلة مضمونة لمنع الحمل. البيانات مشفّرة لا يقرؤها إلا من يعرف الكلمة السرية.</p>';
     }
@@ -3410,8 +3411,12 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       case "prayAsr": setPray({ hanafi: b.dataset.v === "1" }); break;
       case "prayLoc": prayLocate(); break;
       case "prayInList": setPray({ inList: !prayCfg().inList }); break;
-      case "cycOpen": ui.cycOpen = !ui.cycOpen; render(); break;
-      case "cycAdd": ui.cycAdd = !ui.cycAdd; render(); break;
+      case "cycOpen": ui.cycOpen = !ui.cycOpen; if (!ui.cycOpen) ui.cycSel = null; render(); break;
+      case "cycAdd": ui.cycAdd = !ui.cycAdd; ui.cycEdit = null; render(); break;
+      case "cycEditAsk":
+        ui.cycEdit = ui.cycD = b.dataset.k; ui.cycN = +b.dataset.n; ui.cycAdd = true; render();
+        var cyfm = document.querySelector('[data-form="cyc"]'); if (cyfm) cyfm.scrollIntoView({ block: "center", behavior: "smooth" }); break;
+      case "cycEditNo": ui.cycEdit = ui.cycD = ui.cycN = null; ui.cycAdd = false; render(); break;
       case "cycM": ui.cycM = +b.dataset.v ? Math.max(-12, Math.min(12, (ui.cycM || 0) + +b.dataset.v)) : 0; render(); break;
       case "cycNow": cycAddStart(keyOf(today()), cycCalc().n); break;
       case "cycEnd":
@@ -3569,6 +3574,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     var t = e.target, act = t.dataset.act;
     if (act === "note") find(t.dataset.id).note = t.value;
     else if (act === "rv") day()[t.dataset.f] = t.value;
+    else if (act === "cycD") { ui.cycD = t.value; return; }
     else return;
     clearTimeout(typingTimer); typingTimer = setTimeout(save, 500);
   });
@@ -3627,7 +3633,16 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       var cdv = $("cycDate").value, cn = Math.max(1, Math.min(15, Math.round(+$("cycN").value) || 5));
       if (!cdv) { toast("اختاري التاريخ كاملًا: اليوم والشهر والسنة"); return; }
       if (cdv > keyOf(today())) { toast("لا يُسجَّل تاريخ بعد اليوم"); return; }
-      ui.cycAdd = false; ui.cycD = ui.cycN = null; cycAddStart(cdv, cn);
+      var ced = ui.cycEdit;
+      ui.cycAdd = false; ui.cycD = ui.cycN = ui.cycEdit = null;
+      if (ced) {
+        cycPut(function (x) {
+          x.st = arr(x.st).filter(function (s) { return s.d !== ced && (s.d === cdv || Math.abs(cycGap(s.d, cdv)) >= 10); });
+          x.st = x.st.filter(function (s) { return s.d !== cdv; }).concat([{ d: cdv, n: cn }]);
+          x.st.sort(function (a, b) { return a.d < b.d ? 1 : -1; });
+        });
+        toast("عُدّلت الدورة: " + cycFull(cdv) + " · " + cn + " " + daysWord(cn) + " 🌸");
+      } else cycAddStart(cdv, cn);
     } else if (f === "cycT") {
       var ctr = $("cycT").value.trim().replace(/[٠-٩]/g, function (ch) { return "٠١٢٣٤٥٦٧٨٩".indexOf(ch); }).replace(/[,٫]/, "."), ctv = Math.round(parseFloat(ctr) * 100) / 100;
       if (ctr && !(ctv >= 35 && ctv <= 38.5)) { toast("اكتبي الحرارة بين 35 و38.5، مثل 36.45"); return; }
@@ -3667,7 +3682,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   });
 
   document.querySelectorAll(".tab").forEach(function (b) {
-    b.addEventListener("click", function () { ui.tab = b.dataset.tab; ui.open = null; render(); window.scrollTo(0, 0); });
+    b.addEventListener("click", function () { ui.tab = b.dataset.tab; ui.open = null; ui.cycSel = null; render(); window.scrollTo(0, 0); });
   });
   function currentProfile() { return profiles.list.filter(function (x) { return x.id === PROFILE; })[0]; }
   // A PIN keeps casual hands out of an account. It is a lock on this screen, not encryption of the stored data.
