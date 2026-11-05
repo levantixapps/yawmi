@@ -1700,7 +1700,8 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   // Sealed with a secret word only the couple knows (AES-GCM, key from PBKDF2), so a family account carries it to both
   // of them while the rest of the family sees nothing. state.settings.cyc = { s: salt, i: iv, c: sealed } in base64,
   // or { off: 1 } once deleted. Inside: { st: [{ d: "2026-10-20", n: 5 }], len: 28, ob: { <day>: { m, t } } } where ob is the wife's
-  // daily signs: m mucus (d dry or thick, s sticky or white, e clear and stretchy like egg white), t morning temperature. Each device keeps the word in yawmi-cyc.
+  // daily signs: m mucus (d dry or thick, s sticky or white, e clear and stretchy like egg white), f flow on period days
+  // (1 spotting … 4 heavy), t morning temperature. Each device keeps the word in yawmi-cyc.
   // Four stages around ovulation (cycle length − 14; day 14 of 28), as the owner's table: low before, rising from 6 days before
   // ovulation (8–11 of 28: start abstaining), peak from 2 before to 2 after (12–16: abstain fully), then low after it (17–28).
   // With uneven cycles the rising stage starts from the shortest cycle and the peak ends with the longest.
@@ -1869,10 +1870,25 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     return h + '</div>';
   }
   var CYC_M = [["d", "🏜", "جاف أو سميك"], ["s", "☁️", "لزج أو أبيض"], ["e", "💧", "شفاف مطاطي زلق"]];
+  var CYC_F = [["1", "🔸", "تبقيع"], ["2", "🩸", "خفيف"], ["3", "🩸🩸", "متوسط"], ["4", "🩸🩸🩸", "غزير"]];
+  // The choices follow the stage of the day: the flow on period days, the mucus after them, with what to watch for in each stage
+  function cycOpts(t, o, by) {
+    var btn = function (f, v, m) { return '<button class="ghost" data-act="cycSig" data-f="' + f + '" data-v="' + m[0] + '" aria-pressed="' + (v === m[0]) + '">' + m[1] + ' ' + m[2] + '</button>'; };
+    if (t === "p") return '<span class="small">كمية النزول:</span><div class="cymu">' + CYC_F.map(function (m) { return btn("f", o.f, m); }).join("") + '</div>' +
+      '<p class="small muted">🌡 سجّلي الحرارة من الآن أيضًا، فقراءات ما قبل الإباضة هي الأساس الذي يُقارن به الارتفاع.</p>';
+    var mu = t === "f" || t === "k" ? [CYC_M[2], CYC_M[1], CYC_M[0]] : CYC_M; // in the fertile days the clear mucus comes first
+    var tip = {
+      s: "🏜 بعد الحيض تكون عادةً جافة. إن ظهرت لزجة أو بيضاء فالخصوبة بدأت ترتفع.",
+      f: "🟠 راقبي الإفرازات: إن صارت شفافة مطاطية زلقة فهي الذروة.",
+      k: "🔴 أيام الذروة: الإفرازات الشفافة الزلقة متوقعة الآن. سجّليها كل يوم تظهر فيه، فالعزل يستمر ٣ أيام بعد آخر يوم منها.",
+      a: by ? "✓ انتهت الإباضة بحسب العلامات. تعود الإفرازات عادةً سميكة أو جافة." : "بعد الإباضة تعود الإفرازات سميكة أو جافة، وارتفاع الحرارة ٣ أيام متتالية يؤكد ذلك."
+    }[t];
+    return '<span class="small">الإفرازات:</span><div class="cymu">' + mu.map(function (m) { return btn("m", o.m, m); }).join("") + '</div>' + (tip ? '<p class="small muted">' + tip + '</p>' : "");
+  }
   function cycMark(k) {
     var o = ((cyc && cyc.ob) || {})[k];
     if (!o) return "";
-    var m = o.m === "e" ? "💧" : o.m === "s" ? "☁️" : o.t ? "🌡" : "";
+    var m = o.m === "e" ? "💧" : o.m === "s" ? "☁️" : o.f === "4" ? "🩸" : o.t ? "🌡" : "";
     return m ? '<i class="cyo">' + m + '</i>' : "";
   }
   // The wife's signs for today, and what they say so far in this cycle
@@ -1884,7 +1900,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     var o = ((cyc && cyc.ob) || {})[tk] || {}, g = cycSigns(c, rec), say = [], xd = cycDay(c, tk);
     var h = '<div class="cysig' + (back ? " past" : "") + '"><b>📝 ' + (back ? "علامات يوم " + cycFull(tk) : "علامات اليوم") + ' <span class="small muted">اختيارية، وتزيد الدقة</span>' + back + '</b>' +
       (back && xd ? '<div class="cycnow cy-' + xd.t + '"><b>' + CYC_T[xd.t][0] + ' ' + (xd.by && xd.t === "a" ? "انتهت الإباضة ✓ خصوبة منخفضة جدًا" : CYC_T[xd.t][1]) + '</b><span>اليوم ' + xd.cd + ' في تلك الدورة' + (xd.by ? " · ✓ بحسب العلامات" : "") + '</span></div>' : "") +
-      '<div class="cymu">' + CYC_M.map(function (m) { return '<button class="ghost" data-act="cycSig" data-v="' + m[0] + '" aria-pressed="' + (o.m === m[0]) + '">' + m[1] + ' ' + m[2] + '</button>'; }).join("") + '</div>' +
+      cycOpts(xd ? xd.t : "", o, xd && xd.by) +
       '<form class="addform" data-form="cycT"><label class="small grow">🌡 الحرارة فور الاستيقاظ وقبل النهوض <input class="field qnum" id="cycT" type="text" inputmode="decimal" maxlength="5" placeholder="36.45" value="' + (o.t || "") + '"></label>' +
       '<button class="btn" type="submit">سجّل</button></form>';
     if (g.lastE) say.push(g.mConf > tk ? "💧 آخر إفرازات شفافة مطاطية: " + shortDate(g.lastE) + "، فالعزل التام حتى " + shortDate(cycPlus(g.mConf, -1)) + " على الأقل." : "💧 انتهت ذروة الإفرازات (٣ أيام بعد " + shortDate(g.lastE) + ").");
@@ -3404,7 +3420,9 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       case "cycDel": if (confirm("حذف دورة " + cycFull(b.dataset.k) + "؟")) cycPut(function (x) { x.st = arr(x.st).filter(function (s) { return s.d !== b.dataset.k; }); }); break;
       case "cycAgo": ui.cycD = keyOf(addDays(today(), -b.dataset.v)); $("cycDate").value = ui.cycD; break;
       case "cycPick": ui.cycSel = b.dataset.k; render(); var cys = document.querySelector(".cysig"); if (cys && b.dataset.k < keyOf(today())) cys.scrollIntoView({ block: "center", behavior: "smooth" }); break;
-      case "cycSig": var cyo = ((cyc && cyc.ob) || {})[cycSel()] || {}; cycSign(cycSel(), { m: cyo.m === b.dataset.v ? "" : b.dataset.v }); break;
+      case "cycSig":
+        var cyo = ((cyc && cyc.ob) || {})[cycSel()] || {}, cyf = b.dataset.f || "m", cych = {};
+        cych[cyf] = cyo[cyf] === b.dataset.v ? "" : b.dataset.v; cycSign(cycSel(), cych); break;
       case "cycLock": cycLock(); render(); toast("أُقفلت على هذا الجهاز 🔒"); break;
       case "cycWipeAsk": ui.cycWipe = true; render(); break;
       case "cycWipeNo": ui.cycWipe = false; render(); break;
