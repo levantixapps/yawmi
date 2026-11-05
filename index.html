@@ -367,7 +367,7 @@ details.box textarea { font-size: .78rem; direction: ltr; }
 .cycnow b { font-family: var(--font-display); }
 .cycnow span { font-size: .85rem; }
 .cy-p { background: var(--cyc-soft); } .cycnow.cy-p b { color: var(--cyc); }
-.cy-f { background: var(--star-soft); } .cycnow.cy-f b { color: var(--star); } .cycnow.cy-k b { color: var(--q-now); }
+.cy-f, .cy-d { background: var(--star-soft); } .cycnow.cy-f b, .cycnow.cy-d b { color: var(--star); } .cycnow.cy-k b { color: var(--q-now); }
 .cy-k { background: var(--q-now-soft); } .cycnow.cy-k { border: 2px solid var(--q-now); }
 .cy-s, .cy-a { background: var(--done-soft); } .cycnow.cy-s b, .cycnow.cy-a b { color: var(--done); }
 .cy-l { background: var(--q-short-soft); } .cycnow.cy-l b { color: var(--q-short); }
@@ -376,7 +376,7 @@ details.box textarea { font-size: .78rem; direction: ltr; }
 .cday.cyd.today { border: 3px solid var(--accent); box-shadow: 0 0 0 2px var(--surface) inset, 0 2px 8px rgba(31, 95, 191, .45); transform: scale(1.08); z-index: 1; }
 .cday.cyd em { font-style: normal; font-size: .58rem; font-weight: 700; line-height: 1; margin-top: 2px; padding: 2px 5px; border-radius: 6px; background: var(--accent); color: var(--surface); }
 .cday.cyd.cy-p { background: var(--cyc-soft); color: var(--cyc); }
-.cday.cyd.cy-f { background: var(--star-soft); color: var(--star); }
+.cday.cyd.cy-f, .cday.cyd.cy-d { background: var(--star-soft); color: var(--star); }
 .cday.cyd.cy-k, .cyclg i.cy-k { background: var(--q-now); color: var(--surface); }
 .cday.cyd.cy-s, .cday.cyd.cy-a { background: var(--done-soft); }
 .cday.cyd.cy-l { background: var(--q-short-soft); }
@@ -1702,11 +1702,12 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   // or { off: 1 } once deleted. Inside: { st: [{ d: "2026-10-20", n: 5 }], len: 28, ob: { <day>: { m, t } } } where ob is the wife's
   // daily signs: m mucus (d dry or thick, s sticky or white, e clear and stretchy like egg white), f flow on period days
   // (1 spotting … 4 heavy), t morning temperature. Each device keeps the word in yawmi-cyc.
-  // Four stages around ovulation (cycle length − 14; day 14 of 28), as the owner's table: low before, rising from 6 days before
-  // ovulation (8–11 of 28: start abstaining), peak from 2 before to 2 after (12–16: abstain fully), then low after it (17–28).
-  // With uneven cycles the rising stage starts from the shortest cycle and the peak ends with the longest.
+  // By the date alone (no signs) the stages lean to caution: low only on days 1–5 (Sensiplan's 5-day rule, earlier in a short
+  // cycle), rising up to the peak, peak 12–16 of 28, then caution until day 19 (the Standard Days Method avoids days 8–19 of
+  // 26–32), and low from day 20. Uneven cycles widen it: the start follows the shortest cycle and the end the longest.
+  // Recorded signs (mucus and temperature) override this in cycDay.
   var CYC_KEY = "yawmi-cyc", cyc = null, cycSeen, cycBusy = false;
-  var CYC_T = { p: ["🩸", "أيام الدورة"], k: ["🔴", "ذروة الخصوبة: عزل تام"], f: ["🟠", "خصوبة متصاعدة: يُفضَّل البدء بالعزل"], s: ["🟢", "خصوبة منخفضة جدًا: أمان نسبي"], a: ["🟢", "ما بعد الإباضة: خصوبة منخفضة جدًا"], l: ["⚠️", "الدورة متأخرة"] };
+  var CYC_T = { p: ["🩸", "أيام الدورة"], k: ["🔴", "ذروة الخصوبة: عزل تام"], f: ["🟠", "خصوبة متصاعدة: يُفضَّل البدء بالعزل"], d: ["🟠", "احتياط بعد الذروة: يُفضَّل العزل"], s: ["🟢", "خصوبة منخفضة جدًا: أمان نسبي"], a: ["🟢", "ما بعد الإباضة: خصوبة منخفضة جدًا"], l: ["⚠️", "الدورة متأخرة"] };
   function cycWord() { try { return localStorage.getItem(pkey(CYC_KEY)) || ""; } catch (e) { return ""; } }
   function cycBox() { var b = state.settings.cyc; return b && b.c ? b : null; }
   function cycOn() { return !isTeamOnly() && !!cycBox() && !!cyc; }
@@ -1759,7 +1760,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     var len = gaps.length ? mean(gaps) : (cyc && cyc.len) || 28, two = gaps.length >= 2;
     var sh = two ? Math.min.apply(null, gaps) : len, lg = two ? Math.max.apply(null, gaps) : len;
     return { st: st, len: len, sh: sh, lg: lg, gaps: gaps, n: st.length ? mean(st.slice(0, 6).map(function (x) { return x.n; })) : 5,
-      from: Math.max(1, sh - 20), pk: sh - 16, to: lg - 12, odd: two && lg - sh > 7,
+      from: Math.max(1, Math.min(6, sh - 20)), pk: sh - 16, pe: lg - 12, to: lg - 9, odd: two && lg - sh > 7,
       late: st.length ? cycGap(keyOf(today()), st[0].d) + 1 - len : 0, sg: {} }; // late > 0: the next period is that many days late
   }
   // A day is p period, k peak, f fertile, s relatively safe, or l late (the period was due and is not recorded)
@@ -1790,12 +1791,12 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       if (c.late > 0) return k <= keyOf(today()) ? { t: "l", cd: cd } : null;
       cd = (cd - 1) % c.len + 1; n = c.n; pred = true; // a predicted cycle
     }
-    var t = cd <= n ? "p" : cd < c.from ? "s" : cd < c.pk ? "f" : cd <= c.to ? "k" : "a";
+    var t = cd <= n ? "p" : cd < c.from ? "s" : cd < c.pk ? "f" : cd <= c.pe ? "k" : cd <= c.to ? "d" : "a";
     if (pred || t === "p") return { t: t, cd: cd };
     var g = cycSigns(c, rec), o = g.ob[k] || {};
     if (g.conf && k >= g.conf) return { t: "a", cd: cd, by: 1 };
     if (g.lastE && k >= g.lastE && k < g.mConf) return { t: "k", cd: cd, by: 1 };
-    if (o.m === "s" && (t === "s" || t === "a")) return { t: "f", cd: cd, by: 1 };
+    if (o.m === "s" && (t === "s" || t === "a")) return { t: t === "a" ? "d" : "f", cd: cd, by: 1 };
     return { t: t, cd: cd };
   }
   function cycAddStart(d, n) {
@@ -1833,7 +1834,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       h += '<' + tag + ' class="cday cyd' + (x ? " cy-" + x.t : "") + (k > tk ? " fut" : "") + (k === tk ? " today" : "") + (k === cycSel() && k !== tk ? " pick" : "") + '"' +
         (k <= tk ? ' data-act="cycPick" data-k="' + k + '"' : "") + (x ? ' title="' + CYC_T[x.t][1] + '"' : "") + '><b>' + d + '</b><small>' + hd + '</small>' + (k === tk ? '<em>اليوم</em>' : "") + cycMark(k) + '</' + tag + '>';
     }
-    return h + '</div><div class="cyclg small"><span><i class="cy-p"></i> الدورة</span><span><i class="cy-s"></i> منخفضة</span><span><i class="cy-f"></i> متصاعدة</span><span><i class="cy-k"></i> الذروة</span><span><i class="fut"></i> متوقَّع</span><span>💧 ☁️ 🌡 علامات مسجّلة</span><span><i class="tdy"></i> اليوم</span></div>' +
+    return h + '</div><div class="cyclg small"><span><i class="cy-p"></i> الدورة</span><span><i class="cy-s"></i> منخفضة</span><span><i class="cy-f"></i> متصاعدة أو احتياط</span><span><i class="cy-k"></i> الذروة</span><span><i class="fut"></i> متوقَّع</span><span>💧 ☁️ 🌡 علامات مسجّلة</span><span><i class="tdy"></i> اليوم</span></div>' +
       '<p class="small muted">اضغطي على يوم مضى لتري حالته وتسجّلي علاماته.</p>' +
       (ui.cycM ? '<div><button class="linkbtn" data-act="cycM" data-v="0">↩ ارجع إلى هذا الشهر</button></div>' : "");
   }
@@ -1877,11 +1878,12 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     var btn = function (f, v, m) { return '<button class="ghost" data-act="cycSig" data-f="' + f + '" data-v="' + m[0] + '" aria-pressed="' + (v === m[0]) + '">' + m[1] + ' ' + m[2] + '</button>'; };
     if (t === "p") return '<span class="small">كمية النزول:</span><div class="cymu">' + CYC_F.map(function (m) { return btn("f", o.f, m); }).join("") + '</div>' +
       '<p class="small muted">🌡 سجّلي الحرارة من الآن أيضًا، فقراءات ما قبل الإباضة هي الأساس الذي يُقارن به الارتفاع.</p>';
-    var mu = t === "f" || t === "k" ? [CYC_M[2], CYC_M[1], CYC_M[0]] : CYC_M; // in the fertile days the clear mucus comes first
+    var mu = t === "f" || t === "k" || t === "d" ? [CYC_M[2], CYC_M[1], CYC_M[0]] : CYC_M; // in the fertile days the clear mucus comes first
     var tip = {
       s: "🏜 بعد الحيض تكون عادةً جافة. إن ظهرت لزجة أو بيضاء فالخصوبة بدأت ترتفع.",
       f: "🟠 راقبي الإفرازات: إن صارت شفافة مطاطية زلقة فهي الذروة.",
       k: "🔴 أيام الذروة: الإفرازات الشفافة الزلقة متوقعة الآن. سجّليها كل يوم تظهر فيه، فالعزل يستمر ٣ أيام بعد آخر يوم منها.",
+      d: "🟠 احتياط: قد تتأخر الإباضة بعض الشهور. إن عادت الإفرازات سميكة أو جافة وارتفعت الحرارة ٣ أيام متتالية تأكّد الأمان قبل موعده.",
       a: by ? "✓ انتهت الإباضة بحسب العلامات. تعود الإفرازات عادةً سميكة أو جافة." : "بعد الإباضة تعود الإفرازات سميكة أو جافة، وارتفاع الحرارة ٣ أيام متتالية يؤكد ذلك."
     }[t];
     return '<span class="small">الإفرازات:</span><div class="cymu">' + mu.map(function (m) { return btn("m", o.m, m); }).join("") + '</div>' + (tip ? '<p class="small muted">' + tip + '</p>' : "");
