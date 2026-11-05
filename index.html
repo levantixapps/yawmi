@@ -1737,16 +1737,22 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     cycOpen(w, box).then(function (x) { cyc = x; ui.cycBad = false; }, function () { cyc = null; ui.cycBad = true; })
       .then(function () { cycBusy = false; cycSeen = sj; softRender(); });
   }
+  // A change lands on the newest copy: if a sync brought the other device's copy and it isn't opened yet (the redraw waits
+  // while someone types), it is opened first, so this change doesn't overwrite what was recorded there
   function cycPut(fn) {
-    var w = cycWord(), box = cycBox();
+    var w = cycWord(), box = cycBox(), sj = box ? JSON.stringify(box) : "";
     if (!w || !cyc) return;
-    fn(cyc); render();
-    cycSeal(w, cyc, box ? unb64(box.s) : null).then(function (nb) { state.settings.cyc = nb; cycSeen = JSON.stringify(nb); commit(); });
+    var ready = !box || sj === cycSeen ? Promise.resolve() : cycOpen(w, box).then(function (x) { cyc = x; cycSeen = sj; }, function () {});
+    ready.then(function () {
+      fn(cyc); render();
+      return cycSeal(w, cyc, box ? unb64(box.s) : null);
+    }).then(function (nb) { state.settings.cyc = nb; cycSeen = JSON.stringify(nb); commit(); });
   }
   function cycStart(word) {
     word = (word || "").trim();
-    if (word.length < 4) { toast("الكلمة السرية ٤ أحرف أو أكثر"); return; }
-    var box = cycBox(), keep = function (x) { try { localStorage.setItem(pkey(CYC_KEY), word); } catch (e) {} cyc = x; ui.cycBad = false; };
+    var box = cycBox();
+    if (word.length < (box ? 4 : 6)) { toast(box ? "الكلمة السرية غير صحيحة" : "الكلمة السرية ٦ أحرف أو أكثر، ويُفضَّل أن تمزج حروفًا وأرقامًا"); return; }
+    var keep = function (x) { try { localStorage.setItem(pkey(CYC_KEY), word); } catch (e) {} cyc = x; ui.cycBad = false; };
     if (box) { cycOpen(word, box).then(function (x) { keep(x); cycSeen = JSON.stringify(box); render(); toast("فُتحت 🌸"); }, function () { toast("الكلمة السرية غير صحيحة"); }); return; }
     keep({ st: [], len: 28 });
     cycSeal(word, cyc).then(function (nb) { state.settings.cyc = nb; cycSeen = JSON.stringify(nb); commit(); toast("جاهزة 🌸 اكتبا الكلمة نفسها على الجهاز الآخر"); });

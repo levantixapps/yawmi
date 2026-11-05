@@ -21,7 +21,7 @@ p, li { margin: 0 0 8px; }
 <body>
 <main>
 <h1>سياسة الخصوصية لتطبيق «يومي»</h1>
-<p class="muted">آخر تحديث: 15 أكتوبر 2026</p>
+<p class="muted">آخر تحديث: 5 نوفمبر 2026</p>
 
 <p>«يومي» تطبيق لتنظيم الوقت: تخطيط اليوم، والمهام، والتقارير. هذه الصفحة توضّح ما يُحفظ من بياناتك وأين.</p>
 
@@ -29,7 +29,7 @@ p, li { margin: 0 0 8px; }
 <ul>
   <li>ما تكتبه أنت فقط: المهام وأوقاتها وتقسيماتها، والملاحظات، والمهام الدائمة، وإجابات المراجعة اليومية.</li>
   <li>الاسم الذي تكتبه للترحيب بك، ونوع جهازك (مثل «آيفون» أو موديل جوال أندرويد).</li>
-  <li>لا يطلب التطبيق بريدك ولا رقم هاتفك، ولا يصل إلى موقعك أو صورك أو جهات اتصالك.</li>
+  <li>لا يطلب التطبيق بريدك ولا رقم هاتفك، ولا يصل إلى صورك أو جهات اتصالك. وإن ضغطت «📍 موقعي» في أوقات الصلاة يُقرأ موقعك مرة واحدة لحساب الأوقات على جهازك.</li>
 </ul>
 
 <h2>أين تُحفظ؟</h2>
@@ -37,6 +37,15 @@ p, li { margin: 0 0 8px; }
   <li><b>على جهازك:</b> تُحفظ البيانات في ذاكرة التطبيق على الجهاز، ومنها أرشيف للأيام السابقة لمدة سنة.</li>
   <li><b>في السحابة (اختياري):</b> إذا أنشأت كودًا للمزامنة، تُحفظ بيانات ٧ أيام فقط (اليوم و٣ قبله و٣ بعده) في قاعدة بيانات على خدمة Supabase، مرتبطة بذلك الكود. لا يصل إليها إلا من يعرف الكود.</li>
   <li><b>ما يراه مشرف التطبيق:</b> اسمك ونوع جهازك وآخر نشاط للحساب، ليستطيع ربطك بفريق عملك. لا يرى المشرف مهامك ولا ملاحظاتك ولا الكود.</li>
+</ul>
+
+<h2>بيانات الدورة الشهرية (اختيارية)</h2>
+<ul>
+  <li>إن فعّلت ميزة «🌸 الدورة الشهرية» تُحفظ تواريخ الدورة وعدد أيامها، وما تسجّله من علامات الجسم (الإفرازات وكمية النزول والحرارة).</li>
+  <li>تُشفَّر هذه البيانات على جهازك قبل أن تُحفظ أو تُرفع (AES-256 بمفتاح من كلمة سرية تختارها). يصل إلى السحابة نص مشفّر فقط، فلا يقرؤه مشرف التطبيق ولا خدمة Supabase ولا أفراد الحساب المشترك الذين لا يعرفون الكلمة السرية.</li>
+  <li>الكلمة السرية تبقى على أجهزتكم فقط، ولا نستطيع استرجاعها ولا فتح البيانات إن نُسيت.</li>
+  <li>تحذفها كلها من ⚙ ← العبادة ← الدورة الشهرية ← «احذف كل بياناتها».</li>
+  <li>الحساب في هذه الميزة تقريبي، وليس نصيحة طبية ولا وسيلة مضمونة لمنع الحمل.</li>
 </ul>
 
 <h2>المشاركة مع الآخرين</h2>
@@ -60,8 +69,9 @@ p, li { margin: 0 0 8px; }
 
 <section class="en">
 <h1>Privacy Policy — Yawmi</h1>
-<p class="muted">Last updated: October 15, 2026</p>
-<p>Yawmi is a time-management app. It stores only what you type (tasks, times, categories, notes, standing tasks, daily review answers). It does not ask for your name, email or phone number and does not access your location, photos or contacts.</p>
+<p class="muted">Last updated: November 5, 2026</p>
+<p>Yawmi is a time-management app. It stores only what you type (tasks, times, categories, notes, standing tasks, daily review answers). It does not ask for your name, email or phone number and does not access your photos or contacts. If you tap “My location” for prayer times, your location is read once to compute the times on your device.</p>
+<p><b>Menstrual cycle (optional).</b> If you turn on the cycle feature, cycle dates and lengths and any body signs you record (cervical mucus, flow, temperature) are encrypted on your device (AES-256, key derived from a secret word you choose) before they are stored or synced. Only ciphertext reaches the cloud; the administrator, Supabase and other members of a shared account cannot read it without the word. The word stays on your devices and cannot be recovered. You can delete this data in Settings → Worship → Monthly cycle. The estimates are approximate and are not medical advice or a reliable method of contraception.</p>
 <p>Data is stored on your device, including a one-year archive of past days. If you create a sync code, seven days of data (today, three days before and three after) are stored in a Supabase database linked only to that code, with no personal information; only someone with the code can reach it.</p>
 <p>We do not sell or share your data. The app has no ads, trackers or analytics. Fonts load from Google Fonts and libraries from public CDNs (jsDelivr, cdnjs); these services may log IP addresses like any website.</p>
 <p>To delete data: in the app, Settings → Backup → “Clear this device's data”; uninstalling removes local data; to delete cloud data, email us your code. Contact: mohammadalorfaa2033@gmail.com</p>
