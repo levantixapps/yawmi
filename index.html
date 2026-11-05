@@ -47,6 +47,7 @@ try { var t0 = localStorage.getItem("yawmi-theme"); if (t0 === "light" || t0 ===
   --q-short: #9A7400;       /* yellow: medium importance */
   --q-short-soft: #FFF4CC;
   /* category colors: blue, green, indigo, orange, purple, gray */
+  --cyc: #C2185B; --cyc-soft: #FBE3EE; /* pink: the monthly cycle */
   --c1: #1F5FBF; --c2: #1E8A4F; --c3: #3F4BA8; --c4: #D9650B; --c5: #7E44B0; --c6: #6B7684;
   --font-display: "Cairo", "IBM Plex Sans Arabic", Tahoma, sans-serif;
   --font-body: "IBM Plex Sans Arabic", Tahoma, "Segoe UI", sans-serif;
@@ -58,7 +59,7 @@ try { var t0 = localStorage.getItem("yawmi-theme"); if (t0 === "light" || t0 ===
     --bg: #0F141B; --surface: #171E28; --ink: #E6EBF2; --muted: #94A0B0; --line: #283241;
     --accent: #6EA4F0; --accent-soft: #1A2A42; --done: #57C68A; --done-soft: #16301F;
     --star: #F5A04A; --star-soft: #3A2714; --q-now: #F27A72; --q-now-soft: #3A1C1B; --q-short: #EBC85A; --q-short-soft: #362E14;
-    --c1: #6EA4F0; --c2: #57C68A; --c3: #8F98E8; --c4: #F5A04A; --c5: #C49AE8; --c6: #94A0B0;
+    --c1: #6EA4F0; --c2: #57C68A; --c3: #8F98E8; --c4: #F5A04A; --c5: #C49AE8; --c6: #94A0B0; --cyc: #F48FB1; --cyc-soft: #3A1A28;
     --pattern: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='88' height='88' viewBox='0 0 88 88'%3E%3Cg fill='none' stroke='rgba%28110,164,240,0.06%29' stroke-width='1'%3E%3Cpath d='M44 20L68 44L44 68L20 44Z'/%3E%3Cpath d='M27 27H61V61H27Z'/%3E%3Cpath d='M44 0V20M44 68V88M0 44H20M68 44H88M0 0L27 27M88 0L61 27M0 88L27 61M88 88L61 61'/%3E%3Ccircle cx='44' cy='44' r='9'/%3E%3C/g%3E%3C/svg%3E");
     color-scheme: dark;
   }
@@ -67,7 +68,7 @@ try { var t0 = localStorage.getItem("yawmi-theme"); if (t0 === "light" || t0 ===
   --bg: #0F141B; --surface: #171E28; --ink: #E6EBF2; --muted: #94A0B0; --line: #283241;
     --accent: #6EA4F0; --accent-soft: #1A2A42; --done: #57C68A; --done-soft: #16301F;
     --star: #F5A04A; --star-soft: #3A2714; --q-now: #F27A72; --q-now-soft: #3A1C1B; --q-short: #EBC85A; --q-short-soft: #362E14;
-    --c1: #6EA4F0; --c2: #57C68A; --c3: #8F98E8; --c4: #F5A04A; --c5: #C49AE8; --c6: #94A0B0;
+    --c1: #6EA4F0; --c2: #57C68A; --c3: #8F98E8; --c4: #F5A04A; --c5: #C49AE8; --c6: #94A0B0; --cyc: #F48FB1; --cyc-soft: #3A1A28;
   --pattern: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='88' height='88' viewBox='0 0 88 88'%3E%3Cg fill='none' stroke='rgba%28110,164,240,0.06%29' stroke-width='1'%3E%3Cpath d='M44 20L68 44L44 68L20 44Z'/%3E%3Cpath d='M27 27H61V61H27Z'/%3E%3Cpath d='M44 0V20M44 68V88M0 44H20M68 44H88M0 0L27 27M88 0L61 27M0 88L27 61M88 88L61 61'/%3E%3Ccircle cx='44' cy='44' r='9'/%3E%3C/g%3E%3C/svg%3E");
   color-scheme: dark;
 }
@@ -361,6 +362,24 @@ details.box textarea { font-size: .78rem; direction: ltr; }
 .cday.sel .cdot { background: var(--surface); }
 .cdot.ok { background: var(--done); }
 .calfoot { display: flex; flex-direction: column; gap: 8px; }
+/* Monthly cycle */
+.cycnow { border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; }
+.cycnow b { font-family: var(--font-display); }
+.cycnow span { font-size: .85rem; }
+.cy-p { background: var(--cyc-soft); } .cycnow.cy-p b { color: var(--cyc); }
+.cy-f { background: var(--q-now-soft); } .cycnow.cy-f b, .cycnow.cy-k b { color: var(--q-now); }
+.cy-k { background: var(--q-now-soft); } .cycnow.cy-k { border: 2px solid var(--q-now); }
+.cy-s { background: var(--done-soft); } .cycnow.cy-s b { color: var(--done); }
+.cy-l { background: var(--q-short-soft); } .cycnow.cy-l b { color: var(--q-short); }
+.cday.cyd { cursor: default; padding: 7px 0; }
+.cday.cyd.cy-p { background: var(--cyc-soft); color: var(--cyc); }
+.cday.cyd.cy-f { background: var(--q-now-soft); color: var(--q-now); }
+.cday.cyd.cy-k, .cyclg i.cy-k { background: var(--q-now); color: var(--surface); }
+.cday.cyd.cy-s { background: var(--done-soft); }
+.cday.cyd.cy-l { background: var(--q-short-soft); }
+.cday.cyd.fut:not(.today), .cyclg i.fut { border: 1px dashed var(--muted); }
+.cyclg { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.cyclg i { display: inline-block; width: 12px; height: 12px; border-radius: 4px; vertical-align: -2px; }
 /* Sleep */
 .praycard { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
 .praynext { margin: 0; }
@@ -830,7 +849,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   function itemsMap(d) { var m = {}; d.items.forEach(function (i) { m[i.id] = itemJson(i); }); return m; }
   function textJson(d) { return JSON.stringify([d.good, d.improve, d.notes, d.startAt, d.sleep || null]); }
   function daySnap(d) { return { m: itemsMap(d), t: textJson(d), a: JSON.stringify(d.applied), q: JSON.stringify(d.quran || null), k: JSON.stringify(d.kids || null), r: JSON.stringify(d.rmd || null), b: JSON.stringify(d.bk || null) }; }
-  function setJson() { return JSON.stringify([state.settings.categories, state.settings.routines, state.settings.sleep || null, state.settings.prayer || null, state.settings.quran || null, state.settings.templates || null, state.settings.goals || null, state.settings.team || null, state.settings.kids || null, state.settings.tcfg || null, state.settings.roles || null, state.settings.paths || null, state.settings.rejecters || null, state.settings.ramadan || null, state.settings.books || null]); }
+  function setJson() { return JSON.stringify([state.settings.categories, state.settings.routines, state.settings.sleep || null, state.settings.prayer || null, state.settings.quran || null, state.settings.templates || null, state.settings.goals || null, state.settings.team || null, state.settings.kids || null, state.settings.tcfg || null, state.settings.roles || null, state.settings.paths || null, state.settings.rejecters || null, state.settings.ramadan || null, state.settings.books || null, state.settings.cyc || null]); }
   function isEmptyDay(d) { return !d.items.length && !d.good && !d.improve && !d.notes && !(d.sleep && (d.sleep.bed || d.sleep.wake)) && !qHas(d) && !kHas(d) && !rHas(d) && !bHas(d); }
   function shopSnap() { var m = {}; state.shop.items.forEach(function (i) { m[i.id] = itemJson(i); }); return m; }
   function takeSnap() {
@@ -1660,6 +1679,153 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
         '<form class="addform" data-form="kidq"><input class="field grow" id="kidQText" type="text" maxlength="60" placeholder="مثل: صلّى الفجر؟ رتّب سريره؟" autocomplete="off"><button class="btn" type="submit">أضف</button></form>' : "") +
       '</section>';
   }
+  /* ---------- CYCLE: the wife's monthly cycle, readable by the couple only ---------- */
+  // Sealed with a secret word only the couple knows (AES-GCM, key from PBKDF2), so a family account carries it to both
+  // of them while the rest of the family sees nothing. state.settings.cyc = { s: salt, i: iv, c: sealed } in base64,
+  // or { off: 1 } once deleted. Inside: { st: [{ d: "2026-10-20", n: 5 }], len: 28 }. Each device keeps the word in yawmi-cyc.
+  // Fertile days follow the calendar method: cycle day (shortest cycle − 18) to (longest − 11); the peak is the 3 days to ovulation.
+  var CYC_KEY = "yawmi-cyc", cyc = null, cycSeen, cycBusy = false;
+  var CYC_T = { p: ["🩸", "أيام الدورة"], k: ["🔴", "خطر جدًا: أعلى احتمال للحمل"], f: ["🔴", "خطر: احتمال الحمل مرتفع"], s: ["🟢", "آمن نسبيًا: احتمال الحمل ضعيف"], l: ["⚠️", "الدورة متأخرة"] };
+  function cycWord() { try { return localStorage.getItem(pkey(CYC_KEY)) || ""; } catch (e) { return ""; } }
+  function cycBox() { var b = state.settings.cyc; return b && b.c ? b : null; }
+  function cycOn() { return !isTeamOnly() && !!cycBox() && !!cyc; }
+  function b64(u) { return btoa(String.fromCharCode.apply(null, new Uint8Array(u))); }
+  function unb64(s) { return Uint8Array.from(atob(s), function (c) { return c.charCodeAt(0); }); }
+  function cycKey(word, salt) {
+    return crypto.subtle.importKey("raw", new TextEncoder().encode(word), "PBKDF2", false, ["deriveKey"]).then(function (k) {
+      return crypto.subtle.deriveKey({ name: "PBKDF2", salt: salt, iterations: 150000, hash: "SHA-256" }, k, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+    });
+  }
+  function cycOpen(word, box) {
+    return cycKey(word, unb64(box.s)).then(function (k) { return crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64(box.i) }, k, unb64(box.c)); })
+      .then(function (buf) { return JSON.parse(new TextDecoder().decode(buf)); });
+  }
+  function cycSeal(word, data, salt) {
+    var iv = crypto.getRandomValues(new Uint8Array(12));
+    salt = salt || crypto.getRandomValues(new Uint8Array(16));
+    return cycKey(word, salt).then(function (k) { return crypto.subtle.encrypt({ name: "AES-GCM", iv: iv }, k, new TextEncoder().encode(JSON.stringify(data))); })
+      .then(function (buf) { return { s: b64(salt), i: b64(iv), c: b64(buf) }; });
+  }
+  // Opens the sealed copy again whenever it changed (here or on the other device)
+  function cycFresh() {
+    var box = cycBox(), sj = box ? JSON.stringify(box) : "", w = cycWord();
+    if (sj === cycSeen || cycBusy) return;
+    if (!box || !w) { cyc = null; cycSeen = sj; return; }
+    cycBusy = true;
+    cycOpen(w, box).then(function (x) { cyc = x; ui.cycBad = false; }, function () { cyc = null; ui.cycBad = true; })
+      .then(function () { cycBusy = false; cycSeen = sj; softRender(); });
+  }
+  function cycPut(fn) {
+    var w = cycWord(), box = cycBox();
+    if (!w || !cyc) return;
+    fn(cyc); render();
+    cycSeal(w, cyc, box ? unb64(box.s) : null).then(function (nb) { state.settings.cyc = nb; cycSeen = JSON.stringify(nb); commit(); });
+  }
+  function cycStart(word) {
+    word = (word || "").trim();
+    if (word.length < 4) { toast("الكلمة السرية ٤ أحرف أو أكثر"); return; }
+    var box = cycBox(), keep = function (x) { try { localStorage.setItem(pkey(CYC_KEY), word); } catch (e) {} cyc = x; ui.cycBad = false; };
+    if (box) { cycOpen(word, box).then(function (x) { keep(x); cycSeen = JSON.stringify(box); render(); toast("فُتحت 🌸"); }, function () { toast("الكلمة السرية غير صحيحة"); }); return; }
+    keep({ st: [], len: 28 });
+    cycSeal(word, cyc).then(function (nb) { state.settings.cyc = nb; cycSeen = JSON.stringify(nb); commit(); toast("جاهزة 🌸 اكتبا الكلمة نفسها على الجهاز الآخر"); });
+  }
+  function cycLock() { try { localStorage.removeItem(pkey(CYC_KEY)); } catch (e) {} cyc = null; cycSeen = undefined; ui.cycBad = false; }
+  function cycGap(a, b) { return Math.round((parseKey(a) - parseKey(b)) / 86400000); }
+  function cycCalc() {
+    var st = arr(cyc && cyc.st).slice().sort(function (a, b) { return a.d < b.d ? 1 : -1; }), gaps = [];
+    for (var i = 0; i + 1 < st.length && gaps.length < 6; i++) { var g = cycGap(st[i].d, st[i + 1].d); if (g >= 20 && g <= 45) gaps.push(g); }
+    var mean = function (a) { return Math.round(a.reduce(function (s, x) { return s + x; }, 0) / a.length); };
+    var len = gaps.length ? mean(gaps) : (cyc && cyc.len) || 28, two = gaps.length >= 2;
+    var sh = two ? Math.min.apply(null, gaps) : len, lg = two ? Math.max.apply(null, gaps) : len;
+    return { st: st, len: len, sh: sh, lg: lg, gaps: gaps, n: st.length ? mean(st.slice(0, 6).map(function (x) { return x.n; })) : 5,
+      from: Math.max(1, sh - 18), to: lg - 11, ov: len - 14, odd: two && lg - sh > 7,
+      late: st.length ? cycGap(keyOf(today()), st[0].d) + 1 - len : 0 }; // late > 0: the next period is that many days late
+  }
+  // A day is p period, k peak, f fertile, s relatively safe, or l late (the period was due and is not recorded)
+  function cycDay(c, k) {
+    var rec = c.st.filter(function (x) { return x.d <= k; })[0];
+    if (!rec) return null;
+    var cd = cycGap(k, rec.d) + 1, n = rec.n;
+    if (rec === c.st[0] && cd > c.len) {
+      if (c.late > 0) return k <= keyOf(today()) ? { t: "l", cd: cd } : null;
+      cd = (cd - 1) % c.len + 1; n = c.n; // a predicted cycle
+    }
+    return { t: cd <= n ? "p" : cd >= c.ov - 2 && cd <= c.ov ? "k" : cd >= c.from && cd <= c.to ? "f" : "s", cd: cd };
+  }
+  function cycAddStart(d, n) {
+    cycPut(function (x) {
+      x.st = arr(x.st).filter(function (s) { return Math.abs(cycGap(s.d, d)) >= 10; }); // a start this close is a correction
+      x.st.push({ d: d, n: n });
+      x.st.sort(function (a, b) { return a.d < b.d ? 1 : -1; }); x.st = x.st.slice(0, 24);
+    });
+    toast("سُجّلت 🌸");
+  }
+  function cycFull(k) { var p = k.split("-"); return +p[2] + "/" + +p[1] + "/" + p[0]; }
+  function cycForm(c) {
+    var tk = keyOf(today());
+    return '<form class="addform" data-form="cyc"><label class="small">أول يوم <input class="field" id="cycDate" type="date" max="' + tk + '" value="' + tk + '"></label>' +
+      '<label class="small">عدد الأيام <input class="field qnum" id="cycN" type="number" inputmode="numeric" min="1" max="15" value="' + c.n + '"></label><button class="btn" type="submit">سجّل</button></form>';
+  }
+  function cycCal(c) {
+    var t = today(), first = new Date(t.getFullYear(), t.getMonth() + (ui.cycM || 0), 1), lead = (first.getDay() + 1) % 7; // weeks start on Saturday
+    var days = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate(), tk = keyOf(t);
+    var h = '<div class="calhead"><button class="iconbtn" data-act="cycM" data-v="-1" aria-label="الشهر السابق">→</button>' +
+      '<div class="calt"><b>' + (monthFmt ? monthFmt.format(first) : (first.getMonth() + 1) + "/" + first.getFullYear()) + '</b></div>' +
+      '<button class="iconbtn" data-act="cycM" data-v="1" aria-label="الشهر التالي">←</button></div>' +
+      '<div class="calgrid">' + WD_ORDER.map(function (w) { return '<span class="wdh">' + WD_SHORT[w] + '</span>'; }).join("");
+    for (var i = 0; i < lead; i++) h += '<span></span>';
+    for (var d = 1; d <= days; d++) {
+      var k = keyOf(new Date(first.getFullYear(), first.getMonth(), d)), x = cycDay(c, k);
+      h += '<span class="cday cyd' + (x ? " cy-" + x.t : "") + (k > tk ? " fut" : "") + (k === tk ? " today" : "") + '"' + (x ? ' title="' + CYC_T[x.t][1] + '"' : "") + '><b>' + d + '</b></span>';
+    }
+    return h + '</div><div class="cyclg small"><span><i class="cy-p"></i> الدورة</span><span><i class="cy-f"></i> خطرة</span><span><i class="cy-k"></i> الأخطر</span><span><i class="cy-s"></i> آمنة نسبيًا</span><span><i class="fut"></i> متوقَّع</span></div>';
+  }
+  function cycCard() {
+    cycFresh();
+    if (!cycOn() || offsetOf(dk()) !== 0) return "";
+    var c = cycCalc(), tk = keyOf(today()), open = !!ui.cycOpen;
+    var h = '<div class="qcard"><div class="sechead"><h3>🌸 الدورة الشهرية</h3>' + (c.st.length ? '<button class="linkbtn" data-act="cycOpen" aria-expanded="' + open + '">' + (open ? "إخفاء" : "التقويم والسجل") + '</button>' : "") + '</div>';
+    if (!c.st.length) return h + '<p class="small muted">سجّلي أول يوم من آخر دورة وعدد أيامها، فيحسب التطبيق الأيام الخطرة والآمنة.</p>' + cycForm(c) + '</div>';
+    var x = cycDay(c, tk), last = c.st[0], lcd = cycGap(tk, last.d) + 1;
+    h += '<div class="cycnow cy-' + x.t + '"><b>' + CYC_T[x.t][0] + ' اليوم: ' + CYC_T[x.t][1] + '</b><span>' +
+      (x.t === "l" ? "بـ" + c.late + " " + daysWord(c.late) + ". سجّلي بدايتها متى بدأت." : x.t === "p" && lcd <= last.n ? "اليوم " + lcd + " من " + last.n : "اليوم " + x.cd + " من " + c.len + " في الدورة") + '</span></div>';
+    if (c.late <= 0) {
+      var nx = keyOf(addDays(parseKey(last.d), c.len)), left = cycGap(nx, tk), base = parseKey(last.d);
+      if (lcd > c.to) base = addDays(base, c.len);
+      h += '<p class="small">🩸 الدورة القادمة: <b><bdi>' + shortDate(nx) + '</bdi></b> (بعد ' + left + ' ' + daysWord(left) + ')<br>🔴 الأيام الخطرة: من <b><bdi>' + shortDate(keyOf(addDays(base, c.from - 1))) + '</bdi></b> إلى <b><bdi>' + shortDate(keyOf(addDays(base, c.to - 1))) + '</bdi></b></p>';
+    }
+    h += '<div class="row-wrap">' + (lcd <= last.n + 4 ? '<button class="ghost" data-act="cycEnd">✓ انتهت الدورة اليوم</button>' : '<button class="btn" data-act="cycNow">🩸 بدأت الدورة اليوم</button>') +
+      '<button class="ghost" data-act="cycAdd" aria-expanded="' + !!ui.cycAdd + '">📅 بتاريخ آخر</button></div>';
+    if (ui.cycAdd) h += cycForm(c);
+    if (open) {
+      h += cycCal(c) + '<p class="small">طول دورتك: <b>' + c.len + ' يومًا</b>' + (c.gaps.length > 1 && c.sh !== c.lg ? " (أقصرها " + c.sh + " وأطولها " + c.lg + ")" : c.gaps.length ? "" : " (من ⚙ حتى تُسجَّل دورتان)") + ' · أيامها: <b>' + c.n + '</b></p>' +
+        (c.odd ? '<p class="small">⚠️ دورتك غير منتظمة، فالأيام الخطرة أطول والحساب أقل دقة.</p>' : "") +
+        '<details class="box"><summary>السجل (' + c.st.length + ')</summary><div class="inner"><ul class="kev small">' + c.st.map(function (s, i) {
+          var g = c.st[i + 1] ? cycGap(s.d, c.st[i + 1].d) : 0;
+          return '<li>🩸 ' + cycFull(s.d) + ' · ' + s.n + ' ' + daysWord(s.n) + (g ? ' · طول الدورة ' + g + ' ' + daysWord(g) : "") + ' <button class="linkbtn" data-act="cycDel" data-k="' + s.d + '" aria-label="حذف">×</button></li>';
+        }).join("") + '</ul></div></details>' +
+        '<p class="small muted">⚠️ حساب تقريبي بطريقة التقويم: يدقّ أكثر كلما سُجّلت دورات أكثر وكانت منتظمة، وليس وسيلة مضمونة لمنع الحمل. البيانات مشفّرة لا يقرؤها إلا من يعرف الكلمة السرية.</p>';
+    }
+    return h + '</div>';
+  }
+  function cycWordForm(label) {
+    return '<form class="addform" data-form="cycWord"><input class="field grow" id="cycWord" type="password" maxlength="40" placeholder="الكلمة السرية" autocomplete="off"><button class="btn" type="submit">' + label + '</button></form>';
+  }
+  function cycSettingsHtml() {
+    cycFresh();
+    var box = cycBox(), h = '<section id="cyc"><h2>🌸 الدورة الشهرية <span class="small muted">للزوجين فقط</span></h2>';
+    if (!box) return h + '<p class="muted small">تسجّل الزوجة أول يوم من دورتها وعدد أيامها، فيظهر في «جدولي» كل يوم: 🩸 أيام الدورة، و🔴 الأيام الخطرة (احتمال الحمل مرتفع)، و🟢 الأيام الآمنة نسبيًا، وموعد الدورة القادمة، مع تقويم ملوّن.</p>' +
+      '<p class="muted small">🔒 تُشفَّر بكلمة سرية تختارانها أنتما، فتتزامن بين جهازيكما ولا يقرؤها أحد غيركما، حتى من معكما في الحساب نفسه. اكتبا الكلمة نفسها على الجهازين، وإن نُسيت لا يمكن فتح البيانات.</p>' + cycWordForm("ابدأ") + '</section>';
+    if (!cyc) return h + '<p class="muted small">' + (ui.cycBad ? "تغيّرت الكلمة السرية أو كُتبت خطأ. اكتبها من جديد." : "🔒 مقفلة على هذا الجهاز. اكتب الكلمة السرية لفتحها.") + '</p>' + cycWordForm("افتح") + '</section>';
+    var c = cycCalc(), len = cyc.len || 28, opts = "";
+    for (var v = 21; v <= 40; v++) opts += '<option value="' + v + '"' + (v === len ? " selected" : "") + '>' + v + ' يومًا</option>';
+    return h + '<p class="muted small">مفتوحة على هذا الجهاز، وتظهر في «جدولي». البيانات مشفّرة بالكلمة السرية.</p>' +
+      '<label class="row-wrap small">طول الدورة المعتاد <select class="field" data-act="cycLen">' + opts + '</select></label>' +
+      '<p class="small muted">' + (c.gaps.length ? "يُحسب الآن من سجلّك: " + c.len + " يومًا في المتوسط." : "يُستعمل حتى تُسجَّل دورتان، ثم يُحسب من سجلّك.") + '</p>' +
+      '<div class="row-wrap"><button class="ghost" data-act="cycLock">🔒 أقفلها على هذا الجهاز</button>' + (ui.cycWipe
+        ? '<button class="ghost danger" data-act="cycWipe">تأكيد حذف كل بياناتها</button><button class="ghost" data-act="cycWipeNo">تراجع</button>'
+        : '<button class="ghost danger" data-act="cycWipeAsk">احذف كل بياناتها</button>') + '</div></section>';
+  }
   function topHtml(endKey, n) {
     var met = 0, had = 0, prev = 0;
     for (var i = 0; i < n; i++) {
@@ -2026,7 +2192,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   }
   function dayView() {
     var d = day(), items = active(d).filter(function (i) { return !ui.mine || isMine(i); });
-    if (!d.items.length) return sleepCard() + ramadanCard() + prayCard(dk()) + quranCard() + booksCard() + kidsCard() + '<div class="empty"><p>لم تخطّط لهذا اليوم بعد.</p><button class="btn" data-act="tab" data-tab="plan">خطّط ليومك في ٤ خطوات</button></div>' +
+    if (!d.items.length) return sleepCard() + ramadanCard() + prayCard(dk()) + quranCard() + booksCard() + kidsCard() + cycCard() + '<div class="empty"><p>لم تخطّط لهذا اليوم بعد.</p><button class="btn" data-act="tab" data-tab="plan">خطّط ليومك في ٤ خطوات</button></div>' +
       quickAddHtml("أو أضف مهمة أو ملاحظة سريعة", "مثل: موعد طبيب الأسنان");
     var st = dayStats(d), pct = Math.min(100, Math.round(st.rate * 100));
     var h = shareAskHtml() + teamFilterHtml(d) + '<div class="progress"><span>إنجاز اليوم</span><div class="bar"><i style="width:' + pct + '%"></i></div><b>' + pct + '%</b></div>' + catSummary(items);
@@ -2044,7 +2210,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       var n = new Date(), nm = n.getHours() * 60 + n.getMinutes();
       timed.forEach(function (i) { var s = toMin(i.time); if (nm >= s && nm < s + (i.dur || 60)) nowId = i.id; });
     }
-    var side = sleepCard() + ramadanCard() + prayCard(dk()) + quranCard() + booksCard() + kidsCard() + h; h = "";
+    var side = sleepCard() + ramadanCard() + prayCard(dk()) + quranCard() + booksCard() + kidsCard() + cycCard() + h; h = "";
     h += '<section><div class="sechead"><h2>جدول اليوم</h2><span class="muted small">اضغط على أي بند لتعديله</span></div>';
     if (!timed.length) h += '<div class="empty">لا توجد أوقات محددة. <button class="linkbtn" data-act="gostep4">حدّد الأوقات</button></div>';
     else {
@@ -2627,7 +2793,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     }
     h += '</section>';
     h += ramadanSettingsHtml() + quranSettingsHtml();
-    if (!isTeamOnly()) h += kidsSettingsHtml();
+    if (!isTeamOnly()) h += kidsSettingsHtml() + cycSettingsHtml();
     h += setGroup("plan");
     h += booksSettingsHtml();
     h += focusSettingsHtml();
@@ -3122,6 +3288,18 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       case "prayAsr": setPray({ hanafi: b.dataset.v === "1" }); break;
       case "prayLoc": prayLocate(); break;
       case "prayInList": setPray({ inList: !prayCfg().inList }); break;
+      case "cycOpen": ui.cycOpen = !ui.cycOpen; render(); break;
+      case "cycAdd": ui.cycAdd = !ui.cycAdd; render(); break;
+      case "cycM": ui.cycM = Math.max(-12, Math.min(12, (ui.cycM || 0) + +b.dataset.v)); render(); break;
+      case "cycNow": cycAddStart(keyOf(today()), cycCalc().n); break;
+      case "cycEnd":
+        var cyd = cycCalc().st[0].d, cyl = cycGap(keyOf(today()), cyd) + 1;
+        cycPut(function (x) { x.st.forEach(function (s) { if (s.d === cyd) s.n = cyl; }); }); toast("سُجّلت " + cyl + " " + daysWord(cyl) + " 🌸"); break;
+      case "cycDel": if (confirm("حذف دورة " + cycFull(b.dataset.k) + "؟")) cycPut(function (x) { x.st = arr(x.st).filter(function (s) { return s.d !== b.dataset.k; }); }); break;
+      case "cycLock": cycLock(); render(); toast("أُقفلت على هذا الجهاز 🔒"); break;
+      case "cycWipeAsk": ui.cycWipe = true; render(); break;
+      case "cycWipeNo": ui.cycWipe = false; render(); break;
+      case "cycWipe": ui.cycWipe = false; cycLock(); state.settings.cyc = { off: 1 }; commit(); toast("حُذفت بيانات الدورة"); break;
       case "kidOpen": ui.kidOpen = ui.kidOpen === b.dataset.k ? null : b.dataset.k; render(); break;
       case "kidQ":
         var kq = b.dataset.q, kv = b.dataset.v;
@@ -3239,6 +3417,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       qc[t.dataset.f] = qv; setQuran(qc); commit();
     }
     else if (act === "prayBlock") setPray({ block: +t.value });
+    else if (act === "cycLen") cycPut(function (x) { x.len = +t.value; });
     else if (act === "resetSetBox") ui.resetSet = t.checked;
     else if (act === "roleSet") { var rs2 = Object.assign({}, roles()); if (t.value.trim()) rs2[t.dataset.n] = t.value.trim().slice(0, 30); else delete rs2[t.dataset.n]; state.settings.roles = rs2; commit(); }
     else if (act === "flowPath") { keepFlowForm(); var fp = paths().filter(function (x) { return x.id === t.value; })[0]; ui.flowSteps = fp ? arr(fp.steps).slice() : []; render(); }
@@ -3315,6 +3494,12 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       v = $("unameInput").value.trim(); if (!v) { toast("اكتب اسمك"); return; }
       setUserName(v); render(); toast("أهلًا، " + userName + " 🌷");
       if (sb && !code && cloud.status === "nocode" && !ui.mine && !(currentProfile() || {}).join) createCode(true); // a cloud account in the person's name, so the admin can add them to a team
+    } else if (f === "cyc") {
+      var cdv = $("cycDate").value, cn = Math.max(1, Math.min(15, Math.round(+$("cycN").value) || 5));
+      if (!cdv || cdv > keyOf(today())) { toast("اختاري تاريخًا حتى اليوم"); return; }
+      ui.cycAdd = false; cycAddStart(cdv, cn);
+    } else if (f === "cycWord") {
+      cycStart($("cycWord").value);
     } else if (f === "kid") {
       v = $("kidName").value.trim(); if (!v) { toast("اكتب الاسم"); return; }
       setKids({ list: kCfg().list.concat([{ id: uid(), name: v.slice(0, 30) }]) }); toast("أُضيف «" + v + "» ⭐");
@@ -4773,13 +4958,13 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       if (msj !== JSON.stringify(mergeShop(rshop))) upload = true;
       var rs = row.settings, rst = rs ? (rs.updatedAt || 0) : -1, lst = state.settings.updatedAt || 0;
       if (rs && rst > lst) {
-        state.settings = { categories: arr(rs.categories).length ? rs.categories : defaultCats(), routines: arr(rs.routines), sleep: rs.sleep || state.settings.sleep, prayer: rs.prayer || state.settings.prayer, quran: rs.quran || state.settings.quran, templates: rs.templates || state.settings.templates, goals: rs.goals || state.settings.goals, team: rs.team || state.settings.team, kids: rs.kids || state.settings.kids, tcfg: rs.tcfg || state.settings.tcfg, roles: rs.roles || state.settings.roles, paths: rs.paths || state.settings.paths, rejecters: rs.rejecters || state.settings.rejecters, ramadan: rs.ramadan || state.settings.ramadan, books: rs.books || state.settings.books, updatedAt: rst };
+        state.settings = { categories: arr(rs.categories).length ? rs.categories : defaultCats(), routines: arr(rs.routines), sleep: rs.sleep || state.settings.sleep, prayer: rs.prayer || state.settings.prayer, quran: rs.quran || state.settings.quran, templates: rs.templates || state.settings.templates, goals: rs.goals || state.settings.goals, team: rs.team || state.settings.team, kids: rs.kids || state.settings.kids, tcfg: rs.tcfg || state.settings.tcfg, roles: rs.roles || state.settings.roles, paths: rs.paths || state.settings.paths, rejecters: rs.rejecters || state.settings.rejecters, ramadan: rs.ramadan || state.settings.ramadan, books: rs.books || state.settings.books, cyc: rs.cyc || state.settings.cyc, updatedAt: rst };
         snap._s = setJson(); changed = true;
       } else if (lst > rst) upload = true;
       fixState(); persist();
       if (changed) softRender();
       if (!upload) { cloud.stamp = typeof row.stamp === "string" ? row.stamp : ""; cloud.sbase = base; saveCode(); return; }
-      var data = { base_date: todayKey, settings: { categories: state.settings.categories, routines: state.settings.routines, sleep: state.settings.sleep, prayer: state.settings.prayer || null, quran: state.settings.quran || null, templates: state.settings.templates || null, goals: state.settings.goals || null, team: state.settings.team || null, kids: state.settings.kids || null, tcfg: state.settings.tcfg || null, roles: state.settings.roles || null, paths: state.settings.paths || null, rejecters: state.settings.rejecters || null, ramadan: state.settings.ramadan || null, books: state.settings.books || null, shop: state.shop, updatedAt: state.settings.updatedAt || 0 } };
+      var data = { base_date: todayKey, settings: { categories: state.settings.categories, routines: state.settings.routines, sleep: state.settings.sleep, prayer: state.settings.prayer || null, quran: state.settings.quran || null, templates: state.settings.templates || null, goals: state.settings.goals || null, team: state.settings.team || null, kids: state.settings.kids || null, tcfg: state.settings.tcfg || null, roles: state.settings.roles || null, paths: state.settings.paths || null, rejecters: state.settings.rejecters || null, ramadan: state.settings.ramadan || null, books: state.settings.books || null, cyc: state.settings.cyc || null, shop: state.shop, updatedAt: state.settings.updatedAt || 0 } };
       windowKeys().forEach(function (k, i) { data[COLS[i]] = merged[k] ? toRemote(k, merged[k]) : null; });
       return rpc("save", { p_code: code, p_data: data }).then(function (r2) {
         if (r2.error) throw r2.error;
