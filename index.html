@@ -3347,6 +3347,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
         if (slit) { delete slit.a; delete slit.lg; }
         state.shop.log = state.shop.log.filter(function (x) { return x.id !== b.dataset.lid; });
         ui.shopLogDel = null; commit(); toast("حُذف من الإحصاء"); break;
+      case "teamRenameNow": if (currentProfile()) teamRename(currentProfile()); break;
       case "shopClear": state.shop.items = shopLeft(); ui.shopGot = false; commit(); toast("مُسحت المشتريات السابقة"); break;
       case "shopShare": shopShare(); break;
       case "del": d.items = d.items.filter(function (x) { return x.id !== id; }); if (ui.open === id) ui.open = null; commit(); break;
@@ -3662,6 +3663,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       if (pf && nv) {
         pf.name = nv.slice(0, 30); saveProfiles(); renderProfile();
         if (pf.own && sb && mainKey()) sb.rpc("yawmi_own_claim", { p_key: mainKey(), p_code: profCode(pf.id), p_name: pf.name }).then(function () {}, function () {});
+        if (pf.team) teamRename(pf);
       } else if (pf) t.value = pf.name;
     }
     else if (act === "catName") { var c = catOf(t.dataset.id), v = t.value.trim(); if (v) { c.name = v; commit(); } else t.value = c.name; }
@@ -4320,19 +4322,20 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
         try { localStorage.setItem("yawmi-main", meMain ? "1" : ""); } catch (e) {}
         if (ui.tab === "settings") softRender();
       }
-      var keys = {}, added = 0;
+      var keys = {}, added = 0, renamed = 0;
       arr(r.data.accounts).forEach(function (t) {
         keys[t.key] = 1;
         if (addTeamProfile(t, "main")) { added++; return; }
         var pf = profiles.list.filter(function (x) { return profCode(x.id) === t.key; })[0], sh = t.tk === "shared";
         if (pf && t.kind !== "own" && !!pf.shared !== sh) { if (sh) pf.shared = 1; else delete pf.shared; saveProfiles(); }
+        if (pf && t.kind !== "own" && teamNameSeen(pf, t)) renamed = 1;
       });
       var gone = profiles.list.filter(function (pf) { var c = profCode(pf.id); return pf.id !== "main" && (pf.team || pf.own) && c && !keys[c]; });
       gone.forEach(dropProfile);
       try { if (r.data.uname && !localStorage.getItem(pkey("yawmi-username", "main"))) { localStorage.setItem(pkey("yawmi-username", "main"), r.data.uname); if (PROFILE === "main") setUserName(r.data.uname); } } catch (e) {}
       if (gone.some(function (pf) { return pf.id === PROFILE; })) { toast("حُذف هذا الحساب من المنصة"); setTimeout(function () { location.reload(); }, 1500); return; }
       if (added) toast("📱 أُضيفت حساباتك من أجهزتك الأخرى. تجدها في قائمة الحسابات أعلى الشاشة");
-      if (added || gone.length) { renderProfile(); softRender(); }
+      if (added || gone.length || renamed) { renderProfile(); softRender(); }
     }, function () {});
   }
   // Removed from "my devices" elsewhere: this person's accounts leave this device; what is written here stays here, unlinked
@@ -4596,6 +4599,32 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     }, function () { toast("تعذّر الاتصال. تأكد من الإنترنت."); });
   }
   // In the team (or shared) account's day screen, its leader sees the members and the invite link without opening settings
+  // The team's name lives in the cloud (what the bar, the invite and the members show); the account's label is on each device
+  function teamRename(pf) {
+    var c = profCode(pf.id), nm = pf.name;
+    if (!sb || !c) return;
+    var fail = function () { toast("تعذّر تغيير اسم الفريق على الخادم"); };
+    sb.rpc("yawmi_team_rename", { p_key: c, p_name: nm }).then(function (r) {
+      if (r.error) { fail(); return; }
+      if (!r.data) { toast("تغيّر الاسم على جهازك فقط. اسم الفريق يغيّره مسؤوله"); return; }
+      pf.tn = nm; saveProfiles();
+      if (pf.id === PROFILE && ui.teamInfo) { ui.teamInfo.name = nm; softRender(); }
+      toast("تغيّر اسم الفريق إلى «" + nm + "» ✓");
+    }, fail);
+  }
+  // A new team name reaches each device's label when it opens, unless that person gave the account a label of their own
+  function teamNameSeen(pf, t) {
+    if (!t.name || pf.tn === t.name) return false;
+    var adopt = pf.tn ? pf.name === pf.tn : t.kind === "member";
+    if (adopt) pf.name = t.name.slice(0, 30);
+    pf.tn = t.name; saveProfiles();
+    return adopt;
+  }
+  function teamNameHint(t) {
+    var cp = currentProfile();
+    if (!cp || !t.name || cp.name === t.name.slice(0, 30)) return "";
+    return '<p class="small">اسم هذا الحساب على جهازك «' + esc(cp.name) + '» يختلف عن اسم الفريق «' + esc(t.name) + '». <button class="linkbtn" data-act="teamRenameNow">اجعل «' + esc(cp.name) + '» اسم الفريق</button></p>';
+  }
   function teamBarHtml() {
     var t = ui.teamInfo;
     if (!t || cloud.role === "secondary" || !code) return "";
@@ -4605,7 +4634,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
         : '<button class="linkbtn" data-act="teamLinkGo">🔗 أنشئ رابط دعوة</button>') + '</div>';
   }
   function teamLinkHtml(t) {
-    var h = '<div class="card"><h3>🔗 دعوة إلى «' + esc(t.name) + '»</h3>';
+    var h = '<div class="card"><h3>🔗 دعوة إلى «' + esc(t.name) + '»</h3>' + teamNameHint(t);
     if (t.invite) return h + '<p class="small">أرسل هذا الرابط ' + (t.tk === "shared" ? "لمن تريد مشاركته الحساب" : "لأعضاء فريقك") + ' عبر واتساب أو غيره. من فتحه دخل مباشرة. ينتهي ' + untilText(t.invite_until) + '.</p>' +
       '<div class="tip ltr small" style="user-select:all;word-break:break-all">' + esc(teamUrl(t.invite)) + '</div>' +
       '<div class="row-wrap"><button class="btn" data-act="teamInvShare" data-id="' + esc(t.invite) + '" data-n="' + esc(t.name) + '">📤 أرسله</button>' +

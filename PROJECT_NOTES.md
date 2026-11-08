@@ -190,6 +190,7 @@
 | `supabase_v12.sql` | كل مستخدم ينشئ فريقه من ⚙ ← الحسابات (`yawmi_team_create`، حتى ١٠ فرق)، ومسؤول الفريق ينشئ رابط الدعوة من داخل حساب الفريق (`yawmi_team_info` و`yawmi_team_link`) |
 | `supabase_v13.sql` | الحدود: حساب شخصي واحد (`max_personal`) وفريقان (`max_teams`، مسؤول + تابع)، وطلبات إلى المشرف (`yawmi_requests`، `yawmi_request`، `yawmi_limits`، `yawmi_admin_requests`، `yawmi_admin_request_decide`) |
 | `supabase_v14.sql` | زر «تصفير المنصة» في لوحة المشرف (`yawmi_admin_reset`): يحذف كل الحسابات وما يتبعها، ويبقي معلومات اليوم ومفتاح المشرف |
+| `supabase_v29.sql` | تغيير اسم الفريق أو الحساب المشترك (`yawmi_team_rename`، للمسؤول رقم ١ فقط). حقل اسم الحساب في ⚙ يرسله (`teamRename`)، وبطاقة الدعوة تعرض زرًا إن اختلف اسم الجهاز عن اسم الفريق (`teamNameHint`)، ويصل الاسم الجديد لكل جهاز عند فتحه من `yawmi_me` (`teamNameSeen`، و`pf.tn` آخر اسم فريق رآه الجهاز) |
 | `supabase_v28.sql` | إشعار لمن سجّل المعاملة حين تنتهي («✅ انتهت المعاملة») أو تُرفض («❌ رُفضت المعاملة») مع اسم من أنهاها، بتعديل `yawmi_flow_ping` (كانت لا ترسل شيئًا لغير المفتوحة). مُسجّلها = `log[0].n` |
 | `supabase_v27.sql` | المشرف يختار «معلومة اليوم» لتاريخ (`yawmi_tips.on_date`، `yawmi_tip_pin`، `yawmi_admin_tips_all`)، والمثبّتة تتقدّم على المجدولة والمعتادة. والتطبيق يعيد طلب المعلومة كل نصف ساعة |
 | `supabase_v26.sql` | «معلومة اليوم» في أيام معيّنة: `yawmi_tips.wdays` (أيام الأسبوع، ٠ الأحد) و`hdays` (أيام الشهر الهجري) و`hmonth`، و`yawmi_tip_for(p_day, p_hm, p_hd)` (المجدولة تتقدّم في أيامها)، و`yawmi_tip_plan` و`yawmi_admin_tips` للمشرف، ومثالان: صيام الاثنين والخميس، وأيام البيض |
@@ -205,7 +206,7 @@
 | `supabase_v16.sql` | أجهزتي: الحساب للشخص لا للجهاز (`yawmi_my_devices`، `yawmi_me`، `yawmi_mine_start/approve/take`، `yawmi_my_devices_list/remove`)، والحسابات الشخصية الأخرى باسم صاحبها (`owner`، `pname`، `yawmi_own_create/claim`)، والحذف من المنصة (`yawmi_remove`) |
 | `supabase_v15.sql` | تخفيف الحمل: مزامنة ذكية بختم `updated_at` (`yawmi_stamp`، و`yawmi_get` يعيد `stamp`، و`yawmi_save` يعيد الختم الجديد)، وسجل تغييرات ٢٥ سطرًا، وإشعارات للأجهزة الفعّالة فقط (`yawmi_push.seen` خلال ٣ أيام)، وحدود المشاركة (`max_shared`=1 على الجهاز، و`max_devices`=3 على الخادم في `yawmi_join`/`yawmi_pair_take`) |
 
-(لا يوجد v3، فقد دُمج في v4.) **كلها مُشغَّلة على المشروع الحالي، ما عدا v9 إلى v28 حتى يشغّلها المالك.**
+(لا يوجد v3، فقد دُمج في v4.) **كلها مُشغَّلة على المشروع الحالي، ما عدا v9 إلى v29 حتى يشغّلها المالك.**
 
 ### الجداول
 | الجدول | محتواه |
