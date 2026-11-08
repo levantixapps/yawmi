@@ -451,6 +451,9 @@ button.cday.cyd { cursor: pointer; font: inherit; color: inherit; }
 /* Quran */
 .qcard { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
 .srow { display: flex; align-items: center; gap: 8px; }
+.shask { padding: 8px 10px; border-radius: 12px; background: var(--accent-soft); }
+.shst { display: flex; align-items: baseline; gap: 8px; color: var(--ink, inherit); }
+.shst span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .srow label { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; cursor: pointer; }
 .srow .t { overflow-wrap: anywhere; font-weight: 500; }
 /* Live demo: a hand that uses the real app on a throwaway copy */
@@ -821,7 +824,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   /* ---------- state ---------- */
   var state, storageOk = true, demo = null;
   function blankState() {
-    return { v: 3, days: {}, settings: { categories: defaultCats(), routines: [], updatedAt: 0 }, shop: { items: [], del: {} }, dirtyDays: {}, dirtySettings: 0 };
+    return { v: 3, days: {}, settings: { categories: defaultCats(), routines: [], updatedAt: 0 }, shop: { items: [], del: {}, log: [] }, dirtyDays: {}, dirtySettings: 0 };
   }
   function blankDay() { return { items: [], good: "", improve: "", notes: "", startAt: "08:00", applied: [], updatedAt: 0 }; }
   function fixState() {
@@ -876,7 +879,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   function daySnap(d) { return { m: itemsMap(d), t: textJson(d), a: JSON.stringify(d.applied), q: JSON.stringify(d.quran || null), k: JSON.stringify(d.kids || null), r: JSON.stringify(d.rmd || null), b: JSON.stringify(d.bk || null) }; }
   function setJson() { return JSON.stringify([state.settings.categories, state.settings.routines, state.settings.sleep || null, state.settings.prayer || null, state.settings.quran || null, state.settings.templates || null, state.settings.goals || null, state.settings.team || null, state.settings.kids || null, state.settings.tcfg || null, state.settings.roles || null, state.settings.paths || null, state.settings.rejecters || null, state.settings.ramadan || null, state.settings.books || null, state.settings.cyc || null]); }
   function isEmptyDay(d) { return !d.items.length && !d.good && !d.improve && !d.notes && !(d.sleep && (d.sleep.bed || d.sleep.wake)) && !qHas(d) && !kHas(d) && !rHas(d) && !bHas(d); }
-  function shopSnap() { var m = {}; state.shop.items.forEach(function (i) { m[i.id] = itemJson(i); }); return m; }
+  function shopSnap() { var m = {}; state.shop.items.concat(state.shop.log).forEach(function (i) { m[i.id] = itemJson(i); }); return m; }
   function takeSnap() {
     snap = { _s: setJson(), _p: shopSnap() };
     Object.keys(state.days).forEach(function (k) { snap[k] = daySnap(state.days[k]); });
@@ -959,7 +962,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     });
     var s = setJson();
     var sp = shopSnap(), op = snap._p || sp;
-    state.shop.items.forEach(function (i) { if (op[i.id] !== sp[i.id]) { i.u = now; real = true; } });
+    state.shop.items.concat(state.shop.log).forEach(function (i) { if (op[i.id] !== sp[i.id]) { i.u = now; real = true; } });
     Object.keys(op).forEach(function (id) { if (!(id in sp)) { state.shop.del[id] = now; real = true; } });
     snap._p = sp;
     if (snap._s !== s) { if (snap._s) logEvent("عدّل الإعدادات", "التقسيمات أو المهام الدائمة أو الصلاة أو القرآن أو القوالب أو الأهداف", "", "settings"); snap._s = s; state.settings.updatedAt = now; real = true; }
@@ -3330,6 +3333,8 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       case "nameLater": ui.nameLater = true; render(); break;
       case "demo": demoStart(b.dataset.d); break;
       case "shopDel": state.shop.items = state.shop.items.filter(function (x) { return x.id !== b.dataset.sid; }); commit(); break;
+      case "shopAmt": ui.shopAsk = { id: b.dataset.sid, got: true }; render(); if ($("shopAmtIn")) $("shopAmtIn").focus(); break;
+      case "shopAskNo": ui.shopAsk = null; render(); break;
       case "shopClear": state.shop.items = shopLeft(); ui.shopGot = false; commit(); toast("مُسحت المشتريات السابقة"); break;
       case "shopShare": shopShare(); break;
       case "del": d.items = d.items.filter(function (x) { return x.id !== id; }); if (ui.open === id) ui.open = null; commit(); break;
@@ -3587,14 +3592,19 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     }
   });
 
-  view.addEventListener("toggle", function (e) { if (e.target.id === "shopGot") ui.shopGot = e.target.open; }, true);
+  view.addEventListener("toggle", function (e) { if (e.target.id === "shopGot") ui.shopGot = e.target.open; if (e.target.id === "shopStat") ui.shopStat = e.target.open; }, true);
   view.addEventListener("change", function (e) {
     var t = e.target, act = t.dataset.act, it = t.dataset.id ? find(t.dataset.id) : null;
     if (act === "shopDone") {
       var si = state.shop.items.filter(function (x) { return x.id === t.dataset.sid; })[0];
-      if (si) { si.done = t.checked; commit(); }
+      if (si) {
+        si.done = t.checked;
+        if (si.done) ui.shopAsk = { id: si.id }; else { shopReturn(si); ui.shopAsk = null; }
+        commit();
+      }
       return;
     }
+    if (act === "shopMon") { ui.shopMon = t.value; render(); return; }
     if (act === "done") {
       it.done = t.checked; it.spent = it.done ? (it.focus || it.dur) : null;
       if (it.done) { it.doneAt = new Date().toISOString(); it.doneBy = userName || (cloud.num ? "جهاز " + cloud.num : ""); }
@@ -3658,7 +3668,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     clearTimeout(typingTimer); typingTimer = setTimeout(save, 500);
   });
   view.addEventListener("toggle", function (e) {
-    if (e.target.classList && e.target.classList.contains("box")) {
+    if (e.target.classList && e.target.classList.contains("box") && $("backupText")) {
       ui.backupOpen = e.target.open;
       if (e.target.open) $("backupText").value = JSON.stringify(state);
     }
@@ -3696,12 +3706,17 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       v = $("bookName").value.trim(); var bp = Math.round(+$("bookPages").value), bgl = Math.max(1, Math.min(500, Math.round(+$("bookGoal").value) || bCfg().goal));
       if (!v || !(bp > 0)) { toast("اكتب اسم الكتاب وعدد صفحاته"); return; }
       setBooks({ goal: bgl, list: bCfg().list.concat([{ id: uid(), name: v.slice(0, 60), pages: Math.min(5000, bp), goal: bgl, page: 1 }]) }); commit(); toast("أُضيف «" + v + "» 📚");
+    } else if (f === "shopAmt") {
+      var sait = shopItem(e.target.dataset.sid), saa = shopParse($("shopAmtIn").value);
+      if (isNaN(saa)) { toast("اكتب المبلغ بالأرقام فقط"); return; }
+      ui.shopAsk = null;
+      if (sait) { shopSetAmt(sait, saa); commit(); } else render();
     } else if (f === "shop") {
       v = $("shopInput").value.trim(); if (!v) return;
       ui.shopSec = $("shopSec").value;
       var same = state.shop.items.filter(function (i) { return i.t.replace(/\s+/g, " ") === v.replace(/\s+/g, " "); })[0];
       if (same && !same.done) { toast("«" + v + "» موجود في القائمة"); return; }
-      if (same) { same.done = false; same.sec = ui.shopSec; } // bought before: back on the list
+      if (same) { same.done = false; same.sec = ui.shopSec; delete same.a; delete same.lg; } // bought before: back on the list, what was paid stays counted
       else state.shop.items.push({ id: uid(), t: v.slice(0, 60), sec: ui.shopSec, done: false, n: userName || "" });
       commit(); $("shopInput").focus();
     } else if (f === "uname") {
@@ -3762,7 +3777,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   });
 
   document.querySelectorAll(".tab").forEach(function (b) {
-    b.addEventListener("click", function () { ui.tab = b.dataset.tab; ui.open = null; ui.cycSel = null; render(); window.scrollTo(0, 0); });
+    b.addEventListener("click", function () { ui.tab = b.dataset.tab; ui.open = null; ui.cycSel = null; ui.shopAsk = null; render(); window.scrollTo(0, 0); });
   });
   function currentProfile() { return profiles.list.filter(function (x) { return x.id === PROFILE; })[0]; }
   // A PIN keeps casual hands out of an account. It is a lock on this screen, not encryption of the stored data.
@@ -4711,11 +4726,12 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   }
 
   /* ---------- SHOPPING 🛒: what the house needs, one list per account (a shared account gives the family one list) ---------- */
-  // state.shop = { items: [{ id, t, sec, done, n, u }], del: { <id>: time } }; it travels in the cloud as settings.shop and merges item by item,
+  // state.shop = { items: [{ id, t, sec, done, n, u, a, lg }], del: { <id>: time }, log: [{ id, d, a, t, sec, u }] }; it travels in the cloud as settings.shop and merges item by item,
   // so two people adding at the same time both keep their items. Tombstones older than 90 days are dropped.
   var SHOP_SECS = [["veg", "🥬 خضار وفواكه"], ["meat", "🍗 لحوم وأسماك"], ["dairy", "🥛 ألبان وخبز"], ["food", "🥫 بقالة"], ["clean", "🧴 منظفات"], ["pharm", "💊 صيدلية"], ["other", "📦 أخرى"]];
+  // log = what was paid, kept apart from the list so clearing the list doesn't lose it: the last 12 months, at most 500 lines.
   function mergeShop(L, R) {
-    var del = {}, by = {}, cut = Date.now() - 90 * 864e5;
+    var del = {}, by = {}, lg = {}, cut = Date.now() - 90 * 864e5, year = keyOf(addDays(today(), -366));
     [L, R].forEach(function (x) {
       if (!x) return;
       var o = x.del && typeof x.del === "object" ? x.del : {};
@@ -4725,16 +4741,81 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
         var c = by[i.id], iu = i.u || 0, cu = c ? c.u || 0 : -1;
         if (!c || iu > cu || (iu === cu && itemJson(i) > itemJson(c))) by[i.id] = i;
       });
+      arr(x.log).forEach(function (i) {
+        if (!i || !i.id || !i.d || !(+i.a > 0)) return;
+        var c = lg[i.id], iu = i.u || 0, cu = c ? c.u || 0 : -1;
+        if (!c || iu > cu || (iu === cu && itemJson(i) > itemJson(c))) lg[i.id] = i;
+      });
     });
     var items = Object.keys(by).sort().map(function (id) { return by[id]; }).filter(function (i) { return !(del[i.id] >= (i.u || 0)); });
-    return { items: items, del: del };
+    var log = Object.keys(lg).sort().map(function (id) { return lg[id]; }).filter(function (i) { return !(del[i.id] >= (i.u || 0)) && i.d >= year; }).slice(-500);
+    return { items: items, del: del, log: log };
   }
   function shopOn() { return !isTeamOnly(); }
   function shopLeft() { return state.shop.items.filter(function (i) { return !i.done; }); }
   function shopSecName(k) { var x = SHOP_SECS.filter(function (s) { return s[0] === k; })[0]; return x ? x[1] : SHOP_SECS[SHOP_SECS.length - 1][1]; }
-  function shopRow(i, who) {
+  function shopItem(id) { return state.shop.items.filter(function (x) { return x.id === id; })[0]; }
+  function amtText(x) { return Number(x).toLocaleString("en-US", { maximumFractionDigits: 2 }); }
+  // A typed amount: Arabic or Latin digits. 0 when empty, NaN when it isn't a number
+  function shopParse(v) {
+    v = srNorm(v).replace(/٫/g, ".").replace(/[٬,،\s]/g, "");
+    if (!v) return 0;
+    return /^\d*\.?\d+$/.test(v) && +v <= 1e10 ? Math.round(+v * 100) / 100 : NaN;
+  }
+  // The amount lives on the item and on one line of the log; an empty amount removes that line
+  function shopSetAmt(it, a) {
+    var e = it.lg ? state.shop.log.filter(function (x) { return x.id === it.lg; })[0] : null;
+    if (a > 0) {
+      if (e) e.a = a;
+      else { e = { id: uid(), d: keyOf(today()), a: a, t: it.t, sec: it.sec }; state.shop.log.push(e); it.lg = e.id; }
+      it.a = a;
+    } else {
+      if (e) state.shop.log = state.shop.log.filter(function (x) { return x !== e; });
+      delete it.a; delete it.lg;
+    }
+  }
+  // Back on the list: what was paid on an earlier day stays counted, a tick undone on the same day was a mistake
+  function shopReturn(it) {
+    var e = it.lg ? state.shop.log.filter(function (x) { return x.id === it.lg; })[0] : null;
+    if (e && e.d === keyOf(today())) shopSetAmt(it, 0);
+    delete it.a; delete it.lg;
+  }
+  function shopAskRow(i, got) {
+    return '<li class="shask"><form class="addform" data-form="shopAmt" data-sid="' + esc(i.id) + '"><label class="small grow">💰 ' + (got ? "المبلغ" : "كم دفعت") + ' في «' + esc(i.t) + '»؟ ' +
+      '<input class="field" id="shopAmtIn" type="text" inputmode="decimal" maxlength="14" placeholder="المبلغ" autocomplete="off" value="' + (i.a || "") + '"></label>' +
+      '<button class="btn" type="submit">حفظ</button><button class="ghost" type="button" data-act="shopAskNo">' + (got ? "إلغاء" : "تخطَّ") + '</button></form></li>';
+  }
+  function shopGroup(t) { return t.replace(/[\d٠-٩.,٫]+/g, " ").replace(/\s+/g, " ").trim() || t; } // «حليب ٢» counts with «حليب»
+  function shopStats() {
+    var log = state.shop.log;
+    if (!log.length) return "";
+    var t0 = today(), cm = keyOf(t0).slice(0, 7), pm = keyOf(new Date(t0.getFullYear(), t0.getMonth() - 1, 1)).slice(0, 7);
+    var inM = function (m) { return log.filter(function (e) { return e.d.slice(0, 7) === m; }); };
+    var sum = function (a) { return a.reduce(function (t, e) { return t + e.a; }, 0); };
+    var label = function (m) { try { return monthFmt.format(parseKey(m + "-01")); } catch (e) { return m; } };
+    var months = [cm];
+    log.forEach(function (e) { var m = e.d.slice(0, 7); if (months.indexOf(m) < 0) months.push(m); });
+    months.sort().reverse();
+    var mon = months.indexOf(ui.shopMon) >= 0 ? ui.shopMon : cm, rows = inM(mon), byT = {}, byS = {};
+    rows.forEach(function (e) {
+      var g = shopGroup(e.t), k = srNorm(g), o = byT[k] || (byT[k] = { t: g, n: 0, a: 0 });
+      o.n++; o.a += e.a; byS[e.sec] = (byS[e.sec] || 0) + e.a;
+    });
+    var items = Object.keys(byT).map(function (k) { return byT[k]; }).sort(function (a, b) { return b.a - a.a; });
+    var line = function (t, n, a) { return '<li class="shst"><span>' + esc(t) + '</span>' + (n ? '<small>×' + n + '</small>' : "") + '<b>' + amtText(a) + '</b></li>'; };
+    var pv = sum(inM(pm));
+    return '<details class="box"' + (ui.shopStat ? " open" : "") + ' id="shopStat"><summary>💰 هذا الشهر: ' + amtText(sum(inM(cm))) + (pv ? ' · الشهر الماضي: ' + amtText(pv) : "") + '</summary><div class="inner">' +
+      '<select class="field" data-act="shopMon" aria-label="الشهر">' + months.map(function (m) { return '<option value="' + m + '"' + (m === mon ? " selected" : "") + '>' + label(m) + '</option>'; }).join("") + '</select>' +
+      (rows.length ? '<b>المجموع: ' + amtText(sum(rows)) + '</b><b class="small">حسب الغرض</b><ul class="list">' + items.map(function (o) { return line(o.t, o.n, o.a); }).join("") + '</ul>' +
+        '<b class="small">حسب القسم</b><ul class="list">' + Object.keys(byS).sort(function (a, b) { return byS[b] - byS[a]; }).map(function (k) { return line(shopSecName(k), 0, byS[k]); }).join("") + '</ul>'
+        : '<p class="small">لا مبالغ مسجّلة في هذا الشهر.</p>') + '</div></details>';
+  }
+  function shopRow(i, who, got) {
+    if (got && ui.shopAsk && ui.shopAsk.got && ui.shopAsk.id === i.id) return shopAskRow(i, true);
     return '<li class="srow' + (i.done ? " done" : "") + '"><label><input type="checkbox" class="check" data-act="shopDone" data-sid="' + esc(i.id) + '"' + (i.done ? " checked" : "") + '><span class="t">' + esc(i.t) + '</span></label>' +
-      (who && i.n ? '<span class="small muted">' + esc(i.n) + '</span>' : "") + '<button class="del" data-act="shopDel" data-sid="' + esc(i.id) + '" aria-label="حذف">×</button></li>';
+      (who && i.n ? '<span class="small muted">' + esc(i.n) + '</span>' : "") +
+      (got ? '<button class="linkbtn" data-act="shopAmt" data-sid="' + esc(i.id) + '">' + (i.a ? "💰 " + amtText(i.a) : "＋ المبلغ") + '</button>' : "") +
+      '<button class="del" data-act="shopDel" data-sid="' + esc(i.id) + '" aria-label="حذف">×</button></li>';
   }
   function shopView() {
     var left = shopLeft(), got = state.shop.items.filter(function (i) { return i.done; }).sort(function (a, b) { return (b.u || 0) - (a.u || 0); });
@@ -4743,14 +4824,16 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       '<p class="muted small">اكتب ما ينقص البيت، وعلّم عليه عند شرائه.' + (who ? ' القائمة مشتركة: تظهر لكل أفراد الحساب.' : (code ? ' تظهر على كل أجهزتك.' : "")) + ' <button class="linkbtn" data-act="demo" data-d="shop">🎬 شاهد كيف</button></p>' +
       '<form class="addform" data-form="shop"><input class="field grow" id="shopInput" type="text" maxlength="60" placeholder="مثال: حليب ٢" autocomplete="off">' +
       '<select class="field" id="shopSec" aria-label="القسم">' + SHOP_SECS.map(function (s) { return '<option value="' + s[0] + '"' + (s[0] === sec ? " selected" : "") + '>' + s[1] + '</option>'; }).join("") + '</select>' +
-      '<button class="btn" type="submit">أضف</button></form>';
-    if (!left.length) h += '<div class="empty"><p>' + (got.length ? "اشتريت كل شيء 🎉" : "القائمة فارغة. أضف ما يحتاجه البيت.") + '</p></div>';
+      '<button class="btn" type="submit">أضف</button></form>' + shopStats();
+    var ask = ui.shopAsk && !ui.shopAsk.got ? shopItem(ui.shopAsk.id) : null;
+    if (!left.length && !ask) h += '<div class="empty"><p>' + (got.length ? "اشتريت كل شيء 🎉" : "القائمة فارغة. أضف ما يحتاجه البيت.") + '</p></div>';
     SHOP_SECS.forEach(function (s, n) {
       var rows = left.filter(function (i) { return (SHOP_SECS.some(function (x) { return x[0] === i.sec; }) ? i.sec : "other") === s[0]; });
-      if (rows.length) h += '<div class="qcard"><h3>' + s[1] + ' <span class="small muted">' + rows.length + '</span></h3><ul class="list">' + rows.map(function (i) { return shopRow(i, who); }).join("") + '</ul></div>';
+      var here = ask && (SHOP_SECS.some(function (x) { return x[0] === ask.sec; }) ? ask.sec : "other") === s[0];
+      if (rows.length || here) h += '<div class="qcard"><h3>' + s[1] + ' <span class="small muted">' + rows.length + '</span></h3><ul class="list">' + (here ? shopAskRow(ask, false) : "") + rows.map(function (i) { return shopRow(i, who); }).join("") + '</ul></div>';
     });
     if (got.length) h += '<details class="box"' + (ui.shopGot ? " open" : "") + ' id="shopGot"><summary>✓ اشتريته (' + got.length + ') — اضغط على أي شيء لتعيده إلى القائمة</summary><div class="inner"><ul class="list">' +
-      got.slice(0, 40).map(function (i) { return shopRow(i, false); }).join("") + '</ul><button class="ghost" data-act="shopClear">امسح ما اشتريته</button></div></details>';
+      got.slice(0, 40).map(function (i) { return shopRow(i, false, true); }).join("") + '</ul><button class="ghost" data-act="shopClear">امسح ما اشتريته</button></div></details>';
     return h + '</section>';
   }
   function shopShare() {
@@ -4905,7 +4988,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       { say: "وتجدها في «المنتهية»", go: "#view details.box > summary", act: "click" },
       { say: "ولكل معاملة سجل كامل بمن تصرّف فيها ومتى", go: "#view details.box .flowcard details.changes > summary", act: "click", wait: 3400 }
     ] },
-    shop: { name: "🛒 المشتريات", setup: function (st) { st.shop = { items: [], del: {} }; }, steps: [
+    shop: { name: "🛒 المشتريات", setup: function (st) { st.shop = { items: [], del: {}, log: [] }; }, steps: [
       { say: "مثال: سنكتب مشتريات البيت. تابع اليد 👆", act: "wait", wait: 2200 },
       { say: "اضغط «المشتريات» أسفل الشاشة", go: '.tab[data-tab="shop"]', act: "click" },
       { say: "اكتب ما ينقص البيت", go: "#shopInput", act: "type", text: "حليب ٢" },
