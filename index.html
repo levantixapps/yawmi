@@ -454,8 +454,8 @@ button.cday.cyd { cursor: pointer; font: inherit; color: inherit; }
 .shask { padding: 8px 10px; border-radius: 12px; background: var(--accent-soft); }
 .shst { display: flex; align-items: baseline; gap: 8px; color: var(--ink, inherit); }
 .shst span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.shops summary { cursor: pointer; font-weight: 500; }
-.shops .list { margin-top: 8px; }
+.shday summary { cursor: pointer; font-weight: 500; }
+.shday .list { margin-top: 8px; }
 .srow label { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; cursor: pointer; }
 .srow .t { overflow-wrap: anywhere; font-weight: 500; }
 /* Live demo: a hand that uses the real app on a throwaway copy */
@@ -3605,7 +3605,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     }
   });
 
-  view.addEventListener("toggle", function (e) { if (e.target.id === "shopGot") ui.shopGot = e.target.open; if (e.target.id === "shopStat") ui.shopStat = e.target.open; if (e.target.id === "shopOps") ui.shopOps = e.target.open; }, true);
+  view.addEventListener("toggle", function (e) { if (e.target.id === "shopGot") ui.shopGot = e.target.open; if (e.target.id === "shopStat") ui.shopStat = e.target.open; if (e.target.classList && e.target.classList.contains("shday")) { ui.shopDays = ui.shopDays || {}; ui.shopDays[e.target.dataset.k] = e.target.open; } }, true);
   view.addEventListener("change", function (e) {
     var t = e.target, act = t.dataset.act, it = t.dataset.id ? find(t.dataset.id) : null;
     if (act === "shopDone") {
@@ -3678,6 +3678,13 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     if (act === "note") find(t.dataset.id).note = t.value;
     else if (act === "rv") day()[t.dataset.f] = t.value;
     else if (act === "cycD") { ui.cycD = t.value; return; }
+    else if (act === "shopQ") {
+      ui.shopQ = t.value; ui.shopEd = ui.shopLogDel = null;
+      if (!shopSearching() && !$("shopRest")) { render(); if ($("shopQ")) { $("shopQ").focus(); $("shopQ").setSelectionRange(9999, 9999); } return; }
+      $("shopRes").innerHTML = shopSearching() ? shopFind() : "";
+      if ($("shopRest")) $("shopRest").style.display = shopSearching() ? "none" : "";
+      return;
+    }
     else return;
     clearTimeout(typingTimer); typingTimer = setTimeout(save, 500);
   });
@@ -3726,12 +3733,13 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       ui.shopAsk = null;
       if (sait) { shopSetAmt(sait, saa); commit(); } else render();
     } else if (f === "shopEd") {
-      var edT = $("shopEdT").value.trim().slice(0, 60), edA = shopParse($("shopEdA").value), edD = $("shopEdD").value, edK = e.target.dataset.kind;
+      var edT = $("shopEdT").value.trim().slice(0, 60), edA = shopParse($("shopEdA").value), edQ = shopParse($("shopEdQ").value), edD = $("shopEdD").value, edK = e.target.dataset.kind;
       if (!edT) { toast("اكتب اسم الغرض"); return; }
-      if (isNaN(edA)) { toast("اكتب المبلغ بالأرقام فقط"); return; }
+      if (isNaN(edA) || isNaN(edQ)) { toast("اكتب المبلغ والكمية بالأرقام فقط"); return; }
+      edQ = edQ || 1; // left empty or 0
       if (edK === "log" && !(edA > 0)) { toast("اكتب المبلغ، أو احذف السطر بزر ×"); return; }
       if (!edD || edD > keyOf(today()) || edD < keyOf(addDays(today(), -365))) { toast("اختر تاريخًا خلال السنة الماضية"); return; }
-      shopSaveEdit(edK, e.target.dataset.sid, edT, $("shopEdS").value, edA, edD);
+      shopSaveEdit(edK, e.target.dataset.sid, edT, $("shopEdS").value, edA, edD, edQ);
       ui.shopEd = null; commit();
     } else if (f === "shop") {
       v = $("shopInput").value.trim(); if (!v) return;
@@ -3799,7 +3807,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   });
 
   document.querySelectorAll(".tab").forEach(function (b) {
-    b.addEventListener("click", function () { ui.tab = b.dataset.tab; ui.open = null; ui.cycSel = null; ui.shopAsk = ui.shopEd = ui.shopLogDel = null; render(); window.scrollTo(0, 0); });
+    b.addEventListener("click", function () { ui.tab = b.dataset.tab; ui.open = null; ui.cycSel = null; ui.shopAsk = ui.shopEd = ui.shopLogDel = ui.shopQ = null; render(); window.scrollTo(0, 0); });
   });
   function currentProfile() { return profiles.list.filter(function (x) { return x.id === PROFILE; })[0]; }
   // A PIN keeps casual hands out of an account. It is a lock on this screen, not encryption of the stored data.
@@ -4775,7 +4783,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   }
 
   /* ---------- SHOPPING 🛒: what the house needs, one list per account (a shared account gives the family one list) ---------- */
-  // state.shop = { items: [{ id, t, sec, done, n, u, a, lg }], del: { <id>: time }, log: [{ id, d, a, t, sec, u }] }; it travels in the cloud as settings.shop and merges item by item,
+  // state.shop = { items: [{ id, t, sec, done, n, u, a, lg }], del: { <id>: time }, log: [{ id, d, a, t, sec, q, u }] } (q = quantity, absent when 1); it travels in the cloud as settings.shop and merges item by item,
   // so two people adding at the same time both keep their items. Tombstones older than 90 days are dropped.
   var SHOP_SECS = [["veg", "🥬 خضار وفواكه"], ["meat", "🍗 لحوم وأسماك"], ["dairy", "🥛 ألبان وخبز"], ["food", "🥫 بقالة"], ["clean", "🧴 منظفات"], ["pharm", "💊 صيدلية"], ["other", "📦 أخرى"]];
   // log = what was paid, kept apart from the list so clearing the list doesn't lose it: the last 12 months, at most 500 lines.
@@ -4834,17 +4842,18 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       '<input class="field" id="shopAmtIn" type="text" inputmode="decimal" maxlength="14" placeholder="المبلغ" autocomplete="off" value="' + (i.a || "") + '"></label>' +
       '<button class="btn" type="submit">حفظ</button><button class="ghost" type="button" data-act="shopAskNo">' + (got ? "إلغاء" : "تخطَّ") + '</button></form></li>';
   }
-  function shopEditForm(kind, id, t, sec, a, d) {
+  function shopEditForm(kind, id, t, sec, a, d, q) {
     return '<li class="shask"><form class="stack" style="gap:8px" data-form="shopEd" data-kind="' + kind + '" data-sid="' + esc(id) + '">' +
       '<input class="field" id="shopEdT" type="text" maxlength="60" autocomplete="off" aria-label="اسم الغرض" value="' + esc(t).replace(/"/g, "&quot;") + '">' +
       '<select class="field" id="shopEdS" aria-label="القسم">' + SHOP_SECS.map(function (s) { return '<option value="' + s[0] + '"' + (s[0] === sec ? " selected" : "") + '>' + s[1] + '</option>'; }).join("") + '</select>' +
-      '<input class="field" id="shopEdA" type="text" inputmode="decimal" maxlength="14" autocomplete="off" placeholder="المبلغ" aria-label="المبلغ" value="' + (a || "") + '">' +
+      '<div class="row-wrap"><label class="small grow">المبلغ <input class="field" id="shopEdA" type="text" inputmode="decimal" maxlength="14" autocomplete="off" value="' + (a || "") + '"></label>' +
+      '<label class="small grow">الكمية <input class="field" id="shopEdQ" type="text" inputmode="decimal" maxlength="8" autocomplete="off" value="' + (q || 1) + '"></label></div>' +
       '<label class="small">تاريخ الشراء <input class="field cydate" id="shopEdD" type="date" min="' + keyOf(addDays(today(), -365)) + '" max="' + keyOf(today()) + '" value="' + d + '"></label>' +
       '<div class="row-wrap"><button class="btn" type="submit">احفظ</button><button class="ghost" type="button" data-act="shopEdNo">إلغاء</button></div></form></li>';
   }
   function shopLine(id) { return state.shop.log.filter(function (x) { return x.id === id; })[0]; }
   // Saves the form on both copies: the item in the list and its line in the log
-  function shopSaveEdit(kind, id, t, sec, a, d) {
+  function shopSaveEdit(kind, id, t, sec, a, d, q) {
     var it = kind === "it" ? shopItem(id) : state.shop.items.filter(function (x) { return x.lg === id; })[0], e;
     if (kind === "it") {
       if (!it) return;
@@ -4856,13 +4865,42 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       e.a = a;
       if (it) { it.t = t; it.sec = sec; it.a = a; }
     }
-    if (e) { e.t = t; e.sec = sec; e.d = d; ui.shopMon = d.slice(0, 7); }
+    if (e) {
+      e.t = t; e.sec = sec; e.d = d; ui.shopMon = d.slice(0, 7);
+      if (q !== 1) e.q = q; else delete e.q;
+      ui.shopDays = ui.shopDays || {}; ui.shopDays[d] = true;
+    }
   }
-  function shopLineRow(e) {
-    if (ui.shopEd && ui.shopEd.kind === "log" && ui.shopEd.id === e.id) return shopEditForm("log", e.id, e.t, e.sec, e.a, e.d);
+  function shopLineRow(e, dated) {
+    if (ui.shopEd && ui.shopEd.kind === "log" && ui.shopEd.id === e.id) return shopEditForm("log", e.id, e.t, e.sec, e.a, e.d, e.q);
     if (ui.shopLogDel === e.id) return '<li class="shask row-wrap"><span class="small grow">احذف «' + esc(e.t) + '» (' + amtText(e.a) + ') من الإحصاء؟</span><button class="btn" data-act="shopLogYes" data-lid="' + esc(e.id) + '">احذف</button><button class="ghost" data-act="shopLogNo">لا</button></li>';
-    return '<li class="shst"><span>' + esc(e.t) + ' <small>' + cycFull(e.d) + '</small></span><b>' + amtText(e.a) + '</b>' +
+    return '<li class="shst"><span>' + esc(e.t) + (e.q ? ' <small>×' + amtText(e.q) + '</small>' : "") + (dated ? ' <small>' + cycFull(e.d) + '</small>' : "") + '</span><b>' + amtText(e.a) + '</b>' +
       '<button class="linkbtn" data-act="shopLogEd" data-lid="' + esc(e.id) + '" aria-label="تعديل">✏️</button><button class="del" data-act="shopLogDel" data-lid="' + esc(e.id) + '" aria-label="حذف">×</button></li>';
+  }
+  function shopItemForm(i) { var ln = i.lg ? shopLine(i.lg) : null; return shopEditForm("it", i.id, i.t, i.sec, i.a, ln ? ln.d : keyOf(today()), ln && ln.q); }
+  function shopSearching() { return srNorm(ui.shopQ).trim().length >= 2; }
+  // Everything bought that matches: the log (all 12 months) and what is in «اشتريته» without an amount
+  function shopFind() {
+    var ws = srNorm(ui.shopQ).split(/\s+/).filter(Boolean);
+    var hit = function (t) { var n = srNorm(t); return ws.every(function (w) { return n.indexOf(w) >= 0; }); };
+    var lines = state.shop.log.filter(function (e) { return hit(e.t); }).sort(function (a, b) { return a.d < b.d ? 1 : a.d > b.d ? -1 : 0; });
+    var plain = state.shop.items.filter(function (i) { return i.done && !i.lg && hit(i.t); });
+    if (!lines.length && !plain.length) return '<p class="small muted">لا توجد نتائج عن «' + esc(ui.shopQ.trim()) + '».</p>';
+    var total = lines.reduce(function (t, e) { return t + e.a; }, 0);
+    return (lines.length ? '<b>المجموع: ' + amtText(total) + '</b>' : "") + '<ul class="list">' + lines.slice(0, 100).map(function (e) { return shopLineRow(e, true); }).join("") +
+      plain.map(function (i) {
+        if (ui.shopEd && ui.shopEd.kind === "it" && ui.shopEd.id === i.id) return shopItemForm(i);
+        return '<li class="shst"><span>' + esc(i.t) + ' <small>بلا مبلغ</small></span><button class="linkbtn" data-act="shopEdit" data-sid="' + esc(i.id) + '" aria-label="تعديل">✏️</button></li>';
+      }).join("") + '</ul>';
+  }
+  function shopDaysHtml(rows) {
+    var by = {}, open = ui.shopDays || {};
+    rows.forEach(function (e) { (by[e.d] = by[e.d] || []).push(e); });
+    return '<b class="small">حسب اليوم</b>' + Object.keys(by).sort().reverse().map(function (k) {
+      var total = by[k].reduce(function (t, e) { return t + e.a; }, 0);
+      return '<details class="shday" data-k="' + k + '"' + (open[k] ? " open" : "") + '><summary>' + (dayFmt ? dayFmt.format(parseKey(k)) + " " : "") + cycFull(k) + ' · <b>' + amtText(total) + '</b></summary><ul class="list">' +
+        by[k].map(function (e) { return shopLineRow(e, false); }).join("") + '</ul></details>';
+    }).join("");
   }
   function shopGroup(t) { return t.replace(/[\d٠-٩.,٫]+/g, " ").replace(/\s+/g, " ").trim() || t; } // «حليب ٢» counts with «حليب»
   function shopStats() {
@@ -4878,22 +4916,20 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     var mon = months.indexOf(ui.shopMon) >= 0 ? ui.shopMon : cm, rows = inM(mon), byT = {}, byS = {};
     rows.forEach(function (e) {
       var g = shopGroup(e.t), k = srNorm(g), o = byT[k] || (byT[k] = { t: g, n: 0, a: 0 });
-      o.n++; o.a += e.a; byS[e.sec] = (byS[e.sec] || 0) + e.a;
+      o.n += e.q || 1; o.a += e.a; byS[e.sec] = (byS[e.sec] || 0) + e.a;
     });
     var items = Object.keys(byT).map(function (k) { return byT[k]; }).sort(function (a, b) { return b.a - a.a; });
-    var line = function (t, n, a) { return '<li class="shst"><span>' + esc(t) + '</span>' + (n ? '<small>×' + n + '</small>' : "") + '<b>' + amtText(a) + '</b></li>'; };
+    var line = function (t, n, a) { return '<li class="shst"><span>' + esc(t) + '</span>' + (n ? '<small>×' + amtText(n) + '</small>' : "") + '<b>' + amtText(a) + '</b></li>'; };
     var pv = sum(inM(pm));
     return '<details class="box"' + (ui.shopStat ? " open" : "") + ' id="shopStat"><summary>💰 هذا الشهر: ' + amtText(sum(inM(cm))) + (pv ? ' · الشهر الماضي: ' + amtText(pv) : "") + '</summary><div class="inner">' +
       '<select class="field" data-act="shopMon" aria-label="الشهر">' + months.map(function (m) { return '<option value="' + m + '"' + (m === mon ? " selected" : "") + '>' + label(m) + '</option>'; }).join("") + '</select>' +
-      (rows.length ? '<b>المجموع: ' + amtText(sum(rows)) + '</b><b class="small">حسب الغرض</b><ul class="list">' + items.map(function (o) { return line(o.t, o.n, o.a); }).join("") + '</ul>' +
-        '<b class="small">حسب القسم</b><ul class="list">' + Object.keys(byS).sort(function (a, b) { return byS[b] - byS[a]; }).map(function (k) { return line(shopSecName(k), 0, byS[k]); }).join("") + '</ul>' +
-        '<details class="shops" id="shopOps"' + (ui.shopOps ? " open" : "") + '><summary>✏️ كل العمليات (' + rows.length + ')</summary><ul class="list">' +
-        rows.slice().sort(function (a, b) { return a.d < b.d ? 1 : a.d > b.d ? -1 : 0; }).map(shopLineRow).join("") + '</ul></details>'
+      (rows.length ? '<b>المجموع: ' + amtText(sum(rows)) + '</b>' + shopDaysHtml(rows) + '<b class="small">حسب الغرض</b><ul class="list">' + items.map(function (o) { return line(o.t, o.n, o.a); }).join("") + '</ul>' +
+        '<b class="small">حسب القسم</b><ul class="list">' + Object.keys(byS).sort(function (a, b) { return byS[b] - byS[a]; }).map(function (k) { return line(shopSecName(k), 0, byS[k]); }).join("") + '</ul>'
         : '<p class="small">لا مبالغ مسجّلة في هذا الشهر.</p>') + '</div></details>';
   }
   function shopRow(i, who, got) {
     if (got && ui.shopAsk && ui.shopAsk.got && ui.shopAsk.id === i.id) return shopAskRow(i, true);
-    if (got && ui.shopEd && ui.shopEd.kind === "it" && ui.shopEd.id === i.id) { var ln = i.lg ? shopLine(i.lg) : null; return shopEditForm("it", i.id, i.t, i.sec, i.a, ln ? ln.d : keyOf(today())); }
+    if (got && ui.shopEd && ui.shopEd.kind === "it" && ui.shopEd.id === i.id) return shopItemForm(i);
     return '<li class="srow' + (i.done ? " done" : "") + '"><label><input type="checkbox" class="check" data-act="shopDone" data-sid="' + esc(i.id) + '"' + (i.done ? " checked" : "") + '><span class="t">' + esc(i.t) + '</span></label>' +
       (who && i.n ? '<span class="small muted">' + esc(i.n) + '</span>' : "") +
       (got ? '<button class="linkbtn" data-act="shopAmt" data-sid="' + esc(i.id) + '">' + (i.a ? "💰 " + amtText(i.a) : "＋ المبلغ") + '</button><button class="linkbtn" data-act="shopEdit" data-sid="' + esc(i.id) + '" aria-label="تعديل">✏️</button>' : "") +
@@ -4906,7 +4942,11 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       '<p class="muted small">اكتب ما ينقص البيت، وعلّم عليه عند شرائه.' + (who ? ' القائمة مشتركة: تظهر لكل أفراد الحساب.' : (code ? ' تظهر على كل أجهزتك.' : "")) + ' <button class="linkbtn" data-act="demo" data-d="shop">🎬 شاهد كيف</button></p>' +
       '<form class="addform" data-form="shop"><input class="field grow" id="shopInput" type="text" maxlength="60" placeholder="مثال: حليب ٢" autocomplete="off">' +
       '<select class="field" id="shopSec" aria-label="القسم">' + SHOP_SECS.map(function (s) { return '<option value="' + s[0] + '"' + (s[0] === sec ? " selected" : "") + '>' + s[1] + '</option>'; }).join("") + '</select>' +
-      '<button class="btn" type="submit">أضف</button></form>' + shopStats();
+      '<button class="btn" type="submit">أضف</button></form>';
+    if (state.shop.log.length || got.length) h += '<input class="field" id="shopQ" data-act="shopQ" type="search" maxlength="40" placeholder="🔍 ابحث فيما اشتريته" autocomplete="off" value="' + esc(ui.shopQ || "").replace(/"/g, "&quot;") + '">' +
+      '<div class="stack" id="shopRes">' + (shopSearching() ? shopFind() : "") + '</div>';
+    if (shopSearching()) return h + '</section>';
+    h += '<div class="stack" id="shopRest">' + shopStats();
     var ask = ui.shopAsk && !ui.shopAsk.got ? shopItem(ui.shopAsk.id) : null;
     if (!left.length && !ask) h += '<div class="empty"><p>' + (got.length ? "اشتريت كل شيء 🎉" : "القائمة فارغة. أضف ما يحتاجه البيت.") + '</p></div>';
     SHOP_SECS.forEach(function (s, n) {
@@ -4916,7 +4956,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     });
     if (got.length) h += '<details class="box"' + (ui.shopGot ? " open" : "") + ' id="shopGot"><summary>✓ اشتريته (' + got.length + ') — اضغط على أي شيء لتعيده إلى القائمة</summary><div class="inner"><ul class="list">' +
       got.slice(0, 40).map(function (i) { return shopRow(i, false, true); }).join("") + '</ul><button class="ghost" data-act="shopClear">امسح ما اشتريته</button></div></details>';
-    return h + '</section>';
+    return h + '</div></section>';
   }
   function shopShare() {
     var left = shopLeft(), txt = "🛒 المشتريات" + (userName ? " — " + userName : "") + "\n";
