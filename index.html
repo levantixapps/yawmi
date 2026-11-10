@@ -449,6 +449,9 @@ button.cday.cyd { cursor: pointer; font: inherit; color: inherit; }
 .focusbar.mode-idle button { background: var(--bg); }
 .focusbar.mode-idle button:first-child { background: var(--accent); color: var(--surface); }
 /* Quran */
+.spbar { height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; }
+.spbar i { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
+.spwarn { color: var(--star, #B45309); font-weight: 600; }
 .qcard { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
 .srow { display: flex; align-items: center; gap: 8px; }
 .shask { padding: 8px 10px; border-radius: 12px; background: var(--accent-soft); }
@@ -879,7 +882,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   function itemsMap(d) { var m = {}; d.items.forEach(function (i) { m[i.id] = itemJson(i); }); return m; }
   function textJson(d) { return JSON.stringify([d.good, d.improve, d.notes, d.startAt, d.sleep || null]); }
   function daySnap(d) { return { m: itemsMap(d), t: textJson(d), a: JSON.stringify(d.applied), q: JSON.stringify(d.quran || null), k: JSON.stringify(d.kids || null), r: JSON.stringify(d.rmd || null), b: JSON.stringify(d.bk || null) }; }
-  function setJson() { return JSON.stringify([state.settings.categories, state.settings.routines, state.settings.sleep || null, state.settings.prayer || null, state.settings.quran || null, state.settings.templates || null, state.settings.goals || null, state.settings.team || null, state.settings.kids || null, state.settings.tcfg || null, state.settings.roles || null, state.settings.paths || null, state.settings.rejecters || null, state.settings.ramadan || null, state.settings.books || null, state.settings.cyc || null]); }
+  function setJson() { return JSON.stringify([state.settings.categories, state.settings.routines, state.settings.sleep || null, state.settings.prayer || null, state.settings.quran || null, state.settings.templates || null, state.settings.goals || null, state.settings.team || null, state.settings.kids || null, state.settings.tcfg || null, state.settings.roles || null, state.settings.paths || null, state.settings.rejecters || null, state.settings.ramadan || null, state.settings.books || null, state.settings.cyc || null, state.settings.splan || null]); }
   function isEmptyDay(d) { return !d.items.length && !d.good && !d.improve && !d.notes && !(d.sleep && (d.sleep.bed || d.sleep.wake)) && !qHas(d) && !kHas(d) && !rHas(d) && !bHas(d); }
   function shopSnap() { var m = {}; state.shop.items.concat(state.shop.log).forEach(function (i) { m[i.id] = itemJson(i); }); return m; }
   function takeSnap() {
@@ -1035,6 +1038,135 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   }
 
   // Standing tasks drop into today and the coming days on their chosen weekdays
+  /* ---------- SLEEP PLAN 🌙: sleep half an hour later each week, wake at the same time, and use what is gained ---------- */
+  // state.settings.splan = { on, wake, from (bedtime before the plan), goal, gain (what the gained time is for), morn (after waking),
+  // pledge (charity per missed night, 0 = none), paid, start, lvl (half hours moved so far), ls (start of the current week),
+  // n: { <evening date>: minutes gained that night, 0 = missed } }. Its three tasks (wake, gained time, bed) are put into today and
+  // tomorrow, so the server's notifications reach the phone even when the app is closed.
+  var SP_STEP = 30;
+  function spCfg() { return state.settings.splan || {}; }
+  function spOn() { return !!spCfg().on && !isTeamOnly(); }
+  function spMax() { var s = spCfg(); return Math.max(1, Math.ceil((toMin(s.goal) - toMin(s.from)) / SP_STEP)); }
+  function spBed() { var s = spCfg(); return fromMin(Math.min(toMin(s.goal), toMin(s.from) + SP_STEP * ((s.lvl || 0) + 1))); }
+  function spGain() { return toMin(spBed()) - toMin(spCfg().from); }
+  function spItems() {
+    var s = spCfg(), g = spGain();
+    return [
+      { kind: "wake", time: s.wake, dur: 15, cat: "worship", title: "☀️ استيقظ: صلاة الفجر ثم " + (s.morn || "مراجعة القرآن") },
+      { kind: "gain", time: s.from, dur: g, cat: "study", title: "📖 " + (s.gain || "حفظ القرآن") + " (وقت كسبته من نومك: " + fmtH(g) + ")" },
+      { kind: "bed", time: spBed(), dur: 10, cat: "other", title: "🌙 نم الآن واترك الجوال، بنية القيام للفجر. غدًا: " + (s.morn || "مراجعة القرآن") }
+    ];
+  }
+  // Adds the plan's tasks to a day, or moves them when the bedtime changed; one the person deleted stays deleted that day
+  function spApply(k) {
+    if (!spOn() || offsetOf(k) < 0) return false;
+    var d = day(k), changed = false, nw = new Date(), now = nw.getHours() * 60 + nw.getMinutes();
+    spItems().forEach(function (w) {
+      var id = "sp-" + w.kind + "-" + k, it = d.items.filter(function (i) { return i.id === id; })[0];
+      if (!it) {
+        if (d.applied.indexOf(id) >= 0 || (k === keyOf(today()) && toMin(w.time) < now)) return; // a time already gone today isn't added
+        d.items.push({ id: id, title: w.title, cat: w.cat, dur: w.dur, time: w.time, important: true, urgent: false, top: false, done: false, spent: null, note: "", sp: w.kind });
+        d.applied.push(id); changed = true;
+      } else if (!it.done && (it.time !== w.time || it.title !== w.title || it.dur !== w.dur)) { it.time = w.time; it.title = w.title; it.dur = w.dur; changed = true; }
+    });
+    return changed;
+  }
+  function spApplyAll() {
+    var a = spApply(keyOf(today())), b = spApply(keyOf(addDays(today(), 1))), c = offsetOf(dk()) > 1 ? spApply(dk()) : false;
+    return a || b || c;
+  }
+  // Stopping takes the plan's tasks out of today and the days ahead (those already done stay)
+  function spClear() {
+    Object.keys(state.days).forEach(function (k) {
+      if (offsetOf(k) < 0) return;
+      var d = state.days[k];
+      d.items = d.items.filter(function (i) { return !i.sp || i.done; });
+      d.applied = d.applied.filter(function (a) { return a.indexOf("sp-") !== 0; });
+    });
+  }
+  function spNights() { var n = spCfg().n || {}; return Object.keys(n).sort(); }
+  function spStreak() {
+    var n = spCfg().n || {}, c = 0, t = addDays(today(), -1);
+    if (n[keyOf(t)] == null) t = addDays(t, -1); // last night not answered yet: count from the night before
+    while (n[keyOf(t)] > 0) { c++; t = addDays(t, -1); }
+    return c;
+  }
+  function spStats() {
+    var s = spCfg(), n = s.n || {}, ks = spNights(), wk = keyOf(addDays(today(), -7)), o = { kept: 0, missed: 0, mins: 0, wKept: 0, wAll: 0, wMins: 0, hifz: 0, rev: 0 };
+    ks.forEach(function (k) {
+      if (n[k] > 0) { o.kept++; o.mins += n[k]; } else o.missed++;
+      if (k >= wk) { o.wAll++; if (n[k] > 0) { o.wKept++; o.wMins += n[k]; } }
+    });
+    for (var t = parseKey(s.start || keyOf(today())); keyOf(t) <= keyOf(today()); t = addDays(t, 1)) {
+      var q = qDay(state.days[keyOf(t)]); o.hifz += q.hifz; o.rev += q.rev;
+    }
+    o.owed = Math.max(0, o.missed * (s.pledge || 0) - (s.paid || 0));
+    return o;
+  }
+  // The morning answer for last night; a week (7 answered nights) with 5 kept moves the bedtime half an hour
+  function spAnswer(kept) {
+    var s = spCfg(), last = keyOf(addDays(today(), -1)), tk = keyOf(today());
+    s.n = s.n || {};
+    s.undo = { k: last, lvl: s.lvl || 0, ls: s.ls }; // a mistaken answer can be taken back with what it moved
+    s.n[last] = kept ? spGain() : 0;
+    var cut = keyOf(addDays(today(), -400));
+    Object.keys(s.n).forEach(function (k) { if (k < cut) delete s.n[k]; });
+    var week = spNights().filter(function (k) { return k >= (s.ls || s.start); });
+    var msg = kept ? "🔥 أحسنت! " + spStreak() + " " + (spStreak() === 1 ? "ليلة" : "ليالٍ") + " متتالية" : (s.n[keyOf(addDays(today(), -2))] === 0 ? "فاتتك ليلتان. ابدأ من الليلة، أو أرجع الخطة نصف ساعة" : "لا بأس، لكن لا تجعلها ليلتين 💪");
+    if (week.length >= 7) {
+      var good = week.slice(-7).filter(function (k) { return s.n[k] > 0; }).length;
+      s.ls = tk;
+      if (good >= 5 && (s.lvl || 0) < spMax() - 1) { s.lvl = (s.lvl || 0) + 1; msg = "🎉 أتممت أسبوعًا! موعد نومك من الليلة " + fmt12(spBed()); }
+      else if (good >= 5) msg = "🎉 أتممت أسبوعًا آخر في هدفك. ثبّت عليه";
+      else msg = "التزمت " + good + " ليالٍ من ٧. نعيد هذا الأسبوع بالموعد نفسه، وأنت تقدر 💪";
+    }
+    state.settings.splan = s; commit(); toast(msg);
+  }
+  function spReport() {
+    var s = spCfg(), o = spStats();
+    var txt = "🌙 تقريري الأسبوعي" + (userName ? " — " + userName : "") + "\n" +
+      "التزمت بموعد النوم " + o.wKept + " من " + o.wAll + " ليالٍ\n" +
+      "🔥 السلسلة: " + spStreak() + "\n" +
+      "⏱ كسبت هذا الأسبوع " + fmtH(o.wMins) + "، ومنذ البداية " + fmtH(o.mins) + "\n" +
+      (o.hifz || o.rev ? "📖 منذ بدأت الخطة: حفظت " + pagesText(o.hifz) + "، وراجعت " + pagesText(o.rev) + "\n" : "") +
+      "موعد نومي الآن " + fmt12(spBed()) + " والهدف " + fmt12(s.goal) + "، واستيقاظي " + fmt12(s.wake);
+    if (navigator.share) { navigator.share({ title: "تقريري الأسبوعي", text: txt }).catch(function () {}); return; }
+    try { navigator.clipboard.writeText(txt).then(function () { toast("نُسخ التقرير، أرسله لرفيقك في واتساب"); }, function () { toast("تعذّر النسخ"); }); }
+    catch (e) { toast("تعذّر النسخ"); }
+  }
+  function spCard() {
+    var s = spCfg();
+    if (!spOn() || offsetOf(dk()) !== 0) return "";
+    var tk = keyOf(today()), last = keyOf(addDays(today(), -1)), n = s.n || {}, o = spStats(), max = spMax(), lv = Math.min((s.lvl || 0) + 1, max);
+    var h = '<div class="qcard"><div class="sechead"><h3>🌙 خطة النوم</h3><span class="small muted">الأسبوع ' + lv + ' من ' + max + '</span></div>' +
+      '<p class="small">نومك الليلة <b>' + fmt12(spBed()) + '</b> · استيقاظك <b>' + fmt12(s.wake) + '</b> · هدفك ' + fmt12(s.goal) + '</p>' +
+      '<div class="spbar" role="img" aria-label="التقدم نحو الهدف"><i style="width:' + Math.round(lv / max * 100) + '%"></i></div>';
+    if (s.start && s.start <= last) {
+      if (n[last] == null) h += '<b>هل نمت أمس في موعدك؟</b><div class="row-wrap"><button class="btn" data-act="spYes">✓ نعم، نمت في موعدي</button><button class="ghost" data-act="spNo">✗ لا</button></div>';
+      else if (n[last] === 0) h += '<p class="small spwarn">' + (n[keyOf(addDays(today(), -2))] === 0 ? "فاتتك ليلتان. الليلة بداية جديدة، أو أرجع الخطة نصف ساعة." : "فاتتك ليلة أمس. لا تجعلها ليلتين 💪") + ' <button class="linkbtn" data-act="spUndo">تعديل</button></p>';
+      else h += '<p class="small">✓ نمت أمس في موعدك. <button class="linkbtn" data-act="spUndo">تعديل</button></p>';
+    } else h += '<p class="small">تبدأ الخطة الليلة. نَم الساعة ' + fmt12(spBed()) + ' بنية القيام للفجر وطلب العلم 🤲</p>';
+    h += '<div class="stats"><div class="stat"><b>🔥 ' + spStreak() + '</b><span>ليالٍ متتالية</span></div>' +
+      '<div class="stat"><b>' + fmtH(o.mins) + '</b><span>كسبتها من نومك</span></div>' +
+      '<div class="stat"><b>' + o.hifz + '</b><span>صفحة حفظتها منذ بدأت</span></div></div>' +
+      '<p class="small muted">⏱ ' + fmt12(s.from) + ' – ' + fmt12(spBed()) + ': ' + esc(s.gain || "حفظ القرآن") + '. هذا وقت كنت تنام فيه.</p>';
+    if (o.owed > 0) h += '<p class="small">💰 عليك صدقة <b>' + amtText(o.owed) + '</b> عن الليالي التي فاتتك. <button class="linkbtn" data-act="spPaid">✓ أخرجتها</button></p>';
+    return h + '<div class="row-wrap"><button class="ghost" data-act="spShare">📤 أرسل تقريري الأسبوعي لرفيقي</button>' +
+      ((s.lvl || 0) > 0 ? '<button class="linkbtn" data-act="spBack">⏪ أرجعني نصف ساعة</button>' : "") + '</div></div>';
+  }
+  function spSettingsHtml() {
+    var s = spCfg(), on = spOn();
+    var tm = function (id, v, label) { return '<label class="small">' + label + ' <input class="field" id="' + id + '" type="time" value="' + (v || "") + '"></label>'; };
+    var tx = function (id, v, label, ph) { return '<label class="small">' + label + ' <input class="field" id="' + id + '" type="text" maxlength="40" placeholder="' + ph + '" value="' + esc(v || "").replace(/"/g, "&quot;") + '"></label>'; };
+    return '<section><h2>🌙 خطة النوم</h2><p class="muted small">تؤخّر نومك نصف ساعة كل أسبوع حتى تصل إلى هدفك، واستيقاظك ثابت، والوقت الذي تكسبه يُخصَّص لما تختاره. ' +
+      'وتنزل في «جدولي» ثلاث مهام: الاستيقاظ، والوقت المكسوب، والنوم، فيصلك تنبيه بكلٍّ منها إن فعّلت التنبيهات من «⚙ عام».</p>' +
+      (on ? '<p class="small">✓ الخطة تعمل: نومك الليلة <b>' + fmt12(spBed()) + '</b>، والأسبوع ' + Math.min((s.lvl || 0) + 1, spMax()) + ' من ' + spMax() + '.</p>' : "") +
+      '<div class="card"><form class="stack" data-form="splan" style="gap:8px">' +
+      tm("spWake", s.wake || "05:00", "أستيقظ الساعة") + tm("spFrom", s.from || "20:00", "أنام الآن الساعة") + tm("spGoal", s.goal || "21:30", "أريد أن أنام الساعة") +
+      tx("spGainT", s.gain || "حفظ القرآن", "الوقت المكسوب أجعله في", "مثل: حفظ القرآن") + tx("spMorn", s.morn || "مراجعة القرآن", "بعد الاستيقاظ", "مثل: مراجعة القرآن") +
+      '<label class="small">صدقة عن كل ليلة تفوتك (٠ = بلا صدقة) <input class="field" id="spPledge" type="text" inputmode="decimal" maxlength="10" value="' + (s.pledge || 0) + '"></label>' +
+      '<div class="row-wrap"><button class="btn" type="submit">' + (on ? "احفظ التعديل" : "ابدأ الخطة") + '</button>' + (on ? '<button class="ghost danger" type="button" data-act="spStop">أوقف الخطة</button>' : "") + '</div></form></div></section>';
+  }
   function applyRoutines(k) {
     if (offsetOf(k) < 0) return false;
     var d = day(k), wd = parseKey(k).getDay(), changed = false;
@@ -1137,7 +1269,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
 
   function render() {
     pendingRender = false;
-    if (applyRoutines(dk())) save();
+    if (applyRoutines(dk()) | spApplyAll()) save();
     if (!ui.tab) ui.tab = defaultTab();
     renderHeader();
     var html = ui.tab === "settings" ? "" : focusBar();
@@ -2359,7 +2491,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   }
   function dayView() {
     var d = day(), items = active(d).filter(function (i) { return !ui.mine || isMine(i); });
-    if (!d.items.length) return sleepCard() + ramadanCard() + prayCard(dk()) + quranCard() + booksCard() + kidsCard() + cycCard() + '<div class="empty"><p>لم تخطّط لهذا اليوم بعد.</p><button class="btn" data-act="tab" data-tab="plan">خطّط ليومك في ٤ خطوات</button></div>' +
+    if (!d.items.length) return spCard() + sleepCard() + ramadanCard() + prayCard(dk()) + quranCard() + booksCard() + kidsCard() + cycCard() + '<div class="empty"><p>لم تخطّط لهذا اليوم بعد.</p><button class="btn" data-act="tab" data-tab="plan">خطّط ليومك في ٤ خطوات</button></div>' +
       quickAddHtml("أو أضف مهمة أو ملاحظة سريعة", "مثل: موعد طبيب الأسنان");
     var st = dayStats(d), pct = Math.min(100, Math.round(st.rate * 100));
     var h = shareAskHtml() + teamFilterHtml(d) + '<div class="progress"><span>إنجاز اليوم</span><div class="bar"><i style="width:' + pct + '%"></i></div><b>' + pct + '%</b></div>' + catSummary(items);
@@ -2377,7 +2509,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       var n = new Date(), nm = n.getHours() * 60 + n.getMinutes();
       timed.forEach(function (i) { var s = toMin(i.time); if (nm >= s && nm < s + (i.dur || 60)) nowId = i.id; });
     }
-    var side = sleepCard() + ramadanCard() + prayCard(dk()) + quranCard() + booksCard() + kidsCard() + cycCard() + h; h = "";
+    var side = spCard() + sleepCard() + ramadanCard() + prayCard(dk()) + quranCard() + booksCard() + kidsCard() + cycCard() + h; h = "";
     h += '<section><div class="sechead"><h2>جدول اليوم</h2><span class="muted small">اضغط على أي بند لتعديله</span></div>';
     if (!timed.length) h += '<div class="empty">لا توجد أوقات محددة. <button class="linkbtn" data-act="gostep4">حدّد الأوقات</button></div>';
     else {
@@ -3006,6 +3138,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
 
     if (memberLock()) h += '<section><h2>إعدادات الفريق</h2><p class="small muted">🔒 التقسيمات والمهام الدائمة والقوالب والأهداف يعدّلها مسؤول الفريق، وتصلك تلقائيًا.</p></section>';
     else {
+    if (!isTeamOnly()) h += spSettingsHtml();
     h += '<section><h2>المهام الدائمة</h2><p class="muted small">تنزل تلقائيًا في الأيام التي تختارها، مثل قراءة القرآن كل يوم، أو دراسة القانون أيام الدوام.</p>' +
       '<div class="card"><form class="stack" data-form="routine" style="gap:8px">' +
       '<input class="field" id="rTitle" type="text" placeholder="اسم المهمة، مثل: حفظ صفحة" autocomplete="off">' +
@@ -3348,6 +3481,17 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
         state.shop.log = state.shop.log.filter(function (x) { return x.id !== b.dataset.lid; });
         ui.shopLogDel = null; commit(); toast("حُذف من الإحصاء"); break;
       case "teamRenameNow": if (currentProfile()) teamRename(currentProfile()); break;
+      case "spYes": spAnswer(true); break;
+      case "spNo": spAnswer(false); break;
+      case "spUndo":
+        var spu = spCfg(), spl = keyOf(addDays(today(), -1));
+        delete spu.n[spl];
+        if (spu.undo && spu.undo.k === spl) { spu.lvl = spu.undo.lvl; spu.ls = spu.undo.ls; delete spu.undo; }
+        commit(); break;
+      case "spPaid": var spo = spStats(); state.settings.splan.paid = (spCfg().paid || 0) + spo.owed; commit(); toast("تقبّل الله صدقتك 🤲"); break;
+      case "spShare": spReport(); break;
+      case "spBack": state.settings.splan.lvl = Math.max(0, (spCfg().lvl || 0) - 1); state.settings.splan.ls = keyOf(today()); commit(); toast("موعد نومك " + fmt12(spBed()) + "، وتبدأ أسبوعًا جديدًا"); break;
+      case "spStop": state.settings.splan.on = false; spClear(); commit(); toast("أُوقفت خطة النوم"); break;
       case "shopClear": state.shop.items = shopLeft(); ui.shopGot = false; commit(); toast("مُسحت المشتريات السابقة"); break;
       case "shopShare": shopShare(); break;
       case "del": d.items = d.items.filter(function (x) { return x.id !== id; }); if (ui.open === id) ui.open = null; commit(); break;
@@ -3732,6 +3876,18 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       if (isNaN(saa)) { toast("اكتب المبلغ بالأرقام فقط"); return; }
       ui.shopAsk = null;
       if (sait) { shopSetAmt(sait, saa); commit(); } else render();
+    } else if (f === "splan") {
+      var spw = $("spWake").value, spf = $("spFrom").value, spg = $("spGoal").value, spp = shopParse($("spPledge").value);
+      if (!spw || !spf || !spg) { toast("اكتب الأوقات الثلاثة"); return; }
+      if (toMin(spf) < 17 * 60 || toMin(spg) > 23 * 60 + 30) { toast("اجعل أوقات النوم بين ٥ مساءً و١١:٣٠ ليلًا"); return; }
+      if (toMin(spg) <= toMin(spf)) { toast("الهدف يكون بعد موعد نومك الحالي"); return; }
+      if (isNaN(spp)) { toast("اكتب مبلغ الصدقة بالأرقام فقط"); return; }
+      var spo2 = spCfg(), fresh = !spOn(), spn = Object.assign({}, spo2, { on: true, wake: spw, from: spf, goal: spg, gain: $("spGainT").value.trim().slice(0, 40), morn: $("spMorn").value.trim().slice(0, 40), pledge: spp });
+      if (fresh) Object.assign(spn, { start: keyOf(today()), ls: keyOf(today()), lvl: 0, n: {}, paid: 0 });
+      state.settings.splan = spn;
+      spn.lvl = Math.min(spn.lvl || 0, spMax() - 1);
+      spApplyAll(); commit();
+      toast(fresh ? "🌙 بدأت الخطة. نومك الليلة " + fmt12(spBed()) : "حُفظت خطة النوم");
     } else if (f === "shopEd") {
       var edT = $("shopEdT").value.trim().slice(0, 60), edA = shopParse($("shopEdA").value), edQ = shopParse($("shopEdQ").value), edD = $("shopEdD").value, edK = e.target.dataset.kind;
       if (!edT) { toast("اكتب اسم الغرض"); return; }
@@ -5441,13 +5597,13 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       if (msj !== JSON.stringify(mergeShop(rshop))) upload = true;
       var rs = row.settings, rst = rs ? (rs.updatedAt || 0) : -1, lst = state.settings.updatedAt || 0;
       if (rs && rst > lst) {
-        state.settings = { categories: arr(rs.categories).length ? rs.categories : defaultCats(), routines: arr(rs.routines), sleep: rs.sleep || state.settings.sleep, prayer: rs.prayer || state.settings.prayer, quran: rs.quran || state.settings.quran, templates: rs.templates || state.settings.templates, goals: rs.goals || state.settings.goals, team: rs.team || state.settings.team, kids: rs.kids || state.settings.kids, tcfg: rs.tcfg || state.settings.tcfg, roles: rs.roles || state.settings.roles, paths: rs.paths || state.settings.paths, rejecters: rs.rejecters || state.settings.rejecters, ramadan: rs.ramadan || state.settings.ramadan, books: rs.books || state.settings.books, cyc: rs.cyc || state.settings.cyc, updatedAt: rst };
+        state.settings = { categories: arr(rs.categories).length ? rs.categories : defaultCats(), routines: arr(rs.routines), sleep: rs.sleep || state.settings.sleep, prayer: rs.prayer || state.settings.prayer, quran: rs.quran || state.settings.quran, templates: rs.templates || state.settings.templates, goals: rs.goals || state.settings.goals, team: rs.team || state.settings.team, kids: rs.kids || state.settings.kids, tcfg: rs.tcfg || state.settings.tcfg, roles: rs.roles || state.settings.roles, paths: rs.paths || state.settings.paths, rejecters: rs.rejecters || state.settings.rejecters, ramadan: rs.ramadan || state.settings.ramadan, books: rs.books || state.settings.books, cyc: rs.cyc || state.settings.cyc, splan: rs.splan || state.settings.splan, updatedAt: rst };
         snap._s = setJson(); changed = true;
       } else if (lst > rst) upload = true;
       fixState(); persist();
       if (changed) softRender();
       if (!upload) { cloud.stamp = typeof row.stamp === "string" ? row.stamp : ""; cloud.sbase = base; saveCode(); return; }
-      var data = { base_date: todayKey, settings: { categories: state.settings.categories, routines: state.settings.routines, sleep: state.settings.sleep, prayer: state.settings.prayer || null, quran: state.settings.quran || null, templates: state.settings.templates || null, goals: state.settings.goals || null, team: state.settings.team || null, kids: state.settings.kids || null, tcfg: state.settings.tcfg || null, roles: state.settings.roles || null, paths: state.settings.paths || null, rejecters: state.settings.rejecters || null, ramadan: state.settings.ramadan || null, books: state.settings.books || null, cyc: state.settings.cyc || null, shop: state.shop, updatedAt: state.settings.updatedAt || 0 } };
+      var data = { base_date: todayKey, settings: { categories: state.settings.categories, routines: state.settings.routines, sleep: state.settings.sleep, prayer: state.settings.prayer || null, quran: state.settings.quran || null, templates: state.settings.templates || null, goals: state.settings.goals || null, team: state.settings.team || null, kids: state.settings.kids || null, tcfg: state.settings.tcfg || null, roles: state.settings.roles || null, paths: state.settings.paths || null, rejecters: state.settings.rejecters || null, ramadan: state.settings.ramadan || null, books: state.settings.books || null, cyc: state.settings.cyc || null, splan: state.settings.splan || null, shop: state.shop, updatedAt: state.settings.updatedAt || 0 } };
       windowKeys().forEach(function (k, i) { data[COLS[i]] = merged[k] ? toRemote(k, merged[k]) : null; });
       return rpc("save", { p_code: code, p_data: data }).then(function (r2) {
         if (r2.error) throw r2.error;
