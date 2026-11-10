@@ -14,28 +14,32 @@ try { var t0 = localStorage.getItem("yawmi-theme"); if (t0 === "light" || t0 ===
 <title>منبّه القفل</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=Reem+Kufi:wght@600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=swap">
 <style>
 /* Layout: a safe's combination dial on one side, its controls on the other; stacked on phones. */
 :root{
-  --bg:#E9EEE9;--panel:#F7F9F5;--ink:#14241D;--muted:#52625A;--line:#C5D0C8;
-  --brass:#7E560C;--on-brass:#FFF8E8;--brass-soft:#EBDDBB;--alarm:#B3261E;--alarm-soft:#F6DEDA;--ok:#1B6B47;
-  --display:"Reem Kufi","IBM Plex Sans Arabic",Tahoma,sans-serif;
+  /* the same colors and fonts as «يومي»: brass = its blue accent, alarm = its red */
+  --bg:#F4F6F8;--panel:#FFFFFF;--ink:#1A2230;--muted:#5B6676;--line:#DDE2E8;
+  --brass:#1F5FBF;--on-brass:#FFFFFF;--brass-soft:#E3ECF9;--alarm:#C62828;--alarm-soft:#FBE4E4;--ok:#1E8A4F;
+  --display:"Cairo","IBM Plex Sans Arabic",Tahoma,sans-serif;
   --body:"IBM Plex Sans Arabic",Tahoma,"Segoe UI",sans-serif;
-  --mono:"IBM Plex Mono",Consolas,monospace;
+  --mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
+  --pattern:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='88' height='88' viewBox='0 0 88 88'%3E%3Cg fill='none' stroke='rgba%2831,95,191,0.07%29' stroke-width='1'%3E%3Cpath d='M44 20L68 44L44 68L20 44Z'/%3E%3Cpath d='M27 27H61V61H27Z'/%3E%3Cpath d='M44 0V20M44 68V88M0 44H20M68 44H88M0 0L27 27M88 0L61 27M0 88L27 61M88 88L61 61'/%3E%3Ccircle cx='44' cy='44' r='9'/%3E%3C/g%3E%3C/svg%3E");
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
-  --bg:#0F1C17;--panel:#17271F;--ink:#EAF0E8;--muted:#A3B4AA;--line:#2F4439;
-  --brass:#DDB364;--on-brass:#1B1408;--brass-soft:#3B3221;--alarm:#FF8F85;--alarm-soft:#40201D;--ok:#74D3A4;color-scheme:dark}}
+  --bg:#0F141B;--panel:#171E28;--ink:#E6EBF2;--muted:#94A0B0;--line:#283241;
+  --brass:#6EA4F0;--on-brass:#171E28;--brass-soft:#1A2A42;--alarm:#F27A72;--alarm-soft:#3A1C1B;--ok:#57C68A;
+  --pattern:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='88' height='88' viewBox='0 0 88 88'%3E%3Cg fill='none' stroke='rgba%28110,164,240,0.06%29' stroke-width='1'%3E%3Cpath d='M44 20L68 44L44 68L20 44Z'/%3E%3Cpath d='M27 27H61V61H27Z'/%3E%3Cpath d='M44 0V20M44 68V88M0 44H20M68 44H88M0 0L27 27M88 0L61 27M0 88L27 61M88 88L61 61'/%3E%3Ccircle cx='44' cy='44' r='9'/%3E%3C/g%3E%3C/svg%3E");color-scheme:dark}}
 :root[data-theme="dark"]{
-  --bg:#0F1C17;--panel:#17271F;--ink:#EAF0E8;--muted:#A3B4AA;--line:#2F4439;
-  --brass:#DDB364;--on-brass:#1B1408;--brass-soft:#3B3221;--alarm:#FF8F85;--alarm-soft:#40201D;--ok:#74D3A4;color-scheme:dark}
+  --bg:#0F141B;--panel:#171E28;--ink:#E6EBF2;--muted:#94A0B0;--line:#283241;
+  --brass:#6EA4F0;--on-brass:#171E28;--brass-soft:#1A2A42;--alarm:#F27A72;--alarm-soft:#3A1C1B;--ok:#57C68A;
+  --pattern:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='88' height='88' viewBox='0 0 88 88'%3E%3Cg fill='none' stroke='rgba%28110,164,240,0.06%29' stroke-width='1'%3E%3Cpath d='M44 20L68 44L44 68L20 44Z'/%3E%3Cpath d='M27 27H61V61H27Z'/%3E%3Cpath d='M44 0V20M44 68V88M0 44H20M68 44H88M0 0L27 27M88 0L61 27M0 88L27 61M88 88L61 61'/%3E%3Ccircle cx='44' cy='44' r='9'/%3E%3C/g%3E%3C/svg%3E");color-scheme:dark}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
-body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.7}
+body{background:var(--pattern) center top/88px 88px repeat,var(--bg);background-attachment:fixed;color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.7}
 .wrap{max-width:940px;margin-inline:auto;padding-block:28px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:22px}
 .head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px}
-h1{margin:0;font-family:var(--display);font-size:2rem;line-height:1.3;text-wrap:balance}
+h1{margin:0;font-family:var(--display);font-weight:700;font-size:1.6rem;line-height:1.3;text-wrap:balance}
 .chip{display:inline-flex;align-items:center;gap:7px;padding:3px 13px;border-radius:999px;border:1px solid var(--line);font-size:.88rem;font-weight:600;color:var(--muted)}
 .chip svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2}
 .chip[data-s="running"]{color:var(--brass);border-color:var(--brass)}
@@ -61,7 +65,7 @@ form,.pane{display:grid;gap:15px;margin:0}
 fieldset{border:0;margin:0;padding:0;min-width:0;display:grid;gap:6px}
 legend,.lbl{padding:0;font-size:.9rem;font-weight:600;color:var(--muted)}
 .field{display:grid;gap:6px}
-input[type=text],input[type=time]{width:100%;font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:9px 12px}
+input[type=text],input[type=time]{width:100%;font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:9px 12px}
 input[type=time]{font-family:var(--mono);font-size:1.4rem;font-weight:600;max-width:230px;direction:ltr}
 input:disabled{opacity:.55}
 .dur{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
@@ -74,32 +78,32 @@ button{font:inherit;cursor:pointer}
 .seg{display:flex;flex-wrap:wrap;gap:6px}
 .seg label{position:relative;cursor:pointer}
 .seg input{position:absolute;opacity:0;inset:0;margin:0;cursor:pointer}
-.seg span{display:block;padding:4px 14px;border:1px solid var(--line);border-radius:7px;font-size:.93rem}
+.seg span{display:block;padding:4px 14px;border:1px solid var(--line);border-radius:12px;font-size:.93rem}
 .seg input:checked+span{background:var(--brass-soft);border-color:var(--brass);font-weight:600}
 .hint{margin:0;color:var(--muted);font-size:.88rem}
-.file{display:inline-flex;align-items:center;border:1px dashed var(--brass);color:var(--brass);border-radius:7px;padding:7px 14px;font-weight:600;cursor:pointer;position:relative}
+.file{display:inline-flex;align-items:center;border:1px dashed var(--brass);color:var(--brass);border-radius:12px;padding:7px 14px;font-weight:600;cursor:pointer;position:relative}
 .file input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%}
 .file:focus-within{outline:2px solid var(--brass);outline-offset:2px}
 .song{font-weight:600;overflow-wrap:anywhere}
-.btn{border:1px solid var(--brass);border-radius:7px;padding:10px 20px;font-weight:600;background:var(--brass);color:var(--on-brass)}
+.btn{border:1px solid var(--brass);border-radius:12px;min-height:44px;padding:8px 20px;font-weight:600;background:var(--brass);color:var(--on-brass)}
 .btn:disabled{opacity:.55;cursor:default}
 .btn.ghost{background:none;color:var(--brass)}
 .btn.quiet{background:none;border-color:var(--line);color:var(--muted);font-weight:500}
 .btn.small{padding:5px 14px;font-size:.9rem}
 :is(button,input):focus-visible,.seg input:focus-visible+span{outline:2px solid var(--brass);outline-offset:2px}
 .acts{display:flex;flex-wrap:wrap;gap:9px}
-.note{margin:0;padding:9px 13px;border-radius:7px;background:var(--brass-soft);font-size:.95rem}
-.pz{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px;display:grid;gap:13px}
+.note{margin:0;padding:9px 13px;border-radius:12px;background:var(--brass-soft);font-size:.95rem}
+.pz{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px;display:grid;gap:13px}
 .pz.alarm{border-color:var(--alarm)}
 .pz-top{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:6px}
 .pz-top h2{margin:0;font-family:var(--body);font-weight:600;font-size:1.2rem;line-height:1.5}
 .pz-count{font-size:.88rem;color:var(--muted)}
 .pz-q{margin:0;font-weight:500}
-.show{font-family:var(--mono);font-weight:600;font-size:clamp(1.45rem,6vw,1.95rem);text-align:center;padding:12px 8px;border-radius:7px;background:var(--bg);direction:ltr;overflow-wrap:anywhere;line-height:1.4;min-height:3.2em;display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:8px}
+.show{font-family:var(--mono);font-weight:600;font-size:clamp(1.45rem,6vw,1.95rem);text-align:center;padding:12px 8px;border-radius:12px;background:var(--bg);direction:ltr;overflow-wrap:anywhere;line-height:1.4;min-height:3.2em;display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:8px}
 .show.ar{font-family:var(--body);direction:rtl}
 .tile{font-family:var(--body);min-width:1.65em;padding:1px 5px;border:1px solid var(--line);border-radius:6px;background:var(--panel);text-align:center}
 .choices{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
-.choice{font-family:var(--mono);font-size:1.5rem;font-weight:600;padding:12px 0;border-radius:8px;border:1px solid var(--brass);background:var(--bg);color:var(--ink)}
+.choice{font-family:var(--mono);font-size:1.5rem;font-weight:600;padding:12px 0;border-radius:12px;border:1px solid var(--brass);background:var(--bg);color:var(--ink)}
 .choice:hover:not(:disabled){background:var(--brass-soft)}
 .choice:disabled{opacity:.5;cursor:default}
 .pz-msg{margin:0;min-height:1.7em;font-size:.94rem;font-weight:500}
@@ -459,8 +463,10 @@ function startTimer(){
   armAlarm(f.dur/1000);
   P=null;setNote('');saveState();keepAwake();render();tick();
 }
+const framed=window.parent!==window;
+function toApp(m){if(framed)try{parent.postMessage({lockAlarm:m},location.origin)}catch(e){}}
 function enterRing(){
-  S.phase='ringing';saveState();
+  S.phase='ringing';saveState();toApp('ring');
   if(ac)armAlarm(0);
   if(!P||P.purpose!=='alarm'){
     const had=P&&P.purpose==='cancel';
@@ -623,6 +629,9 @@ if(restored){
   if(S.phase==='ringing'){P={purpose:'alarm',level:S.level,kind:S.kind,wrong:0};nextPuzzle()}
 }
 render();previewForm();restoreSong();
+if(S.phase==='ringing')toApp('ring');
+// Inside «يومي» (a frame): «→ يومي» hides the alarm instead of leaving it, so it keeps running
+if(framed)document.querySelector('.back').addEventListener('click',e=>{e.preventDefault();toApp('hide')});
 setInterval(tick,200);
 </script>
 </body>

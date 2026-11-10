@@ -116,6 +116,8 @@ section, .stack { display: flex; flex-direction: column; gap: 10px; }
 .brandbar .who { display: flex; justify-content: flex-end; align-items: center; gap: 6px; }
 .adbtn { width: 36px; height: 36px; border-radius: 99px; border: 0; background: var(--accent-soft); font-size: 1.05rem; line-height: 1; padding: 0; flex: none; }
 a.adbtn { display: grid; place-items: center; text-decoration: none; color: inherit; } /* ⏰ opens alarm.html */
+.alarmbox { position: fixed; inset: 0; z-index: 45; background: var(--bg); display: flex; }
+.alarmbox iframe { flex: 1; width: 100%; height: 100%; border: 0; }
 /* Adhkar: a side panel of sections, each a list to read; tapping one counts it down */
 .drawer { position: fixed; inset: 0; z-index: 30; }
 .dshade { position: absolute; inset: 0; background: rgba(0, 0, 0, .4); }
@@ -4207,6 +4209,24 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     $("srInput").focus();
   }
   $("searchBtn").addEventListener("click", openSearch);
+  // ⏰ The alarm runs in a frame over the app: «→ يومي» only hides it, so it keeps counting and comes back by itself when it rings.
+  // A set alarm is loaded again (hidden) when the app opens, since it lives only while its page is open.
+  function alarmFrame() {
+    var box = $("alarmBox");
+    if (!box) {
+      box = document.createElement("div"); box.id = "alarmBox"; box.className = "alarmbox"; box.hidden = true;
+      box.innerHTML = '<iframe src="alarm.html" title="منبّه القفل" allow="autoplay; screen-wake-lock"></iframe>';
+      document.body.appendChild(box);
+    }
+    return box;
+  }
+  function alarmShow(on) { alarmFrame().hidden = !on; document.body.style.overflow = on ? "hidden" : ""; }
+  $("alarmBtn").addEventListener("click", function (e) { e.preventDefault(); alarmShow(true); });
+  window.addEventListener("message", function (e) {
+    if (e.origin !== location.origin || !e.data || !e.data.lockAlarm) return;
+    alarmShow(e.data.lockAlarm === "ring");
+  });
+  try { var lockA = JSON.parse(localStorage.getItem("lock-timer-v1") || "null"); if (lockA && (lockA.phase === "running" || lockA.phase === "ringing")) alarmFrame(); } catch (e) {}
   document.addEventListener("keydown", function (e) { if (e.key === "Escape") { if (cal) closeCal(); closeSearch(); } });
   $("titleBtn").addEventListener("click", openJump);
   $("titleBtn").addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openJump(); } });
