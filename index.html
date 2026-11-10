@@ -115,6 +115,7 @@ section, .stack { display: flex; flex-direction: column; gap: 10px; }
 .brandbar .hello .nm { font-family: var(--font-display); font-weight: 700; font-size: 1.05rem; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .brandbar .who { display: flex; justify-content: flex-end; align-items: center; gap: 6px; }
 .adbtn { width: 36px; height: 36px; border-radius: 99px; border: 0; background: var(--accent-soft); font-size: 1.05rem; line-height: 1; padding: 0; flex: none; }
+a.adbtn { display: grid; place-items: center; text-decoration: none; color: inherit; } /* ⏰ opens alarm.html */
 /* Adhkar: a side panel of sections, each a list to read; tapping one counts it down */
 .drawer { position: fixed; inset: 0; z-index: 30; }
 .dshade { position: absolute; inset: 0; background: rgba(0, 0, 0, .4); }
@@ -558,6 +559,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     </a>
     <p class="hello" id="hello" aria-live="polite"></p>
     <div class="who">
+      <a class="adbtn" id="alarmBtn" href="alarm.html" aria-label="منبّه القفل" title="منبّه القفل">⏰</a>
       <button class="adbtn" id="adBtn" aria-label="الأذكار" title="الأذكار">🤲</button>
       <button class="profchip" id="profBtn" aria-label="الحسابات" aria-haspopup="menu"><span id="profName"></span> ▾</button>
     </div>

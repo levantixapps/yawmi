@@ -1,0 +1,629 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1F5FBF">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script>
+try { var t0 = localStorage.getItem("yawmi-theme"); if (t0 === "light" || t0 === "dark") document.documentElement.setAttribute("data-theme", t0); } catch (e) {}
+</script>
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>منبّه القفل</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=Reem+Kufi:wght@600;700&display=swap">
+<style>
+/* Layout: a safe's combination dial on one side, its controls on the other; stacked on phones. */
+:root{
+  --bg:#E9EEE9;--panel:#F7F9F5;--ink:#14241D;--muted:#52625A;--line:#C5D0C8;
+  --brass:#7E560C;--on-brass:#FFF8E8;--brass-soft:#EBDDBB;--alarm:#B3261E;--alarm-soft:#F6DEDA;--ok:#1B6B47;
+  --display:"Reem Kufi","IBM Plex Sans Arabic",Tahoma,sans-serif;
+  --body:"IBM Plex Sans Arabic",Tahoma,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0F1C17;--panel:#17271F;--ink:#EAF0E8;--muted:#A3B4AA;--line:#2F4439;
+  --brass:#DDB364;--on-brass:#1B1408;--brass-soft:#3B3221;--alarm:#FF8F85;--alarm-soft:#40201D;--ok:#74D3A4;color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0F1C17;--panel:#17271F;--ink:#EAF0E8;--muted:#A3B4AA;--line:#2F4439;
+  --brass:#DDB364;--on-brass:#1B1408;--brass-soft:#3B3221;--alarm:#FF8F85;--alarm-soft:#40201D;--ok:#74D3A4;color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.7}
+.wrap{max-width:940px;margin-inline:auto;padding-block:28px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:22px}
+.head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px}
+h1{margin:0;font-family:var(--display);font-size:2rem;line-height:1.3;text-wrap:balance}
+.chip{display:inline-flex;align-items:center;gap:7px;padding:3px 13px;border-radius:999px;border:1px solid var(--line);font-size:.88rem;font-weight:600;color:var(--muted)}
+.chip svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2}
+.chip[data-s="running"]{color:var(--brass);border-color:var(--brass)}
+.chip[data-s="ringing"]{color:var(--alarm);border-color:var(--alarm);background:var(--alarm-soft)}
+.grid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:34px;align-items:center}
+.side{min-width:0;display:grid;gap:14px}
+.dial-col{min-width:0;display:grid;justify-items:center;gap:8px}
+.dial{position:relative;width:min(100%,370px);aspect-ratio:1;max-width:100%}
+.dial svg{position:absolute;inset:0;width:100%;height:100%;display:block}
+.tick{stroke:var(--line);stroke-width:2}
+.tick.major{stroke:var(--muted);stroke-width:3}
+.track{fill:none;stroke:var(--brass-soft);stroke-width:9}
+.arc{fill:none;stroke:var(--brass);stroke-width:9;stroke-linecap:round;transition:stroke-dashoffset .25s linear}
+.read{position:absolute;inset:0;display:grid;place-content:center;justify-items:center;text-align:center;padding:18%}
+.time{font-family:var(--mono);font-weight:600;font-size:clamp(2.3rem,9vw,3.3rem);line-height:1.1;font-variant-numeric:tabular-nums;direction:ltr}
+.task{color:var(--muted);font-size:.95rem;overflow-wrap:anywhere;line-height:1.5;margin-top:6px}
+.dial[data-s="ringing"] .arc,.dial[data-s="ringing"] .track{stroke:var(--alarm)}
+.dial[data-s="ringing"] .time{color:var(--alarm)}
+.dial[data-s="ringing"]{animation:shake .5s linear infinite}
+@keyframes shake{25%{transform:rotate(-1.4deg)}75%{transform:rotate(1.4deg)}}
+@media (prefers-reduced-motion:reduce){.dial[data-s="ringing"]{animation:none}.arc{transition:none}}
+form,.pane{display:grid;gap:15px;margin:0}
+fieldset{border:0;margin:0;padding:0;min-width:0;display:grid;gap:6px}
+legend,.lbl{padding:0;font-size:.9rem;font-weight:600;color:var(--muted)}
+.field{display:grid;gap:6px}
+input[type=text],input[type=time]{width:100%;font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:9px 12px}
+input[type=time]{font-family:var(--mono);font-size:1.4rem;font-weight:600;max-width:230px;direction:ltr}
+input:disabled{opacity:.55}
+.dur{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
+.dur input{text-align:center;font-family:var(--mono);font-size:1.25rem;font-weight:600}
+.dur label{display:grid;gap:3px;font-size:.84rem;color:var(--muted);text-align:center}
+.row{display:flex;flex-wrap:wrap;gap:7px;align-items:center}
+button{font:inherit;cursor:pointer}
+.preset{background:none;border:1px solid var(--line);color:var(--ink);border-radius:999px;padding:3px 13px;font-size:.9rem}
+.preset:hover{border-color:var(--brass);color:var(--brass)}
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+.seg label{position:relative;cursor:pointer}
+.seg input{position:absolute;opacity:0;inset:0;margin:0;cursor:pointer}
+.seg span{display:block;padding:4px 14px;border:1px solid var(--line);border-radius:7px;font-size:.93rem}
+.seg input:checked+span{background:var(--brass-soft);border-color:var(--brass);font-weight:600}
+.hint{margin:0;color:var(--muted);font-size:.88rem}
+.file{display:inline-flex;align-items:center;border:1px dashed var(--brass);color:var(--brass);border-radius:7px;padding:7px 14px;font-weight:600;cursor:pointer;position:relative}
+.file input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%}
+.file:focus-within{outline:2px solid var(--brass);outline-offset:2px}
+.song{font-weight:600;overflow-wrap:anywhere}
+.btn{border:1px solid var(--brass);border-radius:7px;padding:10px 20px;font-weight:600;background:var(--brass);color:var(--on-brass)}
+.btn:disabled{opacity:.55;cursor:default}
+.btn.ghost{background:none;color:var(--brass)}
+.btn.quiet{background:none;border-color:var(--line);color:var(--muted);font-weight:500}
+.btn.small{padding:5px 14px;font-size:.9rem}
+:is(button,input):focus-visible,.seg input:focus-visible+span{outline:2px solid var(--brass);outline-offset:2px}
+.acts{display:flex;flex-wrap:wrap;gap:9px}
+.note{margin:0;padding:9px 13px;border-radius:7px;background:var(--brass-soft);font-size:.95rem}
+.pz{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px;display:grid;gap:13px}
+.pz.alarm{border-color:var(--alarm)}
+.pz-top{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:6px}
+.pz-top h2{margin:0;font-family:var(--body);font-weight:600;font-size:1.2rem;line-height:1.5}
+.pz-count{font-size:.88rem;color:var(--muted)}
+.pz-q{margin:0;font-weight:500}
+.show{font-family:var(--mono);font-weight:600;font-size:clamp(1.45rem,6vw,1.95rem);text-align:center;padding:12px 8px;border-radius:7px;background:var(--bg);direction:ltr;overflow-wrap:anywhere;line-height:1.4;min-height:3.2em;display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:8px}
+.show.ar{font-family:var(--body);direction:rtl}
+.tile{font-family:var(--body);min-width:1.65em;padding:1px 5px;border:1px solid var(--line);border-radius:6px;background:var(--panel);text-align:center}
+.choices{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
+.choice{font-family:var(--mono);font-size:1.5rem;font-weight:600;padding:12px 0;border-radius:8px;border:1px solid var(--brass);background:var(--bg);color:var(--ink)}
+.choice:hover:not(:disabled){background:var(--brass-soft)}
+.choice:disabled{opacity:.5;cursor:default}
+.pz-msg{margin:0;min-height:1.7em;font-size:.94rem;font-weight:500}
+.pz-msg.bad{color:var(--alarm)}.pz-msg.good{color:var(--ok)}
+.foot{margin:0;color:var(--muted);font-size:.86rem;max-width:65ch}
+@media (max-width:720px){.grid{grid-template-columns:minmax(0,1fr);gap:20px}.dial{width:min(100%,300px)}h1{font-size:1.7rem}}
+.back{display:inline-flex;align-items:center;gap:6px;color:var(--brass);font-weight:600;text-decoration:none;border:1px solid var(--line);border-radius:999px;padding:3px 13px;font-size:.9rem}
+.back:hover{border-color:var(--brass)}
+.head-start{display:flex;flex-wrap:wrap;align-items:center;gap:12px}
+</style>
+</head>
+<body><main class="wrap" dir="rtl" lang="ar">
+  <header class="head">
+    <div class="head-start"><a class="back" href="./">→ يومي</a><h1>منبّه القفل</h1></div>
+    <span class="chip" id="chip" data-s="idle" role="status"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span id="chipText">جاهز</span></span>
+  </header>
+
+  <div class="grid">
+    <section class="dial-col" aria-label="الوقت">
+      <div class="dial" id="dial" data-s="idle">
+        <svg viewBox="0 0 240 240" aria-hidden="true">
+          <g id="ticks"></g>
+          <circle class="track" cx="120" cy="120" r="94"/>
+          <circle class="arc" id="arc" cx="120" cy="120" r="94" transform="rotate(-90 120 120)"/>
+        </svg>
+        <div class="read">
+          <div class="time" id="time" role="timer">06:30</div>
+          <div class="task" id="task"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="side">
+      <p class="note" id="note" aria-live="polite" hidden></p>
+
+      <form id="setup" autocomplete="off">
+        <fieldset>
+          <legend>متى يرن؟</legend>
+          <div class="seg">
+            <label><input type="radio" name="mode" value="clock" checked><span>في ساعة محددة</span></label>
+            <label><input type="radio" name="mode" value="countdown"><span>بعد مدة</span></label>
+          </div>
+        </fieldset>
+        <div class="field" id="clockBox">
+          <label class="lbl" for="at">الساعة</label>
+          <input type="time" id="at" value="06:30">
+          <p class="hint" id="atHint"></p>
+        </div>
+        <fieldset id="durBox" hidden>
+          <legend>المدة</legend>
+          <div class="dur">
+            <label>ساعات<input type="text" id="h" inputmode="numeric" value="0" aria-label="ساعات"></label>
+            <label>دقائق<input type="text" id="m" inputmode="numeric" value="25" aria-label="دقائق"></label>
+            <label>ثوانٍ<input type="text" id="s" inputmode="numeric" value="0" aria-label="ثوان"></label>
+          </div>
+          <div class="row" id="presets" style="margin-top:4px">
+            <button type="button" class="preset" data-m="5">5 د</button>
+            <button type="button" class="preset" data-m="10">10 د</button>
+            <button type="button" class="preset" data-m="25">25 د</button>
+            <button type="button" class="preset" data-m="45">45 د</button>
+            <button type="button" class="preset" data-m="60">60 د</button>
+          </div>
+        </fieldset>
+        <div class="field">
+          <label class="lbl" for="label">اسم المنبّه</label>
+          <input type="text" id="label" maxlength="60" value="صلاة الفجر">
+        </div>
+        <fieldset>
+          <legend>صوت المنبّه</legend>
+          <div class="seg">
+            <label><input type="radio" name="sound" value="file" checked><span>أنشودة من جهازي</span></label>
+            <label><input type="radio" name="sound" value="beep"><span>صوت تنبيه</span></label>
+          </div>
+          <div class="row" id="fileBox">
+            <label class="file">اختر ملفاً صوتياً<input type="file" id="file" accept="audio/*"></label>
+            <span class="song" id="songName"></span>
+            <button type="button" class="btn quiet small" id="listen" hidden>استمع</button>
+          </div>
+          <p class="hint" id="soundHint"></p>
+        </fieldset>
+        <fieldset>
+          <legend>صعوبة اللغز</legend>
+          <div class="seg">
+            <label><input type="radio" name="level" value="easy" checked><span>سهل</span></label>
+            <label><input type="radio" name="level" value="mid"><span>متوسط</span></label>
+            <label><input type="radio" name="level" value="hard"><span>صعب</span></label>
+          </div>
+          <p class="hint" id="levelHint"></p>
+        </fieldset>
+        <fieldset>
+          <legend>نوع الألغاز</legend>
+          <div class="seg">
+            <label><input type="radio" name="kind" value="mixed" checked><span>منوّعة</span></label>
+            <label><input type="radio" name="kind" value="math"><span>حساب</span></label>
+            <label><input type="radio" name="kind" value="seq"><span>متتالية</span></label>
+            <label><input type="radio" name="kind" value="memory"><span>ذاكرة</span></label>
+            <label><input type="radio" name="kind" value="word"><span>كلمات</span></label>
+          </div>
+        </fieldset>
+        <div class="acts">
+          <button class="btn" type="submit" id="startBtn">اضبط المنبّه</button>
+          <button class="btn ghost" type="button" id="tryBtn">جرّب لغزاً</button>
+        </div>
+      </form>
+
+      <div class="pane" id="live" hidden>
+        <p class="hint" id="liveInfo"></p>
+        <div class="acts"><button class="btn ghost" type="button" id="cancelBtn">إلغاء المنبّه بحل لغز</button></div>
+      </div>
+
+      <div class="pz" id="pz" hidden>
+        <div class="pz-top"><h2 id="pzTitle"></h2><span class="pz-count" id="pzCount"></span></div>
+        <p class="hint" id="soundNote" hidden>اضغط في أي مكان لتشغيل الصوت.</p>
+        <p class="pz-q" id="pzQ"></p>
+        <div class="show" id="pzShow"></div>
+        <div class="choices" id="pzChoices" hidden></div>
+        <form id="pzForm" autocomplete="off">
+          <div class="field" id="pzType">
+            <label class="lbl" for="pzInput">إجابتك</label>
+            <input type="text" id="pzInput">
+          </div>
+          <p class="pz-msg" id="pzMsg" aria-live="assertive"></p>
+          <div class="acts">
+            <button class="btn" type="submit" id="pzSubmit">تحقّق</button>
+            <button class="btn quiet" type="button" id="pzSkip">لغز آخر</button>
+            <button class="btn quiet" type="button" id="pzBack">رجوع</button>
+          </div>
+        </form>
+      </div>
+    </section>
+  </div>
+
+  <p class="foot" id="foot">أبقِ هذه الصفحة مفتوحة والجهاز موصولاً بالشاحن حتى يرن المنبّه. يبقى المنبّه والأنشودة محفوظين في هذا المتصفح فقط، ولا تستطيع صفحة ويب أن ترن والمتصفح مغلق.</p>
+</main>
+
+<script>
+//LOGIC-START
+const LEVELS={
+  easy:{name:'سهل',need:1,digits:3,ms:3000,hint:'لغز واحد بسيط، وتختار جواب الحساب والمتتالية من 3 أزرار.'},
+  mid:{name:'متوسط',need:2,digits:4,ms:3000,hint:'لغزان قصيران تكتب جوابهما.'},
+  hard:{name:'صعب',need:3,digits:6,ms:3000,hint:'3 ألغاز تحتاج إلى تركيز.'}
+};
+const KIND_LIST=['math','seq','memory','word'];
+const COPY_WORDS=['صباح','نور','خير','شمس','ماء','بيت','قهوة','سلام'];
+const WORDS={
+  mid:[['كتاب','شيء تقرؤه'],['حصان','حيوان'],['ليمون','فاكهة حامضة'],['شجرة','نبات كبير'],['تفاحة','فاكهة'],['زيتون','ثمرة يستخرج منها الزيت']],
+  hard:[['مدرسة','مكان للتعلم'],['سيارة','وسيلة نقل'],['حديقة','مكان فيه أزهار'],['نافذة','جزء من جدار البيت'],['طائرة','وسيلة نقل جوية'],['مكتبة','مكان للكتب']]
+};
+const ri=(a,b,r=Math.random)=>a+Math.floor(r()*(b-a+1));
+const pick=(l,r=Math.random)=>l[Math.floor(r()*l.length)];
+function shuffle(a,r=Math.random){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(r()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+function normDigits(v){return String(v).replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/[۰-۹]/g,d=>'۰۱۲۳۴۵۶۷۸۹'.indexOf(d))}
+function normWord(v){return normDigits(v).replace(/[ً-ْٰ]/g,'').replace(/[أإآ]/g,'ا').replace(/ة/g,'ه').replace(/ى/g,'ي').replace(/\s+/g,'')}
+function makeChoices(ans,r){
+  const set=new Set([ans]);let guard=0;
+  while(set.size<3&&guard++<50){const c=ans+pick([-3,-2,-1,1,2,3],r);if(c>0)set.add(c)}
+  return shuffle([...set],r).map(String);
+}
+function mathPuzzle(level,r){
+  let text,answer;
+  if(level==='easy'){const a=ri(2,9,r),b=ri(2,9,r);text=`${a} + ${b}`;answer=a+b}
+  else if(level==='mid'){
+    const a=ri(12,60,r),b=ri(12,60,r);
+    if(r()<.5){text=`${a} + ${b}`;answer=a+b}
+    else{const x=Math.max(a,b),y=Math.min(a,b);text=`${x} − ${y}`;answer=x-y}
+  }else{
+    const a=ri(6,12,r),b=ri(6,12,r),c=ri(11,30,r);
+    if(r()<.5){text=`${a} × ${b} + ${c}`;answer=a*b+c}else{text=`${a} × ${b} − ${c}`;answer=a*b-c}
+  }
+  const p={kind:'math',q:level==='hard'?'احسب الناتج. الضرب قبل الجمع والطرح.':'احسب الناتج.',show:text+' = ؟',answer:String(answer)};
+  if(level==='easy')p.choices=makeChoices(answer,r);
+  return p;
+}
+function seqPuzzle(level,r){
+  let t,answer;
+  if(level==='easy'){const s=ri(1,9,r),d=ri(1,3,r);t=[s,s+d,s+2*d];answer=s+3*d}
+  else if(level==='mid'){const s=ri(2,20,r),d=ri(2,9,r);t=[s,s+d,s+2*d,s+3*d];answer=s+4*d}
+  else if(r()<.5){const s=ri(1,5,r),m=ri(2,3,r);t=[s,s*m,s*m**2,s*m**3];answer=s*m**4}
+  else{const s=ri(1,20,r),d=ri(1,4,r);t=[s,s+d,s+2*d+1,s+3*d+3,s+4*d+6];answer=s+5*d+10}
+  const p={kind:'seq',q:'ما العدد التالي؟',show:t.join('، ')+'، ؟',answer:String(answer)};
+  if(level==='easy')p.choices=makeChoices(answer,r);
+  return p;
+}
+function memoryPuzzle(level,r){
+  const L=LEVELS[level];let a=String(ri(1,9,r));
+  while(a.length<L.digits)a+=ri(0,9,r);
+  return{kind:'memory',q:`احفظ هذا الرقم، سيختفي بعد ${L.ms/1000} ثوانٍ.`,show:a,answer:a,hideAfter:L.ms};
+}
+function wordPuzzle(level,r){
+  if(level==='easy'){const w=pick(COPY_WORDS,r);return{kind:'word',q:'اكتب هذه الكلمة كما تراها.',word:w,answer:w}}
+  const[w,h]=pick(WORDS[level],r);let s=shuffle([...w],r),guard=0;
+  while(s.join('')===w&&guard++<50)s=shuffle([...w],r);
+  if(s.join('')===w)s.reverse();
+  return{kind:'word',q:`رتّب الحروف لتكوّن كلمة. التلميح: ${h}.`,letters:s,answer:w};
+}
+function makePuzzle(kind,level,r=Math.random){
+  return({math:mathPuzzle,seq:seqPuzzle,memory:memoryPuzzle,word:wordPuzzle})[kind](level,r);
+}
+function chooseKind(setting,prev,r=Math.random){
+  if(setting!=='mixed')return setting;
+  return pick(KIND_LIST.filter(k=>k!==prev),r);
+}
+function checkAnswer(p,input){
+  if(p.kind==='word')return normWord(input)===normWord(p.answer);
+  return normDigits(input).replace(/[\s,،٬]/g,'')===p.answer;
+}
+function parseUnit(v){const n=parseInt(normDigits(v).replace(/\s/g,''),10);return Number.isFinite(n)&&n>0?n:0}
+function durationMs(h,m,s){return Math.min(24*3600,parseUnit(h)*3600+parseUnit(m)*60+parseUnit(s))*1000}
+function nextOccurrence(hhmm,now){
+  const m=/^(\d{1,2}):(\d{2})/.exec(normDigits(hhmm||''));if(!m)return null;
+  const h=+m[1],mi=+m[2];if(h>23||mi>59)return null;
+  const d=new Date(now);d.setHours(h,mi,0,0);
+  if(d.getTime()<=now+1000)d.setDate(d.getDate()+1);
+  return d.getTime();
+}
+function fmtClock(hhmm){
+  const[h,m]=hhmm.split(':').map(Number);
+  return`${h%12||12}:${String(m).padStart(2,'0')} ${h<12?'صباحاً':'مساءً'}`;
+}
+function fmtTime(ms){
+  const t=Math.max(0,Math.ceil(ms/1000)),h=Math.floor(t/3600),m=Math.floor(t/60)%60,s=t%60,p=n=>String(n).padStart(2,'0');
+  return h?`${h}:${p(m)}:${p(s)}`:`${p(m)}:${p(s)}`;
+}
+function fmtLeft(ms){
+  const t=Math.max(0,Math.round(ms/60000)),h=Math.floor(t/60),m=t%60;
+  if(!h&&!m)return'أقل من دقيقة';
+  return[h?arCount(h,'ساعة','ساعتان','ساعات'):'',m?arCount(m,'دقيقة','دقيقتان','دقائق'):''].filter(Boolean).join(' و');
+}
+function arCount(n,one,two,few){return n===1?one:n===2?two:n<=10?`${n} ${few}`:`${n} ${one}`}
+function countWord(n){return n===1?'لغز واحد':n===2?'لغزان':`${n} ألغاز`}
+//LOGIC-END
+
+const $=id=>document.getElementById(id);
+const KEY='lock-timer-v1',PREF='lock-alarm-prefs',CIRC=2*Math.PI*94;
+const idleState=()=>({phase:'idle',endAt:0,dur:0,label:'',level:'easy',kind:'mixed',solved:0,mode:'clock',at:'',sound:'beep'});
+let S=idleState(),P=null,puzzle=null,lastKind=null,blocked=false,hideTimer=0,ac=null,alarmNode=null,alarmGain=null,armedUntil=0,wake=null;
+let song=null,songName='',previewNode=null,previewTimer=0;
+
+/* storage */
+function saveState(){try{S.phase==='idle'?localStorage.removeItem(KEY):localStorage.setItem(KEY,JSON.stringify(S))}catch(e){storageFailed()}}
+function loadState(){
+  try{
+    const v=JSON.parse(localStorage.getItem(KEY)||'null');
+    if(v&&['running','ringing'].includes(v.phase)&&Number.isFinite(v.endAt)&&Number.isFinite(v.dur)&&LEVELS[v.level]&&(v.kind==='mixed'||KIND_LIST.includes(v.kind)))
+      return{...idleState(),...v,...(v.mode?{}:{level:'easy',kind:'mixed',mode:'countdown'}),label:String(v.label||''),solved:Number(v.solved)||0,sound:v.sound==='file'?'file':'beep'};
+  }catch(e){storageFailed()}
+  return null;
+}
+function savePrefs(){try{localStorage.setItem(PREF,JSON.stringify({mode:val('mode'),at:$('at').value,label:$('label').value,sound:val('sound'),level:val('level'),kind:val('kind')}))}catch(e){}}
+function loadPrefs(){
+  try{
+    const p=JSON.parse(localStorage.getItem(PREF)||'null');if(!p)return;
+    for(const n of['mode','sound','level','kind']){const i=document.querySelector(`input[name=${n}][value="${p[n]}"]`);if(i)i.checked=true}
+    if(/^\d{2}:\d{2}$/.test(p.at||''))$('at').value=p.at;
+    if(typeof p.label==='string')$('label').value=p.label.slice(0,60);
+  }catch(e){}
+}
+function storageFailed(){$('foot').textContent='هذا المتصفح لا يسمح بحفظ المنبّه، لذلك سيضيع إذا حدّثت الصفحة أو أغلقتها. أبقِ الصفحة مفتوحة.'}
+function idb(mode,fn){
+  return new Promise((res,rej)=>{
+    try{
+      const o=indexedDB.open('lock-alarm',1);
+      o.onupgradeneeded=()=>o.result.createObjectStore('files');
+      o.onerror=()=>rej(o.error);
+      o.onsuccess=()=>{const db=o.result,tx=db.transaction('files',mode),rq=fn(tx.objectStore('files'));tx.oncomplete=()=>{db.close();res(rq&&rq.result)};tx.onerror=()=>{db.close();rej(tx.error)}};
+    }catch(e){rej(e)}
+  });
+}
+const val=n=>document.querySelector(`input[name=${n}]:checked`).value;
+function setNote(t){$('note').textContent=t||'';$('note').hidden=!t}
+
+/* audio */
+function audioStart(){
+  try{const C=window.AudioContext||window.webkitAudioContext;if(!C)return;ac=ac||new C();if(ac.state==='suspended')ac.resume()}catch(e){ac=null}
+}
+function disarmAlarm(){
+  try{if(alarmNode)alarmNode.stop()}catch(e){}
+  try{if(alarmGain)alarmGain.disconnect()}catch(e){}
+  alarmNode=alarmGain=null;armedUntil=0;
+}
+function armAlarm(delay){
+  if(!ac)return;
+  disarmAlarm();stopPreview();
+  const g=ac.createGain(),t0=ac.currentTime+Math.max(delay,.05);
+  if(S.sound==='file'&&song){
+    const src=ac.createBufferSource();src.buffer=song;src.loop=true;
+    g.gain.setValueAtTime(.2,t0);g.gain.linearRampToValueAtTime(1,t0+10);
+    src.connect(g);g.connect(ac.destination);src.start(t0);
+    alarmNode=src;alarmGain=g;armedUntil=Infinity;return;
+  }
+  const o=ac.createOscillator(),span=120;
+  o.type='square';g.gain.setValueAtTime(0,ac.currentTime);
+  for(let t=0;t<span;t+=1.1)for(let j=0;j<3;j++){
+    const b=t0+t+j*.2;
+    o.frequency.setValueAtTime(j===1?1175:880,b);
+    g.gain.setValueAtTime(.16,b);g.gain.setValueAtTime(0,b+.13);
+  }
+  o.connect(g);g.connect(ac.destination);o.start();
+  alarmNode=o;alarmGain=g;armedUntil=t0+span;
+}
+function stopPreview(){clearTimeout(previewTimer);try{if(previewNode)previewNode.stop()}catch(e){}previewNode=null;$('listen').textContent='استمع'}
+function togglePreview(){
+  if(previewNode){stopPreview();return}
+  audioStart();if(!ac||!song)return;
+  const src=ac.createBufferSource();src.buffer=song;src.connect(ac.destination);src.start();
+  previewNode=src;$('listen').textContent='إيقاف';
+  previewTimer=setTimeout(stopPreview,15000);src.onended=()=>{if(previewNode===src)stopPreview()};
+}
+async function decodeSong(buf){
+  audioStart();if(!ac)throw new Error('no audio');
+  return await new Promise((res,rej)=>{const p=ac.decodeAudioData(buf,res,rej);if(p&&p.then)p.then(res,rej)});
+}
+async function chooseFile(f){
+  if(!f)return;
+  $('soundHint').textContent='جارٍ تجهيز الملف…';
+  try{
+    const decoded=await decodeSong(await f.arrayBuffer());song=decoded;songName=f.name;
+    $('soundHint').textContent='سيعمل هذا الملف ويتكرر حتى تحل اللغز.';
+    try{await idb('readwrite',st=>st.put({name:f.name,blob:f},'song'))}
+    catch(e){$('soundHint').textContent='جاهز الآن، لكن المتصفح لم يحفظه، فاختره مرة أخرى إذا حدّثت الصفحة.'}
+  }catch(e){$('soundHint').textContent=song?`تعذر تشغيل هذا الملف، وبقيت «${songName}». جرّب ملفاً بصيغة MP3.`:'تعذر تشغيل هذا الملف. جرّب ملفاً بصيغة MP3.'}
+  $('file').value='';soundUI();
+}
+async function restoreSong(){
+  try{
+    const rec=await idb('readonly',st=>st.get('song'));
+    if(rec&&rec.blob){song=await decodeSong(await rec.blob.arrayBuffer());songName=rec.name||'أنشودة';soundUI();if(S.phase!=='idle'&&ac&&ac.state==='running')armAlarm(S.phase==='running'?Math.max(0,(S.endAt-Date.now())/1000):0)}
+  }catch(e){}
+}
+function soundUI(){
+  const file=val('sound')==='file';
+  $('fileBox').hidden=!file;
+  $('songName').textContent=song?songName:'';
+  $('listen').hidden=!song;
+  if(file&&!song&&!/تعذر|جارٍ/.test($('soundHint').textContent))$('soundHint').textContent='اختر أنشودة من جهازك، مثل ملف MP3.';
+  if(!file)$('soundHint').textContent='';
+  if(file&&song&&!$('soundHint').textContent)$('soundHint').textContent='سيعمل هذا الملف ويتكرر حتى تحل اللغز.';
+}
+async function keepAwake(){try{if(S.phase!=='idle'&&!wake&&navigator.wakeLock){wake=await navigator.wakeLock.request('screen');wake.addEventListener('release',()=>{wake=null})}}catch(e){}}
+function releaseAwake(){try{if(wake)wake.release()}catch(e){}wake=null}
+
+/* timer */
+function readForm(){
+  const mode=val('mode'),now=Date.now();
+  let endAt=0;
+  if(mode==='clock')endAt=nextOccurrence($('at').value,now)||0;
+  else{const d=durationMs($('h').value,$('m').value,$('s').value);endAt=d?now+d:0}
+  return{mode,endAt,dur:endAt?endAt-now:0,at:$('at').value,label:$('label').value.trim().slice(0,60),level:val('level'),kind:val('kind'),sound:val('sound')};
+}
+function startTimer(){
+  const f=readForm();
+  if(f.mode==='clock'&&!f.endAt){setNote('اختر الساعة التي يرن فيها المنبّه.');return}
+  if(f.mode==='countdown'&&f.dur<5000){setNote('اختر مدة لا تقل عن 5 ثوانٍ.');return}
+  if(f.sound==='file'&&!song){setNote('اختر الأنشودة أولاً، أو اختر «صوت تنبيه».');return}
+  savePrefs();audioStart();
+  S={phase:'running',endAt:f.endAt,dur:f.dur,label:f.label,level:f.level,kind:f.kind,solved:0,mode:f.mode,at:f.at,sound:f.sound};
+  armAlarm(f.dur/1000);
+  P=null;setNote('');saveState();keepAwake();render();tick();
+}
+function enterRing(){
+  S.phase='ringing';saveState();
+  if(ac)armAlarm(0);
+  if(!P||P.purpose!=='alarm'){
+    const had=P&&P.purpose==='cancel';
+    P={purpose:'alarm',level:S.level,kind:S.kind,wrong:0};
+    if(!had)nextPuzzle();
+  }
+  render();
+}
+function resetToIdle(msg){
+  disarmAlarm();releaseAwake();clearTimeout(hideTimer);
+  S=idleState();P=null;puzzle=null;saveState();setNote(msg);render();previewForm();
+}
+function openPuzzle(purpose){
+  P=purpose==='try'?{purpose,level:val('level'),kind:val('kind'),solved:0,wrong:0}:{purpose,level:S.level,kind:S.kind,wrong:0};
+  setNote('');nextPuzzle();render();focusAnswer();
+}
+const solvedCount=()=>P.purpose==='try'?P.solved:S.solved;
+function setSolved(n){if(P.purpose==='try')P.solved=n;else{S.solved=n;saveState()}}
+function focusAnswer(){if(puzzle&&!puzzle.choices&&!$('pzInput').disabled)$('pzInput').focus()}
+function nextPuzzle(){
+  clearTimeout(hideTimer);
+  const k=chooseKind(P.kind,lastKind);lastKind=k;
+  puzzle=makePuzzle(k,P.wrong>=2?'easy':P.level);
+  const input=$('pzInput'),box=$('pzShow'),ch=$('pzChoices');
+  input.value='';$('pzQ').textContent=puzzle.q;
+  input.dir=k==='word'?'rtl':'ltr';input.inputMode=k==='word'?'text':'numeric';
+  box.textContent='';box.classList.toggle('ar',k==='word');
+  if(puzzle.letters)for(const c of puzzle.letters){const s=document.createElement('span');s.className='tile';s.textContent=c;box.appendChild(s)}
+  else box.textContent=puzzle.word||puzzle.show;
+  ch.textContent='';ch.hidden=!puzzle.choices;
+  $('pzType').hidden=!!puzzle.choices;$('pzSubmit').hidden=!!puzzle.choices;
+  if(puzzle.choices)for(const c of puzzle.choices){const b=document.createElement('button');b.type='button';b.className='choice';b.textContent=c;b.addEventListener('click',()=>submitAnswer(c));ch.appendChild(b)}
+  if(k==='memory'){
+    input.disabled=true;
+    hideTimer=setTimeout(()=>{box.textContent='•'.repeat(puzzle.answer.length);$('pzQ').textContent='اكتب الرقم الذي رأيته.';input.disabled=false;input.focus()},puzzle.hideAfter);
+  }else input.disabled=false;
+  updateCount();
+}
+function updateCount(){
+  const need=LEVELS[P.level].need;
+  $('pzCount').textContent=need>1?`اللغز ${Math.min(solvedCount()+1,need)} من ${need}`:'';
+}
+function setMsg(t,c){$('pzMsg').textContent=t;$('pzMsg').className='pz-msg'+(c?' '+c:'')}
+function finishPuzzles(){
+  const purpose=P.purpose,task=S.label;
+  if(purpose==='cancel')resetToIdle('أُلغي المنبّه بعد حل اللغز.');
+  else if(purpose==='alarm')resetToIdle(task?`توقف المنبّه. ${task}.`:'توقف المنبّه.');
+  else{P=null;puzzle=null;setNote('أحسنت. هكذا يكون اللغز عندما يرن المنبّه.');render()}
+}
+function setBusy(on){blocked=on;$('pzSubmit').disabled=on;$('pzChoices').querySelectorAll('button').forEach(b=>b.disabled=on)}
+function submitAnswer(choice){
+  if(blocked||!puzzle)return;
+  const v=choice!==undefined?choice:$('pzInput').value;
+  if(choice===undefined&&$('pzInput').disabled)return;
+  if(!String(v).trim()){setMsg('اكتب إجابتك أولاً.','bad');return}
+  const need=LEVELS[P.level].need;
+  if(checkAnswer(puzzle,v)){
+    P.wrong=0;const n=solvedCount()+1;setSolved(n);
+    if(n>=need){setSolved(0);setMsg('');finishPuzzles();return}
+    setMsg(`صحيح. بقي ${countWord(need-n)}.`,'good');nextPuzzle();focusAnswer();
+  }else{
+    P.wrong++;setBusy(true);$('pzInput').disabled=true;
+    setMsg(P.wrong>=2?'ليست هذه الإجابة. إليك لغزاً أسهل.':`ليست هذه الإجابة. الجواب الصحيح ${puzzle.answer}. جرّب لغزاً آخر.`,'bad');
+    setTimeout(()=>{setBusy(false);if(P){nextPuzzle();focusAnswer()}setMsg('')},1500);
+  }
+}
+function render(){
+  const ph=S.phase,open=!!P;
+  $('dial').dataset.s=ph;$('chip').dataset.s=ph;
+  $('chipText').textContent={idle:'جاهز',running:'مضبوط',ringing:'المنبّه يرن'}[ph];
+  $('setup').hidden=ph!=='idle'||open;
+  $('live').hidden=ph!=='running'||open;
+  $('pz').hidden=!open;
+  $('task').textContent=ph==='idle'?'':(ph==='ringing'?(S.label||'حان الوقت'):S.label);
+  if(open){
+    $('pz').classList.toggle('alarm',P.purpose==='alarm');
+    $('pzTitle').textContent={cancel:'حلّ اللغز لإلغاء المنبّه',alarm:'حلّ اللغز لإيقاف المنبّه',try:'لغز للتجربة'}[P.purpose];
+    $('pzBack').hidden=P.purpose==='alarm';
+    updateCount();
+  }
+  updateSound();tick();
+}
+function updateSound(){$('soundNote').hidden=!(S.phase==='ringing'&&(!ac||ac.state!=='running'))}
+function drawDial(ms,total){
+  $('time').textContent=fmtTime(ms);
+  $('arc').style.strokeDasharray=CIRC;
+  $('arc').style.strokeDashoffset=CIRC*(1-(total?Math.min(1,ms/total):1));
+}
+function liveText(){
+  const left=S.endAt-Date.now(),when=S.mode==='clock'&&S.at?`يرن الساعة ${fmtClock(S.at)}، بعد ${fmtLeft(left)}.`:`يرن بعد ${fmtLeft(left)}.`;
+  return`${when} لإلغائه تحتاج إلى حل ${countWord(LEVELS[S.level].need)}.`;
+}
+function previewForm(){
+  if(S.phase!=='idle')return;
+  if(val('mode')==='clock'){
+    const t=nextOccurrence($('at').value,Date.now());
+    if(t){drawDial(t-Date.now(),t-Date.now());clockFace();$('atHint').textContent=`سيرن ${new Date(t).getDate()===new Date().getDate()?'اليوم':'غداً'} الساعة ${fmtClock($('at').value)}، بعد ${fmtLeft(t-Date.now())}.`}
+    else{drawDial(0,0);$('atHint').textContent='اختر الساعة.'}
+  }else{const d=durationMs($('h').value,$('m').value,$('s').value);drawDial(d,d)}
+}
+function clockFace(){
+  const clock=S.phase==='idle'?val('mode')==='clock':S.phase==='running'&&S.mode==='clock';
+  if(!clock){if(S.phase==='idle')$('task').textContent='';return}
+  const d=new Date(),h=d.getHours();
+  $('time').textContent=`${h%12||12}:${String(d.getMinutes()).padStart(2,'0')}`;
+  $('task').textContent=`الآن، ${h<12?'صباحاً':'مساءً'}`+(S.phase==='running'&&S.label?` · ${S.label}`:'');
+}
+let lastMinute=-1;
+function tick(){
+  if(S.phase==='running'){
+    const left=S.endAt-Date.now();
+    if(left<=0){enterRing();return}
+    drawDial(left,S.dur);clockFace();
+    const mi=Math.floor(left/60000);if(mi!==lastMinute){lastMinute=mi;$('liveInfo').textContent=liveText()}
+  }else if(S.phase==='ringing'){
+    drawDial(0,S.dur);
+    if(ac&&ac.state==='running'&&ac.currentTime>armedUntil-5)armAlarm(0);
+  }else{
+    const mi=new Date().getMinutes();if(mi!==lastMinute){lastMinute=mi;previewForm()}
+    clockFace();
+  }
+}
+function drawTicks(){
+  let out='';
+  for(let i=0;i<60;i++){
+    const a=i*6*Math.PI/180,major=i%5===0,r1=major?106:109,r2=116,x=v=>(120+v*Math.sin(a)).toFixed(2),y=v=>(120-v*Math.cos(a)).toFixed(2);
+    out+=`<line class="tick${major?' major':''}" x1="${x(r1)}" y1="${y(r1)}" x2="${x(r2)}" y2="${y(r2)}"/>`;
+  }
+  $('ticks').innerHTML=out;
+}
+function formUI(){
+  const clock=val('mode')==='clock';
+  $('clockBox').hidden=!clock;$('durBox').hidden=clock;
+  $('levelHint').textContent=LEVELS[val('level')].hint;
+  soundUI();previewForm();
+}
+
+$('setup').addEventListener('submit',e=>{e.preventDefault();startTimer()});
+$('setup').addEventListener('change',e=>{if(e.target.name)formUI()});
+$('pzForm').addEventListener('submit',e=>{e.preventDefault();submitAnswer()});
+$('tryBtn').addEventListener('click',()=>openPuzzle('try'));
+$('cancelBtn').addEventListener('click',()=>openPuzzle('cancel'));
+$('listen').addEventListener('click',togglePreview);
+$('file').addEventListener('change',e=>chooseFile(e.target.files&&e.target.files[0]));
+$('pzSkip').addEventListener('click',()=>{if(!blocked&&P){setMsg('');nextPuzzle();focusAnswer()}});
+$('pzBack').addEventListener('click',()=>{if(blocked)return;clearTimeout(hideTimer);P=null;puzzle=null;setMsg('');render()});
+$('presets').addEventListener('click',e=>{const b=e.target.closest('[data-m]');if(!b)return;$('h').value='0';$('m').value=b.dataset.m;$('s').value='0';previewForm()});
+['h','m','s','at'].forEach(i=>$(i).addEventListener('input',previewForm));
+document.addEventListener('pointerdown',()=>{
+  if(S.phase!=='idle'){const was=ac&&ac.state==='running';audioStart();if(ac&&!was)Promise.resolve(ac.resume()).then(()=>{armAlarm(S.phase==='running'?Math.max(0,(S.endAt-Date.now())/1000):0);updateSound()}).catch(()=>{})}
+});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){keepAwake();tick()}});
+
+document.documentElement.lang='ar';document.documentElement.dir='rtl';
+drawTicks();loadPrefs();formUI();
+const restored=loadState();
+if(restored){
+  S=restored;keepAwake();
+  if(S.phase==='running'&&S.endAt<=Date.now())S.phase='ringing';
+  if(S.phase==='ringing'){P={purpose:'alarm',level:S.level,kind:S.kind,wrong:0};nextPuzzle()}
+}
+render();previewForm();restoreSong();
+setInterval(tick,200);
+</script>
+</body>
+</html>
