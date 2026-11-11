@@ -1,11 +1,11 @@
 // Offline support: the app shell is served network-first (so updates arrive),
 // fonts and the Supabase library cache-first. Personal data never passes through here;
 // it lives in the browser's localStorage.
-var CACHE = "yawmi-v108";
+var CACHE = "yawmi-v109";
 var CORE = ["./", "index.html", "guide.html", "alarm.html", "config.js", "manifest.webmanifest", "icon.svg", "icon-192.png", "icon-512.png"];
 
 self.addEventListener("install", function (e) {
-  e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(CORE); }).then(function () { return self.skipWaiting(); }));
+  e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(CORE.map(function (u) { return new Request(u, { cache: "reload" }); })); }).then(function () { return self.skipWaiting(); }));
 });
 
 self.addEventListener("activate", function (e) {
@@ -36,7 +36,12 @@ self.addEventListener("fetch", function (e) {
     e.respondWith(new Promise(function (resolve, reject) {
       var done = false, finish = function (r) { if (!done && r) { done = true; resolve(r); } };
       var timer = setTimeout(function () { cached().then(finish); }, 3000);
-      fetch(req).then(function (res) { return store(req, res); }).then(function (res) { clearTimeout(timer); finish(res); }, function () {
+      // "no-cache" asks the server every time (a quick "not modified" when nothing changed), so an update isn't held
+      // back by the browser's own 10-minute copy. A page load (navigate) can't take options, so it is fetched by its address.
+      var fresh;
+      try { fresh = req.mode === "navigate" ? fetch(req.url, { cache: "no-cache", credentials: "same-origin" }) : fetch(req, { cache: "no-cache" }); }
+      catch (err) { fresh = fetch(req); }
+      fresh.then(function (res) { return store(req, res); }).then(function (res) { clearTimeout(timer); finish(res); }, function () {
         clearTimeout(timer);
         cached().then(function (r) { if (r) finish(r); else if (!done) { done = true; reject(new Error("offline")); } });
       });
