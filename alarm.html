@@ -122,6 +122,12 @@ button{font:inherit;cursor:pointer}
 .back{display:inline-flex;align-items:center;gap:6px;color:var(--brass);font-weight:600;text-decoration:none;border:1px solid var(--line);border-radius:999px;padding:3px 13px;font-size:.9rem}
 .back:hover{border-color:var(--brass)}
 .head-start{display:flex;flex-wrap:wrap;align-items:center;gap:12px}
+/* inside the Android app: two icons at the bottom, the timer (this page) and the alarms («منبّهاتي» in the app) */
+.apptabs{position:fixed;inset-inline:0;bottom:0;z-index:5;display:grid;grid-template-columns:1fr 1fr;background:var(--panel);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
+.apptabs button{border:0;background:none;color:var(--muted);font:inherit;font-size:.85rem;font-weight:600;padding:8px 0 10px;display:grid;justify-items:center;gap:2px;cursor:pointer}
+.apptabs button b{font-size:1.45rem;line-height:1.2}
+.apptabs button[aria-current="page"]{color:var(--brass)}
+body.inapp .wrap{padding-bottom:96px}
 </style>
 </head>
 <body><main class="wrap" dir="rtl" lang="ar">
@@ -670,9 +676,20 @@ if(restored){
   if(S.phase==='ringing'){P={purpose:'alarm',level:S.level,kind:S.kind,wrong:0};nextPuzzle()}
 }
 if(native){
-  $('file').closest('label').hidden=true;$('listen').remove();$('phraseBox').hidden=false;
-  const lb=document.createElement('button');lb.type='button';lb.className='btn small';lb.textContent='📋 منبّهاتي: حسب الأيام، ولكلٍّ أنشودته';
-  lb.addEventListener('click',()=>toPhone('list'));$('setup').prepend(lb);
+  $('file').closest('label').hidden=true;$('listen').remove();
+  // the alarms (days, nasheed, phrase, puzzle) are set in «منبّهاتي»; here only the quick timer is left
+  document.querySelector('input[name=mode][value=countdown]').checked=true;
+  document.querySelector('input[name=mode]').closest('fieldset').hidden=true;
+  $('label').closest('.field').hidden=true;$('label').value='المؤقت';
+  for(const n of['sound','level','kind'])document.querySelector(`input[name=${n}]`).closest('fieldset').hidden=true;
+  $('tryBtn').hidden=true;$('startBtn').textContent='ابدأ المؤقت';
+  document.querySelector('.head h1').textContent='⏱ المؤقت';
+  $('foot').textContent='يرن المؤقت والجوال مقفل، ويتوقف بعبارتك بصوتك إن سجّلتها، وإلا بلغز سهل.';
+  const tabs=document.createElement('nav');tabs.className='apptabs';tabs.setAttribute('aria-label','المؤقت والمنبّه');
+  tabs.innerHTML='<button type="button" aria-current="page"><b>⏱</b>المؤقت</button><button type="button" id="toAlarms"><b>⏰</b>المنبّه</button>';
+  document.body.appendChild(tabs);document.body.classList.add('inapp');
+  $('toAlarms').addEventListener('click',()=>toPhone('list'));
+  formUI();
   $('recPhrase').addEventListener('click',()=>toPhone('record',`&phrase=${encodeURIComponent($('phrase').value.trim().slice(0,120))}`));
   const b=document.createElement('button');b.type='button';b.className='btn ghost small';b.textContent='🎵 اختر أنشودة المنبّه';
   b.addEventListener('click',()=>toPhone('sound'));$('fileBox').prepend(b);
