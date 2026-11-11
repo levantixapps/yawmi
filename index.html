@@ -3053,6 +3053,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
         '<li>وضع «عدم الإزعاج» أو توفير البطارية الشديد قد يؤخر الإشعارات أو يخفيها.</li>' +
         '<li>آيفون: يجب أن يكون التطبيق مثبّتًا على الشاشة الرئيسية، وفُعّلت الإشعارات من داخله، ثم الإعدادات ← الإشعارات ← يومي.</li>' +
         '<li>المهمة يجب أن يكون لها وقت، وغير منجزة، وأن تكون المزامنة تمت (⚙ ← متزامن).</li></ul></details>' : "") + '</div>';
+    h += natTasksHtml();
     h += '<p class="small muted">بدون إشعارات الخادم: يصلك صوت قصير وإشعار ما دام التطبيق مفتوحًا أو في الخلفية فقط.</p></section>';
     var sg = sleepGoal();
     h += '<section><h2>اسمك</h2><input class="field" value="' + esc(userName) + '" data-act="uname" placeholder="اسمك" aria-label="اسمك"><p class="small muted">يظهر لمسؤول الفريق مع سجل تغييراتك.</p></section>';
@@ -3353,6 +3354,17 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       navigator.serviceWorker.ready.then(function (reg) { reg.showNotification(title, opts); }, function () { try { new Notification(title, opts); } catch (e) {} });
     } else { try { new Notification(title, opts); } catch (e) {} }
   }
+  // In the Android app: what was last handed to the phone, and a way to its own settings (count, next one, a test reminder)
+  function natTasksHtml() {
+    var key = "", sig = "", n = 0;
+    try { key = localStorage.getItem("yawmi-native") || ""; sig = localStorage.getItem(pkey("yawmi-native-tasks")) || ""; } catch (e) {}
+    if (!key) return "";
+    try { n = sig ? JSON.parse(sig.slice(10)).length : 0; } catch (e) {}
+    return '<div class="pushbox"><b>📲 تنبيهات المهام في الجوال (دون إنترنت)</b>' +
+      '<p class="small muted">يسلّم «يومي» مهام اليوم والغد التي لها وقت إلى الجوال، فتصلك ولو انقطع الإنترنت والتطبيق مغلق. ' +
+      (sig ? 'آخر تسليم: ' + (sig.slice(0, 10) === keyOf(today()) ? "اليوم" : sig.slice(0, 10)) + '، ' + n + ' مهام.' : 'لم تُسلَّم بعد: تُسلَّم مع أول ضغطة أو أول مهمة لها وقت.') + '</p>' +
+      '<div class="row-wrap"><button class="ghost" data-act="natSettings">⚙ افتح إعداداتها وجرّب تنبيهًا</button></div></div>';
+  }
   function natHas() { try { return !!localStorage.getItem("yawmi-native") && !!localStorage.getItem(pkey("yawmi-native-tasks")); } catch (e) { return false; } }
   function checkAlerts() {
     var k = keyOf(new Date()), now = new Date(), nm = now.getHours() * 60 + now.getMinutes(), many = profiles.list.length > 1;
@@ -3538,6 +3550,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
         if (slit) { delete slit.a; delete slit.lg; }
         state.shop.log = state.shop.log.filter(function (x) { return x.id !== b.dataset.lid; });
         ui.shopLogDel = null; commit(); toast("حُذف من الإحصاء"); break;
+      case "natSettings": try { location.href = "intent://settings?k=" + (localStorage.getItem("yawmi-native") || "") + "#Intent;scheme=yawmialarm;package=io.github.levantixapps.yawmi;end"; } catch (e) {} break;
       case "teamRenameNow": if (currentProfile()) teamRename(currentProfile()); break;
       case "spYes": spAnswer(true); break;
       case "spNo": spAnswer(false); break;
