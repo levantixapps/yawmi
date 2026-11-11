@@ -737,12 +737,28 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   function shown(k) { return !hiddenF[k]; }
   function setShown(k, on) {
     if (on) delete hiddenF[k]; else hiddenF[k] = 1;
-    try { localStorage.setItem(pkey("yawmi-show"), JSON.stringify(hiddenF)); } catch (e) {}
+    if (!demo) try { localStorage.setItem(pkey("yawmi-show"), JSON.stringify(hiddenF)); } catch (e) {}
+  }
+  // Features with their own synced on/off: the checkbox in «الأقسام الظاهرة» is their only switch
+  function featOn(k) {
+    if (k === "pray") return !!prayCfg().on;
+    if (k === "quran") return qCfg().on;
+    if (k === "books") return bCfg().on;
+    if (k === "ramadan") return !(state.settings.ramadan || {}).off;
+    return true;
+  }
+  function featSet(k, on) {
+    setShown(k, on);
+    if (!on || featOn(k)) return;
+    if (k === "pray") setPray({ on: true });
+    else if (k === "quran") { setQuran({ on: true }); commit(); }
+    else if (k === "books") { setBooks({ on: true }); commit(); }
+    else if (k === "ramadan") { state.settings.ramadan = { off: false }; commit(); }
   }
   function featsHtml() {
-    return '<section><h2>الأقسام الظاهرة</h2><p class="small muted">أظهر ما تستعمله فقط. ما تخفيه لا يُحذف، ويعود كما كان إن أظهرته. الاختيار لك وحدك على هذا الجهاز.</p>' +
+    return '<section><h2>الأقسام الظاهرة</h2><p class="small muted">أظهر ما تستعمله فقط. ضع علامة على الميزة لتشغيلها، ثم تجد إعداداتها في تبويبها. ما تخفيه لا يُحذف، ويعود كما كان إن أظهرته، والإخفاء لك وحدك على هذا الجهاز.</p>' +
       '<div class="showgrid">' + FEATS.map(function (f) {
-        return '<label class="showf"><input type="checkbox" class="check" data-act="showF" data-k="' + f[0] + '"' + (shown(f[0]) ? " checked" : "") + '> ' + f[1] + '</label>';
+        return '<label class="showf"><input type="checkbox" class="check" data-act="showF" data-k="' + f[0] + '"' + (shown(f[0]) && featOn(f[0]) ? " checked" : "") + '> ' + f[1] + '</label>';
       }).join("") + '</div></section>';
   }
   function prayOn() { var p = prayCfg(); return !!(p.on && p.lat != null) && shown("pray"); }
@@ -1452,7 +1468,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     return { n: n, start: addDays(parseKey(k), 1 - n), left: left };
   }
   function rmdCountdown(s) {
-    if (!prayOn()) return '<p class="small muted">فعّل أوقات الصلاة من ⚙ ← العبادة، فيظهر هنا موعد الإفطار والسحور.</p>';
+    if (!prayOn()) return '<p class="small muted">فعّل «أوقات الصلاة» من ⚙ ← عام ← الأقسام الظاهرة، فيظهر هنا موعد الإفطار والسحور.</p>';
     var n = new Date(), nm = n.getHours() * 60 + n.getMinutes();
     var at = function (k, key) { return prayList(k).filter(function (p) { return p.key === key; })[0]; };
     var line = function (label, m, t) { return '<p class="praynext">' + label + ' <b>' + leftText(m) + '</b> <span class="muted small">(' + fmt12(t) + ')</span></p>'; };
@@ -1473,7 +1489,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       var pt = {}; prayList(k).forEach(function (p) { pt[p.key] = p.time; });
       return '<div class="qcard"><div class="sechead"><h3>🌙 رمضان</h3><span class="small muted">اليوم ' + s.n + ' من رمضان</span></div>' +
         (pt.fajr && pt.maghrib ? '<p class="small">🌙 الإمساك <b>' + fmt12(fromMin(toMin(pt.fajr) - 10)) + '</b> · الفجر <b>' + fmt12(pt.fajr) + '</b> · 🍽 الإفطار <b>' + fmt12(pt.maghrib) + '</b></p>' :
-          '<p class="small muted">فعّل أوقات الصلاة من ⚙ ← العبادة، فيظهر هنا موعد الإمساك والإفطار.</p>') +
+          '<p class="small muted">فعّل «أوقات الصلاة» من ⚙ ← عام ← الأقسام الظاهرة، فيظهر هنا موعد الإمساك والإفطار.</p>') +
         '<p class="small muted">في يومه تظهر هنا متابعة الصيام والتراويح وخطة الختمة.</p></div>';
     }
     for (var i = 0; i < s.n; i++) { var x = rDay(state.days[keyOf(addDays(s.start, i))]); fast += x.f; tar += x.t; }
@@ -1487,15 +1503,9 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       if (need > 60) h += '<p class="small">📖 بقي من ختمتك ' + pagesText(rest - read) + '، اقرأ ما تيسّر وتقبّل الله منك</p>';
       else h += '<p class="small">📖 لتختم قبل العيد: <b>' + pagesText(need) + '</b> كل يوم' + (read ? ' · قرأت اليوم ' + pagesText(read, true) + (read >= need ? " ✓" : "") : "") +
         (g.read !== need ? ' <button class="linkbtn" data-act="rmdGoal" data-v="' + need + '">اجعلها هدف وردك</button>' : "") + '</p>';
-    } else if (o === 0) h += '<p class="small muted">📖 فعّل «الحفظ والورد» من ⚙ ← العبادة، فيحسب لك كم تقرأ كل يوم لتختم قبل العيد.</p>';
+    } else if (o === 0) h += '<p class="small muted">📖 فعّل «القرآن» من ⚙ ← عام ← الأقسام الظاهرة، فيحسب لك كم تقرأ كل يوم لتختم قبل العيد.</p>';
     if (o === 0 && s.left && night >= 21) h += '<p class="small">🌟 ' + (night % 2 ? "الليلة ليلة " + night + "، من الليالي الوترية في العشر الأواخر، تُرجى فيها ليلة القدر" : "أنت في العشر الأواخر، الليلة ليلة " + night) + '<br>🤲 «اللَّهُمَّ إِنَّكَ عَفُوٌّ تُحِبُّ الْعَفْوَ فَاعْفُ عَنِّي»</p>';
     return h + '</div>';
-  }
-  function ramadanSettingsHtml() {
-    if (isTeamOnly() || !shown("ramadan")) return "";
-    var on = !(state.settings.ramadan || {}).off;
-    return '<section><h2>🌙 رمضان</h2><p class="muted small">تظهر في «جدولي» بطاقة رمضان تلقائيًا طوال الشهر: موعد الإفطار والسحور، ومتابعة الصيام والتراويح، وكم تقرأ كل يوم لتختم قبل العيد.</p>' +
-      '<div class="row-wrap"><button class="' + (on ? "btn" : "ghost") + '" data-act="rmdOff" aria-pressed="' + on + '">' + (on ? "🌙 بطاقة رمضان مفعّلة" : "فعّل بطاقة رمضان") + '</button></div></section>';
   }
 
   /* ---------- ADHKAR 🤲: texts reviewed against «حصن المسلم» (الأذكار - للمراجعة.md); the Quran from Tanzil. All on this device. ---------- */
@@ -1739,11 +1749,10 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       (n > 1 ? '<p class="small">معدّلك ' + num(t.p / n) + ' صفحة يوميًا.</p>' : "") + '</section>';
   }
   function booksSettingsHtml() {
-    if (isTeamOnly() || !shown("books")) return "";
+    if (isTeamOnly() || !shown("books") || !bCfg().on) return "";
     var g = bCfg();
     var h = '<section id="books"><h2>📚 مراجعة الكتب</h2><p class="muted small">كتب تراجعها معًا، ولكل كتاب عدد صفحاته كل يوم، مثل ورد القرآن: عدّاد لكل كتاب في «جدولي»، وموضعك فيه، ومتى تنهيه.</p>' +
-      '<div class="row-wrap"><button class="' + (g.on ? "btn" : "ghost") + '" data-act="bOn" aria-pressed="' + g.on + '">' + (g.on ? "📚 مراجعة الكتب مفعّلة" : "فعّل مراجعة الكتب") + '</button></div>';
-    if (!g.on) return h + '</section>';
+      "";
     if (g.list.length) h += '<ul class="list">' + g.list.map(function (b, i) {
       return '<li class="catedit"><span class="grow">' + (b.done ? "✓ " : "") + esc(b.name) + ' <span class="small muted">(' + b.pages + ' ص)</span></span>' +
         '<label class="small">كل يوم <input class="field qnum" type="number" inputmode="numeric" min="0" max="500" value="' + bGoalOf(b) + '" data-act="bGoal" data-b="' + esc(b.id) + '"> ص</label>' +
@@ -2475,10 +2484,10 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     return mins < 60 ? "بعد " + Math.max(1, mins) + " دقيقة" : (keyOf(d) === keyOf(new Date()) ? "اليوم " : shortDate(keyOf(d)) + " ") + stamp(d.getTime());
   }
   function quranSettingsHtml() {
-    if (!shown("quran")) return "";
+    if (!shown("quran") || !qCfg().on) return "";
     var g = qCfg();
     var h = '<section id="quran"><h2>📖 الحفظ والورد</h2><p class="muted small">عدّاد يومي لما تقرؤه وتحفظه وتراجعه بالصفحات، مع هدف لكل منها، ويتابع موضع ختمتك وعدد ما تحفظه.</p>' +
-      '<div class="row-wrap"><button class="' + (g.on ? "btn" : "ghost") + '" data-act="qOn" aria-pressed="' + g.on + '">' + (g.on ? "📖 متابعة القرآن مفعّلة" : "فعّل متابعة الحفظ والورد") + '</button></div>';
+      "";
     if (g.on) {
       var numIn = function (f, v, max) { return '<input class="field qnum" type="number" inputmode="numeric" min="' + (f === "page" ? 1 : 0) + '" max="' + max + '" value="' + v + '" data-act="qCfg" data-f="' + f + '">'; };
       h += '<div class="qset">' +
@@ -3060,10 +3069,10 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     h += '</div></section>';
 
     h += setGroup("wor");
-    if (shown("pray")) {
+    if (shown("pray") && prayCfg().on) {
     var pc = prayCfg(), inList = PRAYER_CITIES.some(function (c) { return c[0] === pc.name; });
     h += '<section><h2>🕌 أوقات الصلاة</h2><p class="muted small">تظهر في جدولك مع الوقت المتبقي للصلاة التالية، ويتركها الترتيب التلقائي فارغة. تُحسب على جهازك ولا تحتاج إنترنت.</p>' +
-      '<div class="row-wrap"><button class="' + (pc.on ? "btn" : "ghost") + '" data-act="prayOn" aria-pressed="' + !!pc.on + '">' + (pc.on ? "🕌 أوقات الصلاة مفعّلة" : "فعّل أوقات الصلاة") + '</button></div>';
+      "";
     if (pc.on) {
       h += '<div class="row-wrap"><select class="field" data-act="prayCity" aria-label="المدينة">' +
         (pc.lat == null ? '<option value="">اختر مدينتك</option>' : !inList ? '<option value="" selected>' + esc(pc.name || "موقعي") + '</option>' : "") +
@@ -3083,7 +3092,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     }
     h += '</section>';
     }
-    h += ramadanSettingsHtml() + quranSettingsHtml();
+    h += quranSettingsHtml();
     if (!isTeamOnly()) h += (shown("kids") ? kidsSettingsHtml() : "") + (shown("cyc") ? cycSettingsHtml() : "");
     h += setGroup("plan");
     h += booksSettingsHtml();
@@ -3541,7 +3550,6 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
         break;
       case "syncNow": syncNow(); meLoad(); break;
       case "theme": applyTheme(b.dataset.t); render(); break;
-      case "prayOn": setPray({ on: !prayCfg().on }); break;
       case "focus": focusStart(it); break;
       case "tpl": tplApply(b.dataset.t); break;
       case "teamLinkNew": teamLink(+($("teamLinkHrs") || {}).value || 24); break;
@@ -3627,14 +3635,11 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       case "focusAgain": var fit = focusItem(); if (fit) { focus.mode = "idle"; focusStart(fit); } else focusStop(); break;
       case "focusWork": focusCfg.work = +b.dataset.v; try { localStorage.setItem(FOCUS_CFG_KEY, JSON.stringify(focusCfg)); } catch (e) {} render(); break;
       case "focusBrk": focusCfg.brk = +b.dataset.v; try { localStorage.setItem(FOCUS_CFG_KEY, JSON.stringify(focusCfg)); } catch (e) {} render(); break;
-      case "qOn": setQuran({ on: !qCfg().on }); commit(); break;
-      case "bOn": setBooks({ on: !bCfg().on }); commit(); break;
       case "bAdd": bChange(dk(), b.dataset.b, (+((d.bk || {})[b.dataset.b]) || 0) + +b.dataset.v); break;
       case "bDel": setBooks({ list: bCfg().list.filter(function (x) { return x.id !== b.dataset.b; }) }); commit(); break;
       case "bUp": var bl = bCfg().list.slice(), bi = bl.map(function (x) { return x.id; }).indexOf(b.dataset.b); if (bi > 0) { bl.splice(bi - 1, 0, bl.splice(bi, 1)[0]); setBooks({ list: bl }); commit(); } break;
       case "rmd": var rr = rDay(d); rr[b.dataset.f] = rr[b.dataset.f] ? 0 : 1; if (rr.f || rr.t) d.rmd = rr; else delete d.rmd; commit(); break;
       case "rmdGoal": setQuran({ read: +b.dataset.v }); commit(); toast("هدف وردك اليوم: " + pagesText(+b.dataset.v)); break;
-      case "rmdOff": state.settings.ramadan = { off: !(state.settings.ramadan || {}).off }; commit(); break;
       case "qAdd": qChange(dk(), b.dataset.f, qDay(d)[b.dataset.f] + +b.dataset.v); break;
       case "prayAsr": setPray({ hanafi: b.dataset.v === "1" }); break;
       case "prayLoc": prayLocate(); break;
@@ -3742,7 +3747,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       }
       return;
     }
-    if (act === "showF") { setShown(t.dataset.k, t.checked); render(); return; }
+    if (act === "showF") { featSet(t.dataset.k, t.checked); render(); return; }
     if (act === "shopMon") { ui.shopMon = t.value; ui.shopEd = ui.shopLogDel = null; render(); return; }
     if (act === "done") {
       it.done = t.checked; it.spent = it.done ? (it.focus || it.dur) : null;
@@ -5161,8 +5166,8 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     quran: { name: "📖 ورد القرآن", setup: function (st) { st.settings.quran = { on: false, read: 5, hifz: 1, rev: 5, page: 1, hpage: 1, rpage: 1, mem: 0, khatmat: 0 }; }, steps: [
       { say: "مثال: سنفعّل متابعة ورد القرآن. تابع اليد 👆", act: "wait", wait: 2200 },
       { say: "افتح ⚙ الإعدادات", go: "#setBtn", act: "click" },
+      { say: "في «الأقسام الظاهرة» ضع علامة على «📖 القرآن»", go: '[data-act="showF"][data-k="quran"]', act: "click" },
       { say: "ثم تبويب «🕌 العبادة»", go: '[data-act="setTab"][data-k="wor"]', act: "click" },
-      { say: "فعّل «الحفظ والورد»", go: '[data-act="qOn"]', act: "click" },
       { say: "اكتب هدفك اليومي من القراءة بالصفحات", go: 'input[data-act="qCfg"][data-f="read"]', act: "type", text: "10" },
       { say: "ومن أي صفحة تبدأ القراءة", go: 'input[data-act="qCfg"][data-f="page"]', act: "type", text: "250" },
       { say: "وكذلك هدف الحفظ والمراجعة (٠ يخفي العدّاد)", go: 'input[data-act="qCfg"][data-f="hifz"]', act: "point", wait: 2000 },
@@ -5187,8 +5192,8 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     prayer: { name: "🕌 أوقات الصلاة", setup: function (st) { st.settings.prayer = { on: false }; }, steps: [
       { say: "مثال: سنفعّل أوقات الصلاة. تابع اليد 👆", act: "wait", wait: 2200 },
       { say: "افتح ⚙ الإعدادات", go: "#setBtn", act: "click" },
+      { say: "في «الأقسام الظاهرة» ضع علامة على «🕌 أوقات الصلاة»", go: '[data-act="showF"][data-k="pray"]', act: "click" },
       { say: "ثم تبويب «🕌 العبادة»", go: '[data-act="setTab"][data-k="wor"]', act: "click" },
-      { say: "اضغط «فعّل أوقات الصلاة»", go: '[data-act="prayOn"]', act: "click" },
       { say: "اختر مدينتك، أو اضغط «📍 موقعي» ليحدّدها الجوال", go: 'select[data-act="prayCity"]', act: "pick", value: "0" },
       { say: "وطريقة الحساب تُختار وحدها حسب بلدك", go: 'select[data-act="prayMethod"]', act: "point", wait: 2200 },
       { say: "ولكل صلاة وقت يتركه الترتيب التلقائي فارغًا", go: 'select[data-act="prayBlock"]', act: "point", wait: 2200 },
@@ -5206,8 +5211,8 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     books: { name: "📚 مراجعة الكتب", setup: function (st) { st.settings.books = { on: false, goal: 20, list: [] }; }, steps: [
       { say: "مثال: سنراجع كتابين معًا، لكل منهما عدد صفحاته. تابع اليد 👆", act: "wait", wait: 2200 },
       { say: "افتح ⚙ الإعدادات", go: "#setBtn", act: "click" },
+      { say: "في «الأقسام الظاهرة» ضع علامة على «📚 الكتب»", go: '[data-act="showF"][data-k="books"]', act: "click" },
       { say: "ثم تبويب «🗓 التخطيط»", go: '[data-act="setTab"][data-k="plan"]', act: "click" },
-      { say: "فعّل «مراجعة الكتب»", go: '[data-act="bOn"]', act: "click" },
       { say: "اكتب اسم الكتاب", go: "#bookName", act: "type", text: "القانون المدني" },
       { say: "وعدد صفحاته", go: "#bookPages", act: "type", text: "300" },
       { say: "وكم صفحة تراجع منه كل يوم، ثم «أضف»", go: "#bookGoal", act: "type", text: "20" },
@@ -5296,7 +5301,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     var D = DEMOS[id];
     if (!D || demo) return;
     save();
-    demo = { id: id, real: JSON.stringify(state), tab: ui.tab, day: current, i: 0, open: ui.open, step: ui.step, setTab: ui.setTab, ad: JSON.stringify(adCount) };
+    demo = { id: id, real: JSON.stringify(state), tab: ui.tab, day: current, i: 0, open: ui.open, step: ui.step, setTab: ui.setTab, ad: JSON.stringify(adCount), hid: JSON.stringify(hiddenF) };
     var st = JSON.parse(demo.real); D.setup(st); state = st; fixState(); takeSnap();
     adCount = { d: keyOf(new Date()), c: {} };
     if (D.team) {
@@ -5352,7 +5357,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     clearTimeout(dTimer);
     var d0 = demo; demo = null;
     state = JSON.parse(d0.real); fixState(); takeSnap();
-    adCount = JSON.parse(d0.ad); if (!$("adhkar").hidden) adClose();
+    adCount = JSON.parse(d0.ad); hiddenF = JSON.parse(d0.hid); if (!$("adhkar").hidden) adClose();
     if (d0.env) { code = d0.env.code; cloud.role = d0.env.role; cloud.num = d0.env.num; ui.teamInfo = d0.env.teamInfo; ui.flows = d0.env.flows; flowsAt = d0.env.flowsAt; }
     ui.pathSteps = []; ui.pathName = ""; ui.pathEdit = null; ui.flowForm = false;
     ui.tab = d0.tab; ui.open = d0.open; ui.step = d0.step; ui.setTab = d0.setTab; current = d0.day;
