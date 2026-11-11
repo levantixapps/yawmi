@@ -56,6 +56,15 @@ h1{margin:0;font-family:var(--display);font-weight:700;font-size:1.6rem;line-hei
 .read{position:absolute;inset:0;display:grid;place-content:center;justify-items:center;text-align:center;padding:18%}
 .time{font-family:var(--mono);font-weight:600;font-size:clamp(2.3rem,9vw,3.3rem);line-height:1.1;font-variant-numeric:tabular-nums;direction:ltr}
 .task{color:var(--muted);font-size:.95rem;overflow-wrap:anywhere;line-height:1.5;margin-top:6px}
+/* an analog clock: hands show the time now; what is left of a countdown is written small under the center */
+.read{place-content:end center;padding:0 22% 21%}
+.time{font-size:clamp(1.05rem,4.4vw,1.35rem);color:var(--muted)}
+.time:empty{display:none}
+.task{font-size:.82rem;margin-top:0}
+.nums text{fill:var(--muted);font-family:var(--display);font-size:15px;font-weight:600;text-anchor:middle}
+.hand{stroke:var(--ink);stroke-linecap:round}
+.hh{stroke-width:6}.hm{stroke-width:4}.hs{stroke:var(--alarm);stroke-width:2}
+.hub{fill:var(--alarm)}
 .dial[data-s="ringing"] .arc,.dial[data-s="ringing"] .track{stroke:var(--alarm)}
 .dial[data-s="ringing"] .time{color:var(--alarm)}
 .dial[data-s="ringing"]{animation:shake .5s linear infinite}
@@ -128,6 +137,11 @@ button{font:inherit;cursor:pointer}
           <g id="ticks"></g>
           <circle class="track" cx="120" cy="120" r="94"/>
           <circle class="arc" id="arc" cx="120" cy="120" r="94" transform="rotate(-90 120 120)"/>
+          <g class="nums"><text x="120" y="45">12</text><text x="197" y="126">3</text><text x="120" y="207">6</text><text x="43" y="126">9</text></g>
+          <line class="hand hh" id="hH" x1="120" y1="128" x2="120" y2="76"/>
+          <line class="hand hm" id="hM" x1="120" y1="130" x2="120" y2="56"/>
+          <line class="hand hs" id="hS" x1="120" y1="138" x2="120" y2="50"/>
+          <circle class="hub" cx="120" cy="120" r="5"/>
         </svg>
         <div class="read">
           <div class="time" id="time" role="timer">06:30</div>
@@ -580,15 +594,22 @@ function previewForm(){
     else{drawDial(0,0);$('atHint').textContent='اختر الساعة.'}
   }else{const d=durationMs($('h').value,$('m').value,$('s').value);drawDial(d,d)}
 }
+function drawHands(){
+  const d=new Date(),s=d.getSeconds()+d.getMilliseconds()/1000,m=d.getMinutes()+s/60,h=d.getHours()%12+m/60;
+  $('hH').setAttribute('transform',`rotate(${h*30} 120 120)`);
+  $('hM').setAttribute('transform',`rotate(${m*6} 120 120)`);
+  $('hS').setAttribute('transform',`rotate(${Math.floor(s)*6} 120 120)`);
+}
 function clockFace(){
   const clock=S.phase==='idle'?val('mode')==='clock':S.phase==='running'&&S.mode==='clock';
   if(!clock){if(S.phase==='idle')$('task').textContent='';return}
   const d=new Date(),h=d.getHours();
-  $('time').textContent=`${h%12||12}:${String(d.getMinutes()).padStart(2,'0')}`;
+  $('time').textContent='';
   $('task').textContent=`الآن، ${h<12?'صباحاً':'مساءً'}`+(S.phase==='running'&&S.label?` · ${S.label}`:'');
 }
 let lastMinute=-1;
 function tick(){
+  drawHands();
   if(S.phase==='running'){
     const left=S.endAt-Date.now();
     if(left<=0){enterRing();return}
