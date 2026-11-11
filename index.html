@@ -2965,30 +2965,33 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       return '<button data-act="theme" data-t="' + o[0] + '" aria-pressed="' + (th === o[0]) + '">' + o[1] + '</button>';
     }).join("") + '</div><p class="small muted">«تلقائي» يتبع إعداد جهازك.</p></section>';
     h += featsHtml();
-    var perm = "Notification" in window ? Notification.permission : "unsupported";
-    h += '<section><h2>التنبيهات</h2>' +
+    // 🔔 One section, one switch: the Android app hands tasks to the phone; a browser uses the server (when saving to the cloud) plus a sound
+    var perm = "Notification" in window ? Notification.permission : "unsupported", nat = natKey(), canPush = !nat && pushSupported() && !!(sb && code);
+    h += '<section><h2>🔔 التنبيهات</h2><p class="small muted">' +
+      (nat ? "يرنّ الجوال في موعد كل مهمة لها وقت، ولو كان التطبيق مغلقًا والإنترنت مقطوعًا."
+        : canPush ? "إشعار في موعد كل مهمة لها وقت، حتى والتطبيق مغلق، مع صوت قصير والتطبيق مفتوح."
+        : "صوت وإشعار في موعد كل مهمة لها وقت، ما دام التطبيق مفتوحًا أو في الخلفية." + (pushSupported() && !nat ? " ولتصلك والتطبيق مغلق فعّل الحفظ السحابي." : "")) + '</p>' +
       '<div class="row-wrap"><button class="' + (alerts.on ? "btn" : "ghost") + '" data-act="alertsOn" aria-pressed="' + alerts.on + '">' + (alerts.on ? "🔔 التنبيهات مفعّلة" : "🔕 فعّل التنبيهات") + '</button>' +
-      '<button class="ghost" data-act="alertTest">جرّب الصوت</button></div>';
+      (!alerts.on ? "" : nat ? '<button class="ghost" data-act="natSettings">⚙ جرّب تنبيهًا وإعداداته</button>' : pushOn ? '<button class="ghost" data-act="pushTest">🔔 إشعار تجريبي</button>' : '<button class="ghost" data-act="alertTest">جرّب الصوت</button>') + '</div>';
     if (alerts.on) {
       h += '<div class="rangeseg" style="margin-top:4px">' + [[0, "عند البدء"], [5, "قبل ٥ دقائق"], [10, "قبل ١٠ دقائق"]].map(function (o) {
         return '<button data-act="alertLead" data-v="' + o[0] + '" aria-pressed="' + ((alerts.lead || 0) === o[0]) + '">' + o[1] + '</button>';
-      }).join("") + '</div>' +
-        '<div class="row-wrap"><button class="ghost" data-act="alertSound" aria-pressed="' + alerts.sound + '">' + (alerts.sound ? "🔊 الصوت مفعّل" : "🔇 بدون صوت") + '</button>' +
-        (perm === "default" ? '<button class="ghost" data-act="askNotify">اسمح بالإشعارات</button>' : "") + '</div>' +
-        (perm === "denied" ? '<p class="small warnline">الإشعارات ممنوعة لهذا الموقع. فعّلها من إعدادات المتصفح، وسيبقى الصوت يعمل.</p>' : "");
+      }).join("") + '</div>';
+      if (nat) h += natTasksHtml();
+      else {
+        h += '<div class="row-wrap"><button class="ghost" data-act="alertSound" aria-pressed="' + alerts.sound + '">' + (alerts.sound ? "🔊 الصوت مفعّل" : "🔇 بدون صوت") + '</button>' +
+          (canPush && !pushOn ? '<button class="ghost" data-act="pushOn">📲 فعّلها والتطبيق مغلق</button>' : "") +
+          (perm === "default" && !canPush ? '<button class="ghost" data-act="askNotify">اسمح بالإشعارات</button>' : "") + '</div>' +
+          (perm === "denied" ? '<p class="small warnline">الإشعارات ممنوعة لهذا الموقع. فعّلها من إعدادات المتصفح، وسيبقى الصوت يعمل.</p>' : "");
+        if (pushOn) h += (profiles.list.length > 1 ? '<p class="small muted">لكل حساب تفعيله: انتقل إلى كل حساب وفعّلها فيه، فيصلك إشعار كل حساب باسمه.</p>' : "") +
+          '<details class="changes"><summary>لا يظهر الإشعار؟</summary><ul class="small muted" style="margin:6px 0 0;padding-inline-start:18px">' +
+          '<li>أندرويد: الإعدادات ← التطبيقات ← Chrome (أو «يومي») ← الإشعارات: تأكد أنها مسموحة، وأن «الإشعارات من المواقع» غير مكتومة.</li>' +
+          '<li>وضع «عدم الإزعاج» أو توفير البطارية الشديد قد يؤخر الإشعارات أو يخفيها.</li>' +
+          '<li>آيفون: يجب أن يكون التطبيق مثبّتًا على الشاشة الرئيسية، وفُعّلت الإشعارات من داخله، ثم الإعدادات ← الإشعارات ← يومي.</li>' +
+          '<li>المهمة يجب أن يكون لها وقت، وغير منجزة، وأن تكون المزامنة تمت (⚙ ← متزامن).</li></ul></details>';
+      }
     }
-    h += '<div class="pushbox"><b>📲 إشعارات حتى والتطبيق مغلق</b>' +
-      '<p class="small muted">يرسلها خادم Supabase في موعد كل مهمة، مثل رسائل واتساب. تحتاج الحفظ السحابي، وعلى الآيفون تحتاج التطبيق مثبّتًا على الشاشة الرئيسية.</p>' +
-      '<div class="row-wrap"><button class="' + (pushOn ? "btn" : "ghost") + '" data-act="pushOn">' + (pushOn ? "✓ مفعّلة لهذا الحساب (اضغط للإيقاف)" : "فعّلها لهذا الحساب") + '</button>' +
-      (pushOn ? '<button class="ghost" data-act="pushTest">🔔 إرسال إشعار تجريبي</button>' : "") + '</div>' +
-      (profiles.list.length > 1 ? '<p class="small muted">لكل حساب تفعيله: انتقل إلى كل حساب وفعّلها فيه، فيصلك إشعار كل حساب باسمه.</p>' : "") +
-      (pushOn ? '<details class="changes"><summary>لا يظهر الإشعار؟</summary><ul class="small muted" style="margin:6px 0 0;padding-inline-start:18px">' +
-        '<li>أندرويد: الإعدادات ← التطبيقات ← Chrome (أو «يومي») ← الإشعارات: تأكد أنها مسموحة، وأن «الإشعارات من المواقع» غير مكتومة.</li>' +
-        '<li>وضع «عدم الإزعاج» أو توفير البطارية الشديد قد يؤخر الإشعارات أو يخفيها.</li>' +
-        '<li>آيفون: يجب أن يكون التطبيق مثبّتًا على الشاشة الرئيسية، وفُعّلت الإشعارات من داخله، ثم الإعدادات ← الإشعارات ← يومي.</li>' +
-        '<li>المهمة يجب أن يكون لها وقت، وغير منجزة، وأن تكون المزامنة تمت (⚙ ← متزامن).</li></ul></details>' : "") + '</div>';
-    h += natTasksHtml();
-    h += '<p class="small muted">بدون إشعارات الخادم: يصلك صوت قصير وإشعار ما دام التطبيق مفتوحًا أو في الخلفية فقط.</p></section>';
+    h += '</section>';
     h += '<section><h2>اسمك</h2><input class="field" value="' + esc(userName) + '" data-act="uname" placeholder="اسمك" aria-label="اسمك"><p class="small muted">يظهر لمسؤول الفريق مع سجل تغييراتك.</p></section>';
     h += setGroup("acc");
     if (sb) h += myDevicesHtml();
@@ -3281,15 +3284,12 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     } else { try { new Notification(title, opts); } catch (e) {} }
   }
   // In the Android app: what was last handed to the phone, and a way to its own settings (count, next one, a test reminder)
+  function natKey() { try { return localStorage.getItem("yawmi-native") || ""; } catch (e) { return ""; } }
+  // In the Android app: what was last handed to the phone
   function natTasksHtml() {
-    var key = "", sig = "", n = 0;
-    try { key = localStorage.getItem("yawmi-native") || ""; sig = localStorage.getItem(pkey("yawmi-native-tasks")) || ""; } catch (e) {}
-    if (!key) return "";
-    try { n = sig ? JSON.parse(sig.slice(10)).length : 0; } catch (e) {}
-    return '<div class="pushbox"><b>📲 تنبيهات المهام في الجوال (دون إنترنت)</b>' +
-      '<p class="small muted">يسلّم «يومي» مهام اليوم والغد التي لها وقت إلى الجوال، فتصلك ولو انقطع الإنترنت والتطبيق مغلق. ' +
-      (sig ? 'آخر تسليم: ' + (sig.slice(0, 10) === keyOf(today()) ? "اليوم" : sig.slice(0, 10)) + '، ' + n + ' مهام.' : 'لم تُسلَّم بعد: تُسلَّم مع أول ضغطة أو أول مهمة لها وقت.') + '</p>' +
-      '<div class="row-wrap"><button class="ghost" data-act="natSettings">⚙ افتح إعداداتها وجرّب تنبيهًا</button></div></div>';
+    var sig = "", n = 0;
+    try { sig = localStorage.getItem(pkey("yawmi-native-tasks")) || ""; n = sig ? JSON.parse(sig.slice(10)).length : 0; } catch (e) {}
+    return '<p class="small muted">📲 ' + (sig ? 'آخر تسليم للجوال: ' + (sig.slice(0, 10) === keyOf(today()) ? "اليوم" : sig.slice(0, 10)) + '، ' + n + ' مهام لليوم والغد.' : 'تُسلَّم مهام اليوم والغد للجوال مع أول ضغطة.') + '</p>';
   }
   function natHas() { try { return !!localStorage.getItem("yawmi-native") && !!localStorage.getItem(pkey("yawmi-native-tasks")); } catch (e) { return false; } }
   function checkAlerts() {
@@ -3689,7 +3689,11 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
         break;
       case "profSwitch": switchProfile(id); break;
       case "voice": if (voice.on) voiceStop(); else voiceStart(); break;
-      case "alertsOn": alerts.on = !alerts.on; saveAlerts(); if (alerts.on) { unlockAudio(); if ("Notification" in window && Notification.permission === "default") askNotify(); } render(); break;
+      case "alertsOn":
+        alerts.on = !alerts.on; saveAlerts();
+        if (!alerts.on) { if (pushOn) pushDisable(); }
+        else { unlockAudio(); if (!natKey() && pushSupported() && sb && code) { if (!pushOn) pushEnable(); } else if (!natKey() && "Notification" in window && Notification.permission === "default") askNotify(); }
+        render(); break;
       case "alertLead": alerts.lead = +b.dataset.v; saveAlerts(); pushRefresh(); render(); break;
       case "pushOn": if (pushOn) pushDisable(); else pushEnable(); break;
       case "pushTest": pushTest(); break;
@@ -5205,8 +5209,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       { say: "اضغط على المهمة لتفتحها", go: '.slot [data-act="open"], [data-act="open"]', act: "click" },
       { say: "اكتب وقتها", go: 'input[data-act="time"]', act: "type", text: "17:30" },
       { say: "ثم افتح ⚙ الإعدادات", go: "#setBtn", act: "click" },
-      { say: "في «⚙ عام» فعّل التنبيهات: صوت وإشعار في وقت المهمة", go: '[data-act="alertsOn"]', act: "point", wait: 2800 },
-      { say: "وفعّل «الإشعارات» ليصلك التنبيه حتى والتطبيق مغلق، وجرّبها بالإشعار التجريبي", go: '[data-act="pushOn"]', act: "point", wait: 3200 }
+      { say: "في «⚙ عام» زر واحد «🔔 فعّل التنبيهات»: يصلك التنبيه في وقت المهمة حتى والتطبيق مغلق", go: '[data-act="alertsOn"]', act: "point", wait: 3200 }
     ] },
     books: { name: "📚 مراجعة الكتب", setup: function (st) { st.settings.books = { on: false, goal: 20, list: [] }; }, steps: [
       { say: "مثال: سنراجع كتابين معًا، لكل منهما عدد صفحاته. تابع اليد 👆", act: "wait", wait: 2200 },
