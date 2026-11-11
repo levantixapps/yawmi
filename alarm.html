@@ -123,7 +123,7 @@ button{font:inherit;cursor:pointer}
 .back:hover{border-color:var(--brass)}
 .head-start{display:flex;flex-wrap:wrap;align-items:center;gap:12px}
 /* inside the Android app: two icons at the bottom, the timer (this page) and the alarms («منبّهاتي» in the app) */
-.apptabs{position:fixed;inset-inline:0;bottom:0;z-index:5;display:grid;grid-template-columns:1fr 1fr;background:var(--panel);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
+.apptabs{position:fixed;inset-inline:0;bottom:0;z-index:5;display:grid;grid-template-columns:1fr 1fr 1fr;background:var(--panel);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
 .apptabs button{border:0;background:none;color:var(--muted);font:inherit;font-size:.85rem;font-weight:600;padding:8px 0 10px;display:grid;justify-items:center;gap:2px;cursor:pointer}
 .apptabs button b{font-size:1.45rem;line-height:1.2}
 .apptabs button[aria-current="page"]{color:var(--brass)}
@@ -684,11 +684,11 @@ if(native){
   for(const n of['sound','level','kind'])document.querySelector(`input[name=${n}]`).closest('fieldset').hidden=true;
   $('tryBtn').hidden=true;$('startBtn').textContent='ابدأ المؤقت';
   document.querySelector('.head h1').textContent='⏱ المؤقت';
-  $('foot').textContent='يرن المؤقت والجوال مقفل، ويتوقف بعبارتك بصوتك إن سجّلتها، وإلا بلغز سهل.';
+  $('foot').textContent='يرن المؤقت والجوال مقفل. طريقة إيقافه وأنشودته من ⚙ الإعدادات.';
   const tabs=document.createElement('nav');tabs.className='apptabs';tabs.setAttribute('aria-label','المؤقت والمنبّه');
-  tabs.innerHTML='<button type="button" aria-current="page"><b>⏱</b>المؤقت</button><button type="button" id="toAlarms"><b>⏰</b>المنبّه</button>';
+  tabs.innerHTML='<button type="button" aria-current="page"><b>⏱</b>المؤقت</button><button type="button" id="toAlarms"><b>⏰</b>المنبّه</button><button type="button" id="toSet"><b>⚙</b>الإعدادات</button>';
   document.body.appendChild(tabs);document.body.classList.add('inapp');
-  $('toAlarms').addEventListener('click',()=>toPhone('list'));
+  $('toAlarms').addEventListener('click',()=>toPhone('list'));$('toSet').addEventListener('click',()=>toPhone('settings'));
   formUI();
   $('recPhrase').addEventListener('click',()=>toPhone('record',`&phrase=${encodeURIComponent($('phrase').value.trim().slice(0,120))}`));
   const b=document.createElement('button');b.type='button';b.className='btn ghost small';b.textContent='🎵 اختر أنشودة المنبّه';
