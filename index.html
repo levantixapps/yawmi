@@ -2972,7 +2972,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
         : canPush ? "إشعار في موعد كل مهمة لها وقت، حتى والتطبيق مغلق، مع صوت قصير والتطبيق مفتوح."
         : "صوت وإشعار في موعد كل مهمة لها وقت، ما دام التطبيق مفتوحًا أو في الخلفية." + (pushSupported() && !nat ? " ولتصلك والتطبيق مغلق فعّل الحفظ السحابي." : "")) + '</p>' +
       '<div class="row-wrap"><button class="' + (alerts.on ? "btn" : "ghost") + '" data-act="alertsOn" aria-pressed="' + alerts.on + '">' + (alerts.on ? "🔔 التنبيهات مفعّلة" : "🔕 فعّل التنبيهات") + '</button>' +
-      (!alerts.on ? "" : nat ? '<button class="ghost" data-act="natSettings">⚙ جرّب تنبيهًا وإعداداته</button>' : pushOn ? '<button class="ghost" data-act="pushTest">🔔 إشعار تجريبي</button>' : '<button class="ghost" data-act="alertTest">جرّب الصوت</button>') + '</div>';
+      (!alerts.on ? "" : nat ? (natV() >= 16 ? '<button class="ghost" data-act="natTest">🔔 جرّب تنبيهًا بعد دقيقة</button>' : '<button class="ghost" data-act="natSettings">⚙ جرّب تنبيهًا وإعداداته</button>') : pushOn ? '<button class="ghost" data-act="pushTest">🔔 إشعار تجريبي</button>' : '<button class="ghost" data-act="alertTest">جرّب الصوت</button>') + '</div>';
     if (alerts.on) {
       h += '<div class="rangeseg" style="margin-top:4px">' + [[0, "عند البدء"], [5, "قبل ٥ دقائق"], [10, "قبل ١٠ دقائق"]].map(function (o) {
         return '<button data-act="alertLead" data-v="' + o[0] + '" aria-pressed="' + ((alerts.lead || 0) === o[0]) + '">' + o[1] + '</button>';
@@ -3284,6 +3284,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     } else { try { new Notification(title, opts); } catch (e) {} }
   }
   // In the Android app: what was last handed to the phone, and a way to its own settings (count, next one, a test reminder)
+  function natV() { try { return +localStorage.getItem("yawmi-native-v") || 0; } catch (e) { return 0; } } // the app's version (16 = 1.7: test link, no task part in its own ⚙)
   function natKey() { try { return localStorage.getItem("yawmi-native") || ""; } catch (e) { return ""; } }
   // In the Android app: what was last handed to the phone
   function natTasksHtml() {
@@ -3476,6 +3477,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
         if (slit) { delete slit.a; delete slit.lg; }
         state.shop.log = state.shop.log.filter(function (x) { return x.id !== b.dataset.lid; });
         ui.shopLogDel = null; commit(); toast("حُذف من الإحصاء"); break;
+      case "natTest": location.href = "intent://tasktest?k=" + natKey() + "#Intent;scheme=yawmialarm;package=io.github.levantixapps.yawmi;end"; break;
       case "natSettings": try { location.href = "intent://settings?k=" + (localStorage.getItem("yawmi-native") || "") + "#Intent;scheme=yawmialarm;package=io.github.levantixapps.yawmi;end"; } catch (e) {} break;
       case "teamRenameNow": if (currentProfile()) teamRename(currentProfile()); break;
       case "spYes": spAnswer(true); break;
@@ -4212,7 +4214,8 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   // The Android app opens the page with ?native=<key>: kept, so the alarm can hand its time to the phone's own alarm
   try {
     var natK = (location.search.match(/[?&]native=([0-9a-f]{8,64})/) || [])[1];
-    if (natK) { localStorage.setItem("yawmi-native", natK); history.replaceState(null, "", location.pathname + location.hash); }
+    var natVer = (location.search.match(/[?&]nv=(\d{1,4})/) || [])[1];
+    if (natK) { localStorage.setItem("yawmi-native", natK); localStorage.setItem("yawmi-native-v", natVer || "0"); history.replaceState(null, "", location.pathname + location.hash); }
   } catch (e) {}
   try { var lockA = JSON.parse(localStorage.getItem("lock-timer-v1") || "null"); if (lockA && (lockA.phase === "running" || lockA.phase === "ringing")) alarmFrame(); } catch (e) {}
   document.addEventListener("keydown", function (e) { if (e.key === "Escape") { if (cal) closeCal(); closeSearch(); } });
