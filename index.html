@@ -899,8 +899,9 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     } catch (e) {}
     return "";
   }
+  var adopting = false; // set while the page reloads after linking, so the old data is not written back
   function persist() {
-    if (demo) return;
+    if (demo || adopting) return;
     try { localStorage.setItem(KEY, JSON.stringify(state)); }
     catch (e) { if (storageOk) toast("تعذّر الحفظ على هذا الجهاز"); storageOk = false; }
   }
@@ -2956,7 +2957,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   }
   function settingsView() {
     var th = themeNow();
-    var h = reqCardHtml() + (ui.addAsk ? '<section class="card"><h2>🔗 ربط هذا الجهاز بحسابك</h2><p class="small">فتحت رابط ربط جهاز. هذا الجهاز فيه حساب الآن، فإن تابعت يصبح حسابه الأول هو حسابك على جهازك الأساسي، وتُدمج فيه مهام هذا الجهاز، وتظهر عليه كل حساباتك.</p>' +
+    var h = reqCardHtml() + (ui.addAsk ? '<section class="card"><h2>🔗 ربط هذا الجهاز بحسابك</h2><p class="small">فتحت رابط ربط جهاز. <b>⚠️ سيُحذف كل ما على هذا الجهاز الآن</b> (حساباته ومهامه)، وتظهر بدلها حساباتك من جهازك الأساسي فقط، كما هي. إن كان فيه ما تحتاجه، انسخه أولًا من ⚙ ← 💾 البيانات ← «نسخ البيانات».</p>' +
       '<div class="row-wrap"><button class="btn" data-act="addYes">✓ متابعة الربط</button><button class="ghost" data-act="addNo">إلغاء</button></div></section>' : "") + (ui.teamInfo && cloud.role !== "secondary" && code ? teamLinkHtml(ui.teamInfo) : "") + setGroup("gen") + '<a class="guidelink" href="guide.html">📖 دليل استخدام «يومي» <span>كل الميزات خطوة بخطوة ←</span></a>';
     h += featsHtml();
     // 🔔 One section, one switch: the Android app hands tasks to the phone; a browser uses the server (when saving to the cloud) plus a sound
@@ -3520,7 +3521,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       case "newCode": createCode(); break;
       case "useCode": useCode($("codeInput").value); break;
       case "forget": forgetDevice(""); toast("فُصل الجهاز، وبياناتك باقية عليه وفي السحابة"); break;
-      case "mineStart": ui.setTab = "acc"; if (mainKey() && !ui.mineAsk) { ui.mineAsk = true; ui.tab = "settings"; render(); break; } mineStart(); break;
+      case "mineStart": ui.setTab = "acc"; if (hasLocal() && !ui.mineAsk) { ui.mineAsk = true; ui.tab = "settings"; render(); break; } mineStart(); break;
       case "mineCancel": mineStop(); ui.mineAsk = false; ui.mineAdd = false; ui.mineUrl = null; render(); break;
       case "mineAdd": ui.mineAdd = true; render(); break;
       case "mineApprove": mineApprove($("mineInput").value); break;
@@ -4381,6 +4382,9 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   /* ---------- LIMITS (supabase_v13.sql): one personal account and two teams each; more by asking the admin ---------- */
   var LIMITS_KEY = "yawmi-limits", limits = null;
   try { limits = JSON.parse(localStorage.getItem(LIMITS_KEY) || "null"); } catch (e) {}
+  function hasLocal() { // anything on this device that linking would remove
+    return !!mainKey() || profiles.list.length > 1 || Object.keys(state.days).some(function (k) { return k !== state.sample && !isEmptyDay(state.days[k]); });
+  }
   function mainKey() {
     var c = "", meta = {};
     try { c = localStorage.getItem(pkey("daily-planner-code", "main")) || ""; meta = JSON.parse(localStorage.getItem(pkey("daily-planner-link", "main")) || "{}"); } catch (e) {}
@@ -4560,7 +4564,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   }
   // Opened on the new device: a device that already has an account asks first, since it becomes this person's
   function mineAddLink(tk) {
-    if (mainKey() && ui.addAsk !== tk) { ui.addAsk = tk; ui.tab = "settings"; render(); window.scrollTo(0, 0); return; }
+    if (hasLocal() && ui.addAsk !== tk) { ui.addAsk = tk; ui.tab = "settings"; render(); window.scrollTo(0, 0); return; }
     ui.addAsk = null;
     if (!online()) return;
     sb.rpc("yawmi_mine_take", { p_token: tk, p_dev: devId(), p_label: deviceLabel() }).then(function (r) {
@@ -4596,15 +4600,18 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   function adoptPerson(p) {
     try {
       if (p.uname && !localStorage.getItem(pkey("yawmi-username", "main"))) localStorage.setItem(pkey("yawmi-username", "main"), p.uname);
-      if (profCode("main") !== p.key) {
-        var st = JSON.parse(localStorage.getItem(pkey("daily-planner-v3", "main")) || "null");
-        if (st && st.settings) { st.settings.updatedAt = 0; localStorage.setItem(pkey("daily-planner-v3", "main"), JSON.stringify(st)); } // the account's own setup wins
+      if (profCode("main") !== p.key) { // this device becomes a copy of the person's accounts: what was here is removed, not merged
+        profiles.list.filter(function (x) { return x.id !== "main"; }).forEach(dropProfile);
+        var st = blankState(); st.settings.updatedAt = 0;
+        localStorage.setItem(pkey("daily-planner-v3", "main"), JSON.stringify(st));
+        ["yawmi-dirty", "yawmi-pendinglog", "yawmi-native-tasks", "yawmi-cyc"].forEach(function (b) { localStorage.removeItem(pkey(b, "main")); });
+        if (p.uname) localStorage.setItem(pkey("yawmi-username", "main"), p.uname);
         localStorage.setItem(pkey("daily-planner-code", "main"), p.key);
         localStorage.setItem(pkey("daily-planner-link", "main"), JSON.stringify({ role: "primary", num: 1, chan: "" }));
       }
     } catch (e) {}
     toast("تم الربط ✓ جارٍ فتح حساباتك");
-    profiles.active = "main"; saveProfiles();
+    profiles.active = "main"; saveProfiles(); adopting = true;
     setTimeout(function () { location.reload(); }, 1200);
   }
   // On the person's device that already has the account: approve the code the new device shows
@@ -4632,7 +4639,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
         '<div><button class="ghost" data-act="mineCancel">إلغاء</button></div></section>';
     }
     if (ui.mineAsk) {
-      return h + '<p class="small"><b>هذا الجهاز فيه حساب الآن.</b> إن ربطته بحسابك على جهاز آخر، يصبح حسابه الأول هو حسابك الآخر، وتُدمج فيه مهام هذا الجهاز.</p>' +
+      return h + '<p class="small"><b>⚠️ سيُحذف كل ما على هذا الجهاز الآن</b> (حساباته ومهامه)، وتظهر بدلها حساباتك من جهازك الأساسي فقط، كما هي. إن كان فيه ما تحتاجه، انسخه أولًا من ⚙ ← 💾 البيانات ← «نسخ البيانات».</p>' +
         '<div class="row-wrap"><button class="btn" data-act="mineStart">متابعة</button><button class="ghost" data-act="mineCancel">إلغاء</button></div></section>';
     }
     if (mainKey()) {
