@@ -3227,7 +3227,35 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   }
 
   /* ---------- events ---------- */
-  function commit() { save(); render(); }
+  function commit() { save(); render(); natTasksSend(!!(navigator.userActivation && navigator.userActivation.isActive)); }
+  // In the Android app: today's and tomorrow's timed tasks are handed to the phone, which notifies them itself (offline, the
+  // app closed). Chrome opens an app link only from a tap, so a change waits for the next tap; and it is sent only when changed.
+  function natTasksList() {
+    var out = [], many = profiles.list.length > 1, lead = alerts.lead || 0;
+    if (!alerts.on) return out;
+    [0, 1].forEach(function (o) {
+      var k = keyOf(addDays(today(), o)), d = state.days[k];
+      if (!d) return;
+      arr(d.items).forEach(function (it) {
+        if (it.done || it.moved || !it.time || (it.important === false && it.urgent === false) || !isMine(it)) return;
+        var t = parseKey(k).getTime() + (toMin(it.time) - lead) * 60000;
+        if (t <= Date.now()) return;
+        out.push({ k: k + ":" + it.id + ":" + it.time, t: t, n: (many ? "[" + profileName() + "] " : "") + (lead ? "بعد " + lead + " دقائق" : "⏰ حان الوقت") + ": " + String(it.title).slice(0, 80), b: "الساعة " + it.time });
+      });
+    });
+    return out.slice(0, 40);
+  }
+  function natTasksSend(tap) {
+    var key = "", last = "";
+    try { key = localStorage.getItem("yawmi-native") || ""; last = localStorage.getItem(pkey("yawmi-native-tasks")) || ""; } catch (e) {}
+    if (!key || demo) return;
+    var list = natTasksList(), sig = keyOf(today()) + JSON.stringify(list.map(function (x) { return [x.k, x.t, x.n]; }));
+    if (sig === last || !tap) return;
+    try { localStorage.setItem(pkey("yawmi-native-tasks"), sig); } catch (e) {}
+    location.href = "intent://tasks?k=" + key + "&p=" + encodeURIComponent(PROFILE) + "&d=" + encodeURIComponent(JSON.stringify(list)) +
+      "#Intent;scheme=yawmialarm;package=io.github.levantixapps.yawmi;end";
+  }
+  document.addEventListener("click", function () { setTimeout(function () { natTasksSend(true); }, 0); }, true);
   function nowHM() { var n = new Date(); return pad(n.getHours()) + ":" + pad(n.getMinutes()); }
   function setSleep(k, field, v) {
     var d = day(k);
@@ -3324,10 +3352,11 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       navigator.serviceWorker.ready.then(function (reg) { reg.showNotification(title, opts); }, function () { try { new Notification(title, opts); } catch (e) {} });
     } else { try { new Notification(title, opts); } catch (e) {} }
   }
+  function natHas() { try { return !!localStorage.getItem("yawmi-native") && !!localStorage.getItem(pkey("yawmi-native-tasks")); } catch (e) { return false; } }
   function checkAlerts() {
     var k = keyOf(new Date()), now = new Date(), nm = now.getHours() * 60 + now.getMinutes(), many = profiles.list.length > 1;
     profiles.list.forEach(function (pf) {
-      var mine = pf.id === PROFILE, al = alerts, st = state, srv = pushOn;
+      var mine = pf.id === PROFILE, al = alerts, st = state, srv = pushOn || natHas(); // the phone (or the server) notifies it already
       if (!mine) {
         try {
           al = JSON.parse(localStorage.getItem(pkey("yawmi-alerts", pf.id)) || "null");
