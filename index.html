@@ -734,10 +734,24 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     ["kids", "👨‍👩‍👧 الأبناء"], ["cyc", "🌸 الدورة الشهرية"], ["shop", "🛒 المشتريات"], ["alarm", "⏰ المنبّه"], ["adhkar", "🤲 الأذكار"]];
   var hiddenF = {};
   try { hiddenF = JSON.parse(localStorage.getItem(pkey("yawmi-show")) || "{}") || {}; } catch (e) {}
-  function shown(k) { return !hiddenF[k]; }
+  // A person's own accounts keep the choice in their settings, so all their devices show the same; a team or a shared
+  // account keeps it on each device, so one member does not hide a feature from the others
+  var showSyncedV = null; // the account does not change without a reload
+  function showSynced() {
+    if (showSyncedV === null) { var pf = currentProfile(); showSyncedV = !(pf && (pf.team || pf.shared)) && profMeta(PROFILE).role !== "secondary"; }
+    return showSyncedV;
+  }
+  function hiddenNow() { return showSynced() && state && state.settings.show ? state.settings.show : hiddenF; }
+  function shown(k) { return !hiddenNow()[k]; }
   function setShown(k, on) {
     if (on) delete hiddenF[k]; else hiddenF[k] = 1;
     if (!demo) try { localStorage.setItem(pkey("yawmi-show"), JSON.stringify(hiddenF)); } catch (e) {}
+    if (showSynced()) { var h = {}; Object.keys(hiddenNow()).forEach(function (x) { h[x] = 1; }); if (on) delete h[k]; else h[k] = 1; state.settings.show = h; save(); }
+  }
+  // An older choice made on this device only goes up once, so the person's other devices take it
+  function showSeed() {
+    if (demo || !showSynced() || state.settings.show || !Object.keys(hiddenF).length) return false;
+    var h = {}; Object.keys(hiddenF).forEach(function (x) { h[x] = 1; }); state.settings.show = h; return true;
   }
   // Features with their own synced on/off: the checkbox in «الأقسام الظاهرة» is their only switch
   function featOn(k) {
@@ -913,7 +927,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   function itemsMap(d) { var m = {}; d.items.forEach(function (i) { m[i.id] = itemJson(i); }); return m; }
   function textJson(d) { return JSON.stringify([d.good, d.improve, d.notes, d.startAt, d.sleep || null]); }
   function daySnap(d) { return { m: itemsMap(d), t: textJson(d), a: JSON.stringify(d.applied), q: JSON.stringify(d.quran || null), k: JSON.stringify(d.kids || null), r: JSON.stringify(d.rmd || null), b: JSON.stringify(d.bk || null) }; }
-  function setJson() { return JSON.stringify([state.settings.categories, state.settings.routines, state.settings.sleep || null, state.settings.prayer || null, state.settings.quran || null, state.settings.templates || null, state.settings.goals || null, state.settings.team || null, state.settings.kids || null, state.settings.tcfg || null, state.settings.roles || null, state.settings.paths || null, state.settings.rejecters || null, state.settings.ramadan || null, state.settings.books || null, state.settings.cyc || null, state.settings.splan || null]); }
+  function setJson() { return JSON.stringify([state.settings.categories, state.settings.routines, state.settings.sleep || null, state.settings.prayer || null, state.settings.quran || null, state.settings.templates || null, state.settings.goals || null, state.settings.team || null, state.settings.kids || null, state.settings.tcfg || null, state.settings.roles || null, state.settings.paths || null, state.settings.rejecters || null, state.settings.ramadan || null, state.settings.books || null, state.settings.cyc || null, state.settings.splan || null, state.settings.show || null]); }
   function isEmptyDay(d) { return !d.items.length && !d.good && !d.improve && !d.notes && !(d.sleep && (d.sleep.bed || d.sleep.wake)) && !qHas(d) && !kHas(d) && !rHas(d) && !bHas(d); }
   function shopSnap() { var m = {}; state.shop.items.concat(state.shop.log).forEach(function (i) { m[i.id] = itemJson(i); }); return m; }
   function takeSnap() {
@@ -1301,7 +1315,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
 
   function render() {
     pendingRender = false;
-    if (applyRoutines(dk()) | spApplyAll()) save();
+    if (applyRoutines(dk()) | spApplyAll() | showSeed()) save();
     if (!ui.tab) ui.tab = defaultTab();
     renderHeader();
     var html = ui.tab === "settings" ? "" : focusBar();
@@ -5620,13 +5634,13 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       if (msj !== JSON.stringify(mergeShop(rshop))) upload = true;
       var rs = row.settings, rst = rs ? (rs.updatedAt || 0) : -1, lst = state.settings.updatedAt || 0;
       if (rs && rst > lst) {
-        state.settings = { categories: arr(rs.categories).length ? rs.categories : defaultCats(), routines: arr(rs.routines), sleep: rs.sleep || state.settings.sleep, prayer: rs.prayer || state.settings.prayer, quran: rs.quran || state.settings.quran, templates: rs.templates || state.settings.templates, goals: rs.goals || state.settings.goals, team: rs.team || state.settings.team, kids: rs.kids || state.settings.kids, tcfg: rs.tcfg || state.settings.tcfg, roles: rs.roles || state.settings.roles, paths: rs.paths || state.settings.paths, rejecters: rs.rejecters || state.settings.rejecters, ramadan: rs.ramadan || state.settings.ramadan, books: rs.books || state.settings.books, cyc: rs.cyc || state.settings.cyc, splan: rs.splan || state.settings.splan, updatedAt: rst };
+        state.settings = { categories: arr(rs.categories).length ? rs.categories : defaultCats(), routines: arr(rs.routines), sleep: rs.sleep || state.settings.sleep, prayer: rs.prayer || state.settings.prayer, quran: rs.quran || state.settings.quran, templates: rs.templates || state.settings.templates, goals: rs.goals || state.settings.goals, team: rs.team || state.settings.team, kids: rs.kids || state.settings.kids, tcfg: rs.tcfg || state.settings.tcfg, roles: rs.roles || state.settings.roles, paths: rs.paths || state.settings.paths, rejecters: rs.rejecters || state.settings.rejecters, ramadan: rs.ramadan || state.settings.ramadan, books: rs.books || state.settings.books, cyc: rs.cyc || state.settings.cyc, splan: rs.splan || state.settings.splan, show: rs.show || state.settings.show, updatedAt: rst };
         snap._s = setJson(); changed = true;
       } else if (lst > rst) upload = true;
       fixState(); persist();
       if (changed) softRender();
       if (!upload) { cloud.stamp = typeof row.stamp === "string" ? row.stamp : ""; cloud.sbase = base; saveCode(); return; }
-      var data = { base_date: todayKey, settings: { categories: state.settings.categories, routines: state.settings.routines, sleep: state.settings.sleep, prayer: state.settings.prayer || null, quran: state.settings.quran || null, templates: state.settings.templates || null, goals: state.settings.goals || null, team: state.settings.team || null, kids: state.settings.kids || null, tcfg: state.settings.tcfg || null, roles: state.settings.roles || null, paths: state.settings.paths || null, rejecters: state.settings.rejecters || null, ramadan: state.settings.ramadan || null, books: state.settings.books || null, cyc: state.settings.cyc || null, splan: state.settings.splan || null, shop: state.shop, updatedAt: state.settings.updatedAt || 0 } };
+      var data = { base_date: todayKey, settings: { categories: state.settings.categories, routines: state.settings.routines, sleep: state.settings.sleep, prayer: state.settings.prayer || null, quran: state.settings.quran || null, templates: state.settings.templates || null, goals: state.settings.goals || null, team: state.settings.team || null, kids: state.settings.kids || null, tcfg: state.settings.tcfg || null, roles: state.settings.roles || null, paths: state.settings.paths || null, rejecters: state.settings.rejecters || null, ramadan: state.settings.ramadan || null, books: state.settings.books || null, cyc: state.settings.cyc || null, splan: state.settings.splan || null, show: state.settings.show || null, shop: state.shop, updatedAt: state.settings.updatedAt || 0 } };
       windowKeys().forEach(function (k, i) { data[COLS[i]] = merged[k] ? toRemote(k, merged[k]) : null; });
       return rpc("save", { p_code: code, p_data: data }).then(function (r2) {
         if (r2.error) throw r2.error;
