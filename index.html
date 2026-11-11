@@ -757,7 +757,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   }
   function featsHtml() {
     return '<section><h2>الأقسام الظاهرة</h2><p class="small muted">أظهر ما تستعمله فقط. ضع علامة على الميزة لتشغيلها، ثم تجد إعداداتها في تبويبها. ما تخفيه لا يُحذف، ويعود كما كان إن أظهرته، والإخفاء لك وحدك على هذا الجهاز.</p>' +
-      '<div class="showgrid">' + FEATS.map(function (f) {
+      '<div class="showgrid">' + FEATS.filter(function (f) { return f[0] !== "alarm" || natKey(); }).map(function (f) {
         return '<label class="showf"><input type="checkbox" class="check" data-act="showF" data-k="' + f[0] + '"' + (shown(f[0]) && featOn(f[0]) ? " checked" : "") + '> ' + f[1] + '</label>';
       }).join("") + '</div></section>';
   }
@@ -1286,7 +1286,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     document.querySelectorAll(".tab").forEach(function (b) { b.setAttribute("aria-current", b.dataset.tab === ui.tab ? "true" : "false"); });
     var ftab = document.querySelector('.tab[data-tab="flows"]'); if (ftab) ftab.hidden = !flowsTab();
     var stab = document.querySelector('.tab[data-tab="shop"]'); if (stab) stab.hidden = !shopOn();
-    $("alarmBtn").hidden = !shown("alarm"); $("adBtn").hidden = !shown("adhkar");
+    $("alarmBtn").hidden = !shown("alarm") || !natKey(); // a page alarm rings only while the page is open: kept for the Android app $("adBtn").hidden = !shown("adhkar");
     var sn = shopLeft().length; $("shopCount").textContent = sn ? "🛒 " + sn : "🛒";
     var dot = $("cloudDot");
     dot.hidden = cloud.status === "off" || cloud.status === "nocode";
