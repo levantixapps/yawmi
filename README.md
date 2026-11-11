@@ -20,7 +20,7 @@
 |---|---|
 | `index.html` | المنصة كاملة |
 | `config.js` | رابط Supabase ومفتاحه العام |
-| `supabase.sql` | إنشاء الجدول والدوال في Supabase |
+| `sql/setup.sql` | قاعدة البيانات كاملة في Supabase (ملف واحد، والقديمة في `sql/old/`) |
 | `sw.js` | العمل بدون إنترنت |
 | `manifest.webmanifest` | التثبيت كتطبيق |
 | `icon.svg`, `icon-192.png`, `icon-512.png` | الأيقونة |
