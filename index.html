@@ -4597,7 +4597,21 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   }
   // This device now carries the person's key in its first account; what was written here merges into it.
   // The other accounts arrive on reload (meLoad).
+  // Before this device takes the person's accounts: it leaves the teams and shared accounts it had joined by link,
+  // so it no longer shows as a separate member there. Groups it leads are left alone (removing them would end them for everyone).
   function adoptPerson(p) {
+    var left = profiles.list.filter(function (x) { var k = profKind(x); return x.id !== "main" && (k === "member" || k === "shared"); });
+    if (!left.length || profCode("main") === p.key || !sb) { adoptNow(p); return; }
+    toast("جارٍ الخروج من مجموعات هذا الجهاز…");
+    var n = left.length, once = false, fin = function () { if (!once) { once = true; adoptNow(p); } };
+    setTimeout(fin, 6000); // never wait long on the network
+    pushEndpoint(function (ep) {
+      left.forEach(function (x) {
+        sb.rpc("yawmi_remove", { p_key: profCode(x.id), p_endpoint: ep }).then(function () { if (--n === 0) fin(); }, function () { if (--n === 0) fin(); });
+      });
+    });
+  }
+  function adoptNow(p) {
     try {
       if (p.uname && !localStorage.getItem(pkey("yawmi-username", "main"))) localStorage.setItem(pkey("yawmi-username", "main"), p.uname);
       if (profCode("main") !== p.key) { // this device becomes a copy of the person's accounts: what was here is removed, not merged
