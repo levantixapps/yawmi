@@ -198,6 +198,11 @@ button{font:inherit;cursor:pointer}
           </div>
           <p class="hint" id="soundHint"></p>
         </fieldset>
+        <fieldset id="phraseBox" hidden>
+          <legend>عبارة تعيدها بصوتك</legend>
+          <input type="text" id="phrase" maxlength="120" value="الحمد لله الذي أحيانا بعد ما أماتنا وإليه النشور">
+          <p class="hint">عند الرنين يقرؤها الجوال بصوت مسموع، وتعيدها أنت فيتوقف المنبّه. اتركها فارغة لتحل لغزًا بدلًا منها.</p>
+        </fieldset>
         <fieldset>
           <legend>صعوبة اللغز</legend>
           <div class="seg">
@@ -366,13 +371,14 @@ function loadState(){
   }catch(e){storageFailed()}
   return null;
 }
-function savePrefs(){try{localStorage.setItem(PREF,JSON.stringify({mode:val('mode'),at:$('at').value,label:$('label').value,sound:val('sound'),level:val('level'),kind:val('kind')}))}catch(e){}}
+function savePrefs(){try{localStorage.setItem(PREF,JSON.stringify({mode:val('mode'),at:$('at').value,label:$('label').value,phrase:$('phrase').value,sound:val('sound'),level:val('level'),kind:val('kind')}))}catch(e){}}
 function loadPrefs(){
   try{
     const p=JSON.parse(localStorage.getItem(PREF)||'null');if(!p)return;
     for(const n of['mode','sound','level','kind']){const i=document.querySelector(`input[name=${n}][value="${p[n]}"]`);if(i)i.checked=true}
     if(/^\d{2}:\d{2}$/.test(p.at||''))$('at').value=p.at;
     if(typeof p.label==='string')$('label').value=p.label.slice(0,60);
+    if(typeof p.phrase==='string')$('phrase').value=p.phrase.slice(0,120);
   }catch(e){}
 }
 function storageFailed(){$('foot').textContent='هذا المتصفح لا يسمح بحفظ المنبّه، لذلك سيضيع إذا حدّثت الصفحة أو أغلقتها. أبقِ الصفحة مفتوحة.'}
@@ -477,7 +483,7 @@ function startTimer(){
   if(f.mode==='clock'&&!f.endAt){setNote('اختر الساعة التي يرن فيها المنبّه.');return}
   if(f.mode==='countdown'&&f.dur<5000){setNote('اختر مدة لا تقل عن 5 ثوانٍ.');return}
   if(f.sound==='file'&&!song&&!native){setNote('اختر الأنشودة أولاً، أو اختر «صوت تنبيه».');return}
-  if(native)toPhone('set',`&at=${f.endAt}&label=${encodeURIComponent(f.label)}&level=${f.level}&sound=${f.sound}`);
+  if(native)toPhone('set',`&at=${f.endAt}&label=${encodeURIComponent(f.label)}&level=${f.level}&sound=${f.sound}&phrase=${encodeURIComponent($('phrase').value.trim().slice(0,120))}`);
   savePrefs();if(!native)audioStart();
   S={phase:'running',endAt:f.endAt,dur:f.dur,label:f.label,level:f.level,kind:f.kind,solved:0,mode:f.mode,at:f.at,sound:f.sound};
   armAlarm(f.dur/1000);
@@ -663,7 +669,7 @@ if(restored){
   if(S.phase==='ringing'){P={purpose:'alarm',level:S.level,kind:S.kind,wrong:0};nextPuzzle()}
 }
 if(native){
-  $('file').closest('label').hidden=true;$('listen').remove();
+  $('file').closest('label').hidden=true;$('listen').remove();$('phraseBox').hidden=false;
   const b=document.createElement('button');b.type='button';b.className='btn ghost small';b.textContent='🎵 اختر أنشودة المنبّه';
   b.addEventListener('click',()=>toPhone('sound'));$('fileBox').prepend(b);
   const l=document.createElement('button');l.id='listen';l.hidden=true;document.body.appendChild(l);
