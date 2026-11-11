@@ -4226,6 +4226,11 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     if (e.origin !== location.origin || !e.data || !e.data.lockAlarm) return;
     alarmShow(e.data.lockAlarm === "ring");
   });
+  // The Android app opens the page with ?native=<key>: kept, so the alarm can hand its time to the phone's own alarm
+  try {
+    var natK = (location.search.match(/[?&]native=([0-9a-f]{8,64})/) || [])[1];
+    if (natK) { localStorage.setItem("yawmi-native", natK); history.replaceState(null, "", location.pathname + location.hash); }
+  } catch (e) {}
   try { var lockA = JSON.parse(localStorage.getItem("lock-timer-v1") || "null"); if (lockA && (lockA.phase === "running" || lockA.phase === "ringing")) alarmFrame(); } catch (e) {}
   document.addEventListener("keydown", function (e) { if (e.key === "Escape") { if (cal) closeCal(); closeSearch(); } });
   $("titleBtn").addEventListener("click", openJump);
