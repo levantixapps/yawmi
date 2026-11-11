@@ -671,6 +671,8 @@ if(restored){
 }
 if(native){
   $('file').closest('label').hidden=true;$('listen').remove();$('phraseBox').hidden=false;
+  const lb=document.createElement('button');lb.type='button';lb.className='btn small';lb.textContent='📋 منبّهاتي: حسب الأيام، ولكلٍّ أنشودته';
+  lb.addEventListener('click',()=>toPhone('list'));$('setup').prepend(lb);
   $('recPhrase').addEventListener('click',()=>toPhone('record',`&phrase=${encodeURIComponent($('phrase').value.trim().slice(0,120))}`));
   const b=document.createElement('button');b.type='button';b.className='btn ghost small';b.textContent='🎵 اختر أنشودة المنبّه';
   b.addEventListener('click',()=>toPhone('sound'));$('fileBox').prepend(b);
