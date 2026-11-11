@@ -201,7 +201,8 @@ button{font:inherit;cursor:pointer}
         <fieldset id="phraseBox" hidden>
           <legend>عبارة تعيدها بصوتك</legend>
           <input type="text" id="phrase" maxlength="120" value="الحمد لله الذي أحيانا بعد ما أماتنا وإليه النشور">
-          <p class="hint">عند الرنين يقرؤها الجوال بصوت مسموع، وتعيدها أنت فيتوقف المنبّه. اتركها فارغة لتحل لغزًا بدلًا منها.</p>
+          <div class="row" style="margin-top:6px"><button type="button" class="btn ghost small" id="recPhrase">🎙 سجّل العبارة بصوتك</button></div>
+          <p class="hint">سجّلها بصوتك مرتين، وعند الرنين تقولها فيتوقف المنبّه إن تشابه صوتك مع تسجيلك ٦٠٪. دون تسجيل يظهر لغز.</p>
         </fieldset>
         <fieldset>
           <legend>صعوبة اللغز</legend>
@@ -670,6 +671,7 @@ if(restored){
 }
 if(native){
   $('file').closest('label').hidden=true;$('listen').remove();$('phraseBox').hidden=false;
+  $('recPhrase').addEventListener('click',()=>toPhone('record',`&phrase=${encodeURIComponent($('phrase').value.trim().slice(0,120))}`));
   const b=document.createElement('button');b.type='button';b.className='btn ghost small';b.textContent='🎵 اختر أنشودة المنبّه';
   b.addEventListener('click',()=>toPhone('sound'));$('fileBox').prepend(b);
   const l=document.createElement('button');l.id='listen';l.hidden=true;document.body.appendChild(l);
