@@ -3252,6 +3252,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     var list = natTasksList(), sig = keyOf(today()) + JSON.stringify(list.map(function (x) { return [x.k, x.t, x.n]; }));
     if (sig === last || !tap) return;
     try { localStorage.setItem(pkey("yawmi-native-tasks"), sig); } catch (e) {}
+    toast("📲 أُرسلت تنبيهات " + list.length + " مهام إلى الجوال");
     location.href = "intent://tasks?k=" + key + "&p=" + encodeURIComponent(PROFILE) + "&d=" + encodeURIComponent(JSON.stringify(list)) +
       "#Intent;scheme=yawmialarm;package=io.github.levantixapps.yawmi;end";
   }
