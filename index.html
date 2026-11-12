@@ -5782,6 +5782,8 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
 <script>
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js").catch(function () {}); });
+  // Ask the browser to keep this app's saved copy and data even when the phone runs low on space (offline use depends on it)
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persisted().then(function (p) { if (!p) navigator.storage.persist(); }); } catch (e) {}
 }
 </script>
 </body>

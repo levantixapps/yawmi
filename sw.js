@@ -1,11 +1,17 @@
 // Offline support: the app shell is served network-first (so updates arrive),
 // fonts and the Supabase library cache-first. Personal data never passes through here;
 // it lives in the browser's localStorage.
-var CACHE = "yawmi-v124";
+var CACHE = "yawmi-v125";
 var CORE = ["./", "index.html", "guide.html", "alarm.html", "config.js", "manifest.webmanifest", "icon.svg", "icon-192.png", "icon-512.png"];
 
+// Each file is stored on its own, so one failed file does not leave the app without its copy. Only the page itself is
+// required: without it this version is not installed, and the previous one (with its copy) stays.
 self.addEventListener("install", function (e) {
-  e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(CORE.map(function (u) { return new Request(u, { cache: "reload" }); })); }).then(function () { return self.skipWaiting(); }));
+  e.waitUntil(caches.open(CACHE).then(function (c) {
+    return Promise.all(CORE.map(function (u) { return c.add(new Request(u, { cache: "reload" })).catch(function () {}); }))
+      .then(function () { return c.match("index.html"); })
+      .then(function (r) { if (!r) throw new Error("index.html not stored"); });
+  }).then(function () { return self.skipWaiting(); }));
 });
 
 self.addEventListener("activate", function (e) {
@@ -32,7 +38,14 @@ self.addEventListener("fetch", function (e) {
   if (url.origin === self.location.origin) {
     // Network first, but a weak or dead connection can hang for a long time:
     // after 3 seconds the saved copy opens instead, and the fresh one is still stored when it arrives.
-    var cached = function () { return caches.match(req).then(function (r) { return r || caches.match("index.html"); }); };
+    // The Android app opens the page with ?native=…&nv=…: the saved copy is found whatever follows "?"
+    var page = req.mode === "navigate";
+    var cached = function () {
+      return caches.match(req, { ignoreSearch: true }).then(function (r) {
+        if (r || !page) return r;
+        return caches.match("index.html", { ignoreSearch: true }).then(function (x) { return x || caches.match("./", { ignoreSearch: true }); });
+      });
+    };
     e.respondWith(new Promise(function (resolve, reject) {
       var done = false, finish = function (r) { if (!done && r) { done = true; resolve(r); } };
       var timer = setTimeout(function () { cached().then(finish); }, 3000);
@@ -43,7 +56,11 @@ self.addEventListener("fetch", function (e) {
       catch (err) { fresh = fetch(req); }
       fresh.then(function (res) { return store(req, res); }).then(function (res) { clearTimeout(timer); finish(res); }, function () {
         clearTimeout(timer);
-        cached().then(function (r) { if (r) finish(r); else if (!done) { done = true; reject(new Error("offline")); } });
+        cached().then(function (r) {
+          if (r) finish(r);
+          else if (page) finish(offlinePage()); // never the browser's error page
+          else if (!done) { done = true; reject(new Error("offline")); }
+        });
       });
     }));
     return;
@@ -57,6 +74,15 @@ self.addEventListener("fetch", function (e) {
     );
   }
 });
+
+// Only when no copy was ever saved on this device (opened for the first time without internet)
+function offlinePage() {
+  return new Response('<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
+    '<title>يومي</title><body style="font-family:system-ui,sans-serif;text-align:center;padding:48px 20px;color:#1f2a24;background:#f6f4ee">' +
+    '<h1 style="font-size:1.4rem">«يومي» يحتاج الإنترنت مرة واحدة</h1><p>افتحه مرة والإنترنت متصل، فيُحفظ على جهازك ويعمل بعدها دون إنترنت.</p>' +
+    '<p><button onclick="location.reload()" style="font-size:1rem;padding:10px 22px;border-radius:10px;border:0;background:#2f7d5b;color:#fff">حاول من جديد</button></p></body></html>',
+    { headers: { "Content-Type": "text/html; charset=utf-8" } });
+}
 
 // Notifications sent by the yawmi-push function, even when the app is closed
 self.addEventListener("push", function (e) {
