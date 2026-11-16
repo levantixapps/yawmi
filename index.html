@@ -732,6 +732,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   // so in a shared family account one member's choice doesn't hide it for the others.
   var FEATS = [["sleep", "🌙 خطة النوم"], ["pray", "🕌 أوقات الصلاة"], ["ramadan", "☪️ رمضان"], ["quran", "📖 القرآن"], ["books", "📚 الكتب"],
     ["kids", "👨‍👩‍👧 الأبناء"], ["cyc", "🌸 الدورة الشهرية"], ["shop", "🛒 المشتريات"], ["alarm", "⏰ المنبّه"], ["adhkar", "🤲 الأذكار"]];
+  var TEAM_FEATS = ["pray", "quran", "adhkar", "alarm"]; // the others are always off in a team account (a work account)
   var hiddenF = {};
   try { hiddenF = JSON.parse(localStorage.getItem(pkey("yawmi-show")) || "{}") || {}; } catch (e) {}
   // A person's own accounts keep the choice in their settings, so all their devices show the same; a team or a shared
@@ -775,7 +776,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       (many ? '<b>لكل حساب اختياره:</b> ما تختاره هنا لهذا الحساب فقط، فانتقل إلى كل حساب واختر له ما يناسبه. ' : '') +
       'أظهر ما تستعمله فقط. ضع علامة على الميزة لتشغيلها، ثم تجد إعداداتها في تبويبها. ما تخفيه لا يُحذف، ويعود كما كان إن أظهرته.' +
       (showSynced() ? (many ? ' ويتطابق على كل أجهزتك.' : '') : ' والإخفاء في هذا الحساب لك وحدك على هذا الجهاز.') + '</p>' +
-      '<div class="showgrid">' + FEATS.filter(function (f) { return f[0] !== "alarm" || natKey(); }).map(function (f) {
+      '<div class="showgrid">' + FEATS.filter(function (f) { return (f[0] !== "alarm" || natKey()) && (!isTeamOnly() || TEAM_FEATS.indexOf(f[0]) >= 0); }).map(function (f) {
         return '<label class="showf"><input type="checkbox" class="check" data-act="showF" data-k="' + f[0] + '"' + (shown(f[0]) && featOn(f[0]) ? " checked" : "") + '> ' + f[1] + '</label>';
       }).join("") + '</div></section>';
   }
