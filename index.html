@@ -2974,11 +2974,22 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     return '<details class="changes"><summary>سجل التغييرات (' + lines.length + ')</summary><ul class="loglist">' +
       lines.map(function (l) { return '<li><span>' + esc(l) + '</span></li>'; }).join("") + '</ul></details>';
   }
+  // One part of the settings that fails shows a short line naming it, instead of leaving the whole page empty
+  function safe(fn, name) {
+    try { return fn(); } catch (e) { return '<p class="err small">⚠️ تعذّر عرض جزء من الإعدادات (' + name + '): ' + esc(String(e && e.message || e)) + '</p>'; }
+  }
   function settingsView() {
+    try { return settingsViewInner(); } catch (e) {
+      var at = String(e && e.stack || "").split(/\n/).slice(0, 3).join(" ← ");
+      return '<section class="card"><h2>⚠️ تعذّر عرض الإعدادات</h2><p class="small">أرسل صورة هذه الرسالة للمطوّر:</p><p class="small err" dir="ltr" style="word-break:break-all">' +
+        esc(String(e && e.message || e)) + '<br>' + esc(at.slice(0, 400)) + '</p><div class="row-wrap"><button class="ghost" data-act="tab" data-tab="day">رجوع إلى جدولي</button></div></section>';
+    }
+  }
+  function settingsViewInner() {
     var th = themeNow();
-    var h = reqCardHtml() + (ui.addAsk ? '<section class="card"><h2>🔗 ربط هذا الجهاز بحسابك</h2><p class="small">فتحت رابط ربط جهاز. <b>⚠️ سيُحذف كل ما على هذا الجهاز الآن</b> (حساباته ومهامه)، وتظهر بدلها حساباتك من جهازك الأساسي فقط، كما هي. إن كان فيه ما تحتاجه، انسخه أولًا من ⚙ ← 💾 البيانات ← «نسخ البيانات».</p>' +
+    var h = safe(reqCardHtml, "reqCardHtml") + (ui.addAsk ? '<section class="card"><h2>🔗 ربط هذا الجهاز بحسابك</h2><p class="small">فتحت رابط ربط جهاز. <b>⚠️ سيُحذف كل ما على هذا الجهاز الآن</b> (حساباته ومهامه)، وتظهر بدلها حساباتك من جهازك الأساسي فقط، كما هي. إن كان فيه ما تحتاجه، انسخه أولًا من ⚙ ← 💾 البيانات ← «نسخ البيانات».</p>' +
       '<div class="row-wrap"><button class="btn" data-act="addYes">✓ متابعة الربط</button><button class="ghost" data-act="addNo">إلغاء</button></div></section>' : "") + (ui.teamInfo && cloud.role !== "secondary" && code ? teamLinkHtml(ui.teamInfo) : "") + setGroup("gen") + '<a class="guidelink" href="guide.html">📖 دليل استخدام «يومي» <span>كل الميزات خطوة بخطوة ←</span></a>';
-    h += featsHtml();
+    h += safe(featsHtml, "featsHtml");
     // 🔔 One section, one switch: the Android app hands tasks to the phone; a browser uses the server (when saving to the cloud) plus a sound
     var perm = "Notification" in window ? Notification.permission : "unsupported", nat = natKey(), canPush = !nat && pushSupported() && !!(sb && code);
     h += '<section><h2>🔔 التنبيهات</h2><p class="small muted">' +
@@ -2991,7 +3002,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       h += '<div class="rangeseg" style="margin-top:4px">' + [[0, "عند البدء"], [5, "قبل ٥ دقائق"], [10, "قبل ١٠ دقائق"]].map(function (o) {
         return '<button data-act="alertLead" data-v="' + o[0] + '" aria-pressed="' + ((alerts.lead || 0) === o[0]) + '">' + o[1] + '</button>';
       }).join("") + '</div>';
-      if (nat) h += natTasksHtml();
+      if (nat) h += safe(natTasksHtml, "natTasksHtml");
       else {
         h += '<div class="row-wrap"><button class="ghost" data-act="alertSound" aria-pressed="' + alerts.sound + '">' + (alerts.sound ? "🔊 الصوت مفعّل" : "🔇 بدون صوت") + '</button>' +
           (canPush && !pushOn ? '<button class="ghost" data-act="pushOn">📲 فعّلها والتطبيق مغلق</button>' : "") +
@@ -3012,9 +3023,9 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     h += '<section><h2>اسمك</h2><input class="field" value="' + esc(userName) + '" data-act="uname" placeholder="اسمك" aria-label="اسمك"><p class="small muted">يظهر لمسؤول الفريق مع سجل تغييراتك.</p></section>';
     h += '<section><h2>🎬 شاهد كيف يعمل</h2><p class="small muted">يد تستعمل التطبيق أمامك على مثال، ثم يعود كل شيء كما كان.</p><div class="row-wrap">' +
       Object.keys(DEMOS).map(function (k) { return '<button class="ghost" data-act="demo" data-d="' + k + '">' + DEMOS[k].name + '</button>'; }).join("") + '</div></section>' +
-      shareHtml();
+      safe(shareHtml, "shareHtml");
     h += setGroup("acc");
-    if (sb) h += myDevicesHtml();
+    if (sb) h += safe(myDevicesHtml, "myDevicesHtml");
     h += '<section id="accounts"><h2>الحسابات</h2><p class="small muted">لكل حساب يومه ومهامه وتقاريره وكوده السحابي المستقل، مثل حياتك الشخصية والعمل.</p><ul class="list">' +
       profiles.list.map(function (pf) {
         var isNow = pf.id === PROFILE;
@@ -3115,15 +3126,15 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     }
     h += '</section>';
     }
-    h += quranSettingsHtml();
-    if (!isTeamOnly()) h += (shown("kids") ? kidsSettingsHtml() : "") + (shown("cyc") ? cycSettingsHtml() : "");
+    h += safe(quranSettingsHtml, "quranSettingsHtml");
+    if (!isTeamOnly()) h += (shown("kids") ? safe(kidsSettingsHtml, "kidsSettingsHtml") : "") + (shown("cyc") ? safe(cycSettingsHtml, "cycSettingsHtml") : "");
     h += setGroup("plan");
-    h += booksSettingsHtml();
-    h += focusSettingsHtml();
+    h += safe(booksSettingsHtml, "booksSettingsHtml");
+    h += safe(focusSettingsHtml, "focusSettingsHtml");
 
     if (memberLock()) h += '<section><h2>إعدادات الفريق</h2><p class="small muted">🔒 التقسيمات والمهام الدائمة والقوالب والأهداف يعدّلها مسؤول الفريق، وتصلك تلقائيًا.</p></section>';
     else {
-    if (!isTeamOnly() && shown("sleep")) h += spSettingsHtml();
+    if (!isTeamOnly() && shown("sleep")) h += safe(spSettingsHtml, "spSettingsHtml");
     h += '<section><h2>المهام الدائمة</h2><p class="muted small">تنزل تلقائيًا في الأيام التي تختارها، مثل قراءة القرآن كل يوم، أو دراسة القانون أيام الدوام.</p>' +
       '<div class="card"><form class="stack" data-form="routine" style="gap:8px">' +
       '<input class="field" id="rTitle" type="text" placeholder="اسم المهمة، مثل: حفظ صفحة" autocomplete="off">' +
@@ -3141,7 +3152,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     }).join("") + '</ul>';
     h += '</section>';
 
-    h += tplSettingsHtml();
+    h += safe(tplSettingsHtml, "tplSettingsHtml");
     h += '<section><h2>التقسيمات</h2><p class="muted small">اضغط على اللون لتغييره، وعلى الاسم لتعديله.</p><ul class="list">' + cats().map(function (c) {
       return '<li class="catedit"><button class="colorbtn" style="--cc:var(--c' + c.color + ')" data-act="catColor" data-id="' + esc(c.id) + '" aria-label="تغيير اللون"><i></i></button>' +
         '<input class="field" style="flex:1" value="' + esc(c.name) + '" data-act="catName" data-id="' + esc(c.id) + '" aria-label="اسم التقسيم">' +
@@ -3149,8 +3160,8 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     }).join("") + '</ul><form class="addform" data-form="cat"><input class="field grow" id="catInput" type="text" placeholder="تقسيم جديد، مثل: القراءة" autocomplete="off"><button class="btn" type="submit">أضف</button></form></section>';
 
     }
-    h += setGroup("acc") + flowSettingsHtml();
-    h += setGroup("data") + resetHtml();
+    h += setGroup("acc") + safe(flowSettingsHtml, "flowSettingsHtml");
+    h += setGroup("data") + safe(resetHtml, "resetHtml");
     var archived = Object.keys(state.days).filter(function (k) { return offsetOf(k) < -SPAN; }).length;
     h += '<section><h2>الأرشيف</h2><p class="small muted">السحابة تحفظ ٧ أيام فقط، وهذا الجهاز يحتفظ بالأيام السابقة لمدة سنة. المحفوظ الآن: <b>' + archived + '</b> يومًا قديمًا. لتصفّحها اضغط على التاريخ في الأعلى. الأرشيف لا يُرفع إلى السحابة، فخذ منه نسخة احتياطية بين حين وآخر.</p></section>';
     h += '<details class="box"' + (ui.backupOpen ? " open" : "") + '><summary>نسخة احتياطية</summary><div class="inner">' +
