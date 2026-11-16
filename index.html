@@ -770,7 +770,11 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     else if (k === "ramadan") { state.settings.ramadan = { off: false }; commit(); }
   }
   function featsHtml() {
-    return '<section><h2>الأقسام الظاهرة</h2><p class="small muted">أظهر ما تستعمله فقط. ضع علامة على الميزة لتشغيلها، ثم تجد إعداداتها في تبويبها. ما تخفيه لا يُحذف، ويعود كما كان إن أظهرته، والإخفاء لك وحدك على هذا الجهاز.</p>' +
+    var many = profiles.list.length > 1;
+    return '<section><h2>الأقسام الظاهرة' + (many ? ' في «' + esc(profileName()) + '»' : '') + '</h2><p class="small muted">' +
+      (many ? '<b>لكل حساب اختياره:</b> ما تختاره هنا لهذا الحساب فقط، فانتقل إلى كل حساب واختر له ما يناسبه. ' : '') +
+      'أظهر ما تستعمله فقط. ضع علامة على الميزة لتشغيلها، ثم تجد إعداداتها في تبويبها. ما تخفيه لا يُحذف، ويعود كما كان إن أظهرته.' +
+      (showSynced() ? (many ? ' ويتطابق على كل أجهزتك.' : '') : ' والإخفاء في هذا الحساب لك وحدك على هذا الجهاز.') + '</p>' +
       '<div class="showgrid">' + FEATS.filter(function (f) { return f[0] !== "alarm" || natKey(); }).map(function (f) {
         return '<label class="showf"><input type="checkbox" class="check" data-act="showF" data-k="' + f[0] + '"' + (shown(f[0]) && featOn(f[0]) ? " checked" : "") + '> ' + f[1] + '</label>';
       }).join("") + '</div></section>';
