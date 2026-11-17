@@ -1799,6 +1799,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     h += '<div class="row-wrap" style="justify-content:space-between"><button class="ghost" data-pz="prev"' + (back ? "" : " disabled") + '>→ السابق</button>' +
       '<button class="ghost" data-pz="next">التالي ←</button></div>';
     h += '<p class="pzmsg' + (pzMsg ? " " + pzMsg[0] : "") + '" aria-live="polite">' + (pzMsg ? esc(pzMsg[1]) : "") + '</p>';
+    h += '<p style="text-align:center;margin:12px 0 0"><button class="ghost small" data-pz="reset">↺ صفّر الألغاز</button></p>';
     body.innerHTML = h;
   }
   function pzWin(c) {
@@ -1866,6 +1867,12 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     if (a === "close") pzClose();
     else if (a === "lv" || a === "kind") { pz[a] = b.dataset.v; pzSave(); pzMsg = null; if (pzCur) pzNew(pzDaily); pzRender(); }
     else if (a === "more") { pzMsg = null; pzNew(false); pzRender(); }
+    else if (a === "reset") { // everything back to the first time: counters, streak, level, kind, the puzzles seen
+      if (!confirm("تصفير الألغاز؟ تعود الأيام المتتالية وأطول سلسلة وعدد المحلولة والمستوى والنوع كأول مرة.")) return;
+      pz = { lv: "easy", kind: "mixed", day: "", streak: 0, best: 0, n: 0, nd: "" }; pzSave();
+      clearTimeout(pzT); pzHist = []; pzPos = -1; pzCur = null; pzWrong = 0; pzSel = null;
+      pzNew(true); pzMsg = ["good", "✓ صُفّرت الألغاز"]; pzRender();
+    }
     else if (a === "prev" || a === "next") { pzGo(a === "prev" ? -1 : 1); pzRender(); }
     else if (a === "ans") pzCheck(b.dataset.v);
     else if ((a === "chip" || a === "iw") && pzCur && pzCur.irab) {
