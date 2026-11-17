@@ -158,6 +158,11 @@ button.iw[aria-pressed="true"] .ir { border-color: var(--accent); color: var(--a
 .pzopts button { padding: 12px 4px; font-size: 1.25rem; border-radius: 12px; border: 1px solid var(--line); background: var(--accent-soft); color: inherit; }
 .pzmsg { margin: 0; min-height: 1.4em; font-weight: 600; }
 .pzmsg.good { color: var(--done); } .pzmsg.bad { color: var(--q-now); }
+.mtscore { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.mtscore div { border: 1px solid var(--line); border-radius: 12px; padding: 8px; text-align: center; display: flex; flex-direction: column; gap: 2px; }
+.mtscore div.on { border-color: var(--accent); background: var(--accent-soft); }
+.mtscore span { font-size: .85rem; } .mtscore b { font-size: 1.6rem; }
+.mtwatch { opacity: .75; }
 .dbody { flex: 1; overflow-y: auto; padding: 12px 14px calc(20px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 10px; }
 .dbody > * { flex-shrink: 0; } /* a short screen (the keyboard open) scrolls; it never squeezes the rows */
 .dcat { display: flex; justify-content: space-between; align-items: center; gap: 8px; border: 1px solid var(--line); background: var(--bg); border-radius: 12px; padding: 13px 14px; font: inherit; font-size: 1rem; font-weight: 600; color: var(--ink); text-align: start; }
@@ -1756,7 +1761,11 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   function pzStreak() { return pz.day === pzToday() || pz.day === keyOf(addDays(today(), -1)) ? pz.streak : 0; } // a missed day ends it
   function pzNew(daily, fresh) {
     clearTimeout(pzT); pzDaily = daily; pzWrong = 0;
-    pzCur = pzMake(pz.lv, daily && !fresh ? pzSeeded(pzToday() + pz.lv + pz.kind) : Math.random, pz.kind);
+    pzCur = pzPrep(pzMake(pz.lv, daily && !fresh ? pzSeeded(pzToday() + pz.lv + pz.kind) : Math.random, pz.kind));
+    pzCur.daily = daily; pzHist.push(pzCur); if (pzHist.length > 30) pzHist.shift(); pzPos = pzHist.length - 1;
+  }
+  function pzPrep(c) { // the buttons, and the memory number's timer
+    pzCur = c;
     if (pzCur.choices) pzCur.opts = pzCur.opts0 ? pzCur.opts0.slice().sort(function () { return Math.random() - .5; }) : pzOptions(pzCur);
     if (pzCur.irab) { // the role buttons, shuffled; pzSel = the chosen role button, or the chosen word ("w" + index)
       pzCur.chips = []; var extra = [];
@@ -1765,10 +1774,11 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       pzCur.chips.sort(function () { return Math.random() - .5; }); pzSel = null;
     }
     if (pzCur.memo) { var mo = pzCur; pzT = setTimeout(function () { mo.hide = true; if (pzCur === mo) pzRender(); }, 3000); }
-    pzCur.daily = daily; pzHist.push(pzCur); if (pzHist.length > 30) pzHist.shift(); pzPos = pzHist.length - 1;
+    return c;
   }
   function pzRender() {
     var body = $("pzBody"); if (!body) return;
+    if (mtView) { mtRender(); return; }
     var st = pzStreak(), n = pz.nd === pzToday() ? pz.n : 0, c = pzCur, h = "";
     h += '<p class="small muted" style="margin:0">🔥 أيام متتالية: <b>' + st + '</b> · حللت اليوم: <b>' + n + '</b>' + (pz.best > 1 ? ' · أطول سلسلة: <b>' + pz.best + '</b>' : "") + '</p>';
     h += '<div class="rangeseg">' + [["easy", "سهل"], ["mid", "متوسط"], ["hard", "صعب"]].map(function (l) {
@@ -1779,8 +1789,19 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       h += '<div class="pzcard"><h3>✓ حللت لغز اليوم، أحسنت</h3><p class="small muted" style="margin:0">لغز جديد غدًا إن شاء الله، وحافظ على السلسلة 🔥</p>' +
         '<button class="btn" data-pz="more">🧩 لغز آخر</button></div>';
     } else {
-      var waiting = c.memo && !c.hide;
-      h += '<div class="pzcard"><h3>' + (pzDaily ? "🌟 لغز اليوم" : "🧩 لغز") + '</h3>' +
+      h += pzCardHtml(c, pzDaily ? "🌟 لغز اليوم" : "🧩 لغز");
+    }
+    var back = c ? pzPos > 0 : pzPos >= 0;
+    h += '<div class="row-wrap" style="justify-content:space-between"><button class="ghost" data-pz="prev"' + (back ? "" : " disabled") + '>→ السابق</button>' +
+      '<button class="ghost" data-pz="next">التالي ←</button></div>';
+    h += '<p class="pzmsg' + (pzMsg ? " " + pzMsg[0] : "") + '" aria-live="polite">' + (pzMsg ? esc(pzMsg[1]) : "") + '</p>';
+    h += '<p style="text-align:center;margin:12px 0 0"><button class="btn" data-pz="mtopen">🏆 مسابقة بين فريقين</button></p>';
+    h += '<p style="text-align:center;margin:12px 0 0"><button class="ghost small" data-pz="reset">↺ صفّر الألغاز</button></p>';
+    body.innerHTML = h;
+  }
+  function pzCardHtml(c, title, extra) { // a puzzle's card: also used by the match
+      var waiting = c.memo && !c.hide, h = "";
+      h += '<div class="pzcard"><h3>' + title + '</h3>' + (extra || "") +
         '<p class="small" style="margin:0">' + (c.memo && c.hide ? "اكتب الرقم الذي رأيته" : c.ask) + '</p>' +
         (c.irab ? '<div class="irab">' + c.irab.map(function (w, i) {
           if (!w[1]) return '<span class="iw"><span class="ia">' + esc(w[0]) + '</span></span>';
@@ -1793,16 +1814,10 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       else if (!waiting) h += c.choices
         ? '<div class="pzopts">' + c.opts.map(function (v) { return '<button data-pz="ans" data-v="' + esc(v) + '">' + esc(v) + '</button>'; }).join("") + '</div>'
         : '<form class="addform" data-pz="form"><input class="field grow" id="pzAns" ' + (c.word || c.text ? 'type="text"' : 'type="text" inputmode="numeric" dir="ltr"') + ' autocomplete="off" aria-label="الجواب"><button class="btn" type="submit">تحقق</button></form>';
-      h += '</div>';
-    }
-    var back = c ? pzPos > 0 : pzPos >= 0;
-    h += '<div class="row-wrap" style="justify-content:space-between"><button class="ghost" data-pz="prev"' + (back ? "" : " disabled") + '>→ السابق</button>' +
-      '<button class="ghost" data-pz="next">التالي ←</button></div>';
-    h += '<p class="pzmsg' + (pzMsg ? " " + pzMsg[0] : "") + '" aria-live="polite">' + (pzMsg ? esc(pzMsg[1]) : "") + '</p>';
-    h += '<p style="text-align:center;margin:12px 0 0"><button class="ghost small" data-pz="reset">↺ صفّر الألغاز</button></p>';
-    body.innerHTML = h;
+      return h + '</div>';
   }
   function pzWin(c) {
+    if (mt && c === mt.cur) { mtAnswer(true); return; }
     c.solved = true;
     var d = pzToday();
     if (pz.nd !== d) { pz.nd = d; pz.n = 0; }
@@ -1837,6 +1852,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   function pzCheck(v) {
     var c = pzCur; if (!c || !String(v).trim()) return;
     if (pzPlain(v) === pzPlain(c.a)) pzWin(c);
+    else if (mt && c === mt.cur) { mtAnswer(false, v); return; }
     else {
       pzWrong++;
       var show = c.memo || c.word || c.reveal || pzWrong >= 2;
@@ -1856,14 +1872,17 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   }
   function pzOpen() {
     pzMsg = null;
+    if (mtResume()) { $("puzzles").hidden = false; document.body.style.overflow = "hidden"; return; }
     if (pz.day === pzToday()) { if (pzDaily) pzCur = null; } else if (!pzCur || !pzDaily) pzNew(true);
     pzRender(); $("puzzles").hidden = false; document.body.style.overflow = "hidden";
   }
-  function pzClose() { clearTimeout(pzT); if (pzCur && pzCur.memo) pzCur = null; $("puzzles").hidden = true; document.body.style.overflow = ""; }
+  function pzClose() { mtStop(); clearTimeout(pzT); if (pzCur && pzCur.memo) pzCur = null; $("puzzles").hidden = true; document.body.style.overflow = ""; }
   $("pzBtn").addEventListener("click", pzOpen);
   $("puzzles").addEventListener("click", function (e) {
     var b = e.target.closest("[data-pz]"); if (!b || b.tagName === "FORM") return;
     var a = b.dataset.pz;
+    if (a.indexOf("mt") === 0 && a !== "close") { mtClick(a, b); return; }
+    if (mtView === "play" && a !== "close" && (["ans", "chip", "iw"].indexOf(a) < 0 || !mtMine())) return; // only the team whose turn it is answers
     if (a === "close") pzClose();
     else if (a === "lv" || a === "kind") { pz[a] = b.dataset.v; pzSave(); pzMsg = null; if (pzCur) pzNew(pzDaily); pzRender(); }
     else if (a === "more") { pzMsg = null; pzNew(false); pzRender(); }
@@ -1883,8 +1902,183 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       pzRender();
     }
   });
-  $("puzzles").addEventListener("submit", function (e) { e.preventDefault(); var inp = $("pzAns"); if (inp) pzCheck(inp.value); });
+  $("puzzles").addEventListener("submit", function (e) { e.preventDefault(); if (mtView === "play" && !mtMine()) return; var inp = $("pzAns"); if (inp) pzCheck(inp.value); });
   document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !$("puzzles").hidden) pzClose(); });
+
+  /* ---------- MATCH 🏆: two teams, one phone each, on one server row (supabase_v30.sql) ---------- */
+  // The row holds only st = { s: seed, k: kind, lv, n: questions, nm: [team 1, team 2], go, q: question now, t: when it starts (server ms),
+  // sc: [points], la: { q, tm, ok, a, late } the last answer }. Each phone makes question i itself: pzMake(lv, pzSeeded(s + ":" + i), k).
+  // Question i is for team i % 2 (team 1 = the one who opened it); 30 seconds each; a write needs the newest ver, so no one overwrites the other.
+  // yawmi-match = { code } the match this phone is in; yawmi-match-key = this phone's key.
+  var MT_SEC = 30, MT_GAP = 3000;
+  var mt = null, mtView = "", mtTick = 0, mtPollT = 0, mtPhase = "", mtN = 10;
+  function mtKey() {
+    try {
+      var k = localStorage.getItem("yawmi-match-key");
+      if (!k) { var a = new Uint8Array(16); crypto.getRandomValues(a); k = Array.prototype.map.call(a, function (x) { return ("0" + x.toString(16)).slice(-2); }).join(""); localStorage.setItem("yawmi-match-key", k); }
+      return k;
+    } catch (e) { return ""; }
+  }
+  function mtSrv() { return Date.now() + (mt ? mt.off : 0); }
+  function mtTurn() { return mt.st.q % 2; }
+  function mtMe() { return mt.host ? 0 : 1; }
+  function mtMine() { return !!mt && !!mt.st.go && mt.st.q < mt.st.n && mtTurn() === mtMe(); }
+  function mtGot(r) { // a reply from the server: { ver, now, st? }
+    if (!r || !mt || r.err) return;
+    mt.off = r.now - Date.now();
+    if (r.st) { mt.st = r.st; mt.ver = r.ver; }
+  }
+  function mtCall(fn, args) {
+    if (!sb || !navigator.onLine) { toast("المسابقة تحتاج اتصالًا بالإنترنت"); return Promise.resolve(null); }
+    return sb.rpc(fn, args).then(function (r) { if (r.error) { toast("تعذّر الاتصال بالمسابقة"); return null; } return r.data; }, function () { toast("تعذّر الاتصال بالمسابقة"); return null; });
+  }
+  function mtSave() { try { if (mt) localStorage.setItem("yawmi-match", JSON.stringify({ code: mt.code })); else localStorage.removeItem("yawmi-match"); } catch (e) {} }
+  function mtStop() { clearInterval(mtTick); clearTimeout(mtPollT); mtTick = 0; mtPollT = 0; }
+  function mtStart() { // the clock and the polling, while the drawer is open
+    mtStop(); mtPhase = "";
+    mtTick = setInterval(mtStep, 500);
+    (function poll() {
+      mtPollT = setTimeout(function () {
+        if (!mt || $("puzzles").hidden) return;
+        if (document.hidden || mt.st.q >= mt.st.n) { poll(); return; }
+        mtCall("yawmi_match_get", { p_code: mt.code, p_ver: mt.ver }).then(function (r) {
+          if (!mt) return;
+          if (r && r.err) { toast("انتهت هذه المسابقة"); mtLeave(); return; }
+          var v = mt.ver; mtGot(r); if (mt.ver !== v) mtStep(true); poll();
+        });
+      }, 2000);
+    })();
+    mtStep(true);
+  }
+  function mtResume() { // reopening the drawer goes back to the match
+    if (mt) { mtView = "play"; mtStart(); return true; }
+    var s = null; try { s = JSON.parse(localStorage.getItem("yawmi-match") || "null"); } catch (e) {}
+    if (!s || !s.code) return false;
+    mtJoin(s.code, ""); return true;
+  }
+  function mtJoin(code, name) {
+    code = String(code || "").replace(/[٠-٩]/g, function (d) { return "٠١٢٣٤٥٦٧٨٩".indexOf(d); }).replace(/\D/g, "");
+    if (code.length !== 6) { toast("الرمز ٦ أرقام"); return; }
+    mtView = "play"; mt = null; pzRender();
+    mtCall("yawmi_match_join", { p_code: code, p_key: mtKey() }).then(function (r) {
+      if (!r || r.err) { if (r) toast(r.err === "full" ? "في هذه المسابقة فريقان بالفعل" : "لا توجد مسابقة بهذا الرمز"); mt = null; mtSave(); mtView = "lobby"; pzRender(); return; }
+      mt = { code: code, host: r.host, ver: r.ver, st: r.st, off: r.now - Date.now(), cur: null, curQ: -1 };
+      mtSave();
+      if (!mt.host && !mt.st.nm[1]) mtWrite(function (s) { s.nm[1] = name || "الفريق الثاني"; });
+      mtStart();
+    });
+  }
+  function mtNew(name) {
+    var st = { s: String(Date.now()) + Math.random().toString(36).slice(2, 6), k: pz.kind, lv: pz.lv, n: mtN, nm: [name || "الفريق الأول", ""], go: 0, q: 0, t: 0, sc: [0, 0], la: null };
+    mtView = "play"; mt = null; pzRender();
+    mtCall("yawmi_match_new", { p_key: mtKey(), p_st: st }).then(function (code) {
+      if (!code) { mtView = "lobby"; pzRender(); return; }
+      mt = { code: code, host: true, ver: 1, st: st, off: 0, cur: null, curQ: -1 };
+      mtSave(); mtStart();
+    });
+  }
+  function mtWrite(fn) { // change st on the server; if the other phone wrote first, read again
+    if (!mt || mt.busy) return;
+    var s = JSON.parse(JSON.stringify(mt.st)); fn(s); mt.busy = true;
+    mtCall("yawmi_match_put", { p_code: mt.code, p_key: mtKey(), p_ver: mt.ver, p_st: s }).then(function (r) {
+      if (!mt) return;
+      if (r) { mt.busy = false; mt.st = s; mtGot(r); mt.ver = r.ver; mtStep(true); return; }
+      mtCall("yawmi_match_get", { p_code: mt.code, p_ver: -1 }).then(function (g) { if (!mt) return; mt.busy = false; mtGot(g); mtStep(true); });
+    });
+  }
+  function mtAnswer(ok, a) {
+    if (!mtMine() || mtPhaseOf() !== "q") return;
+    var tm = mtTurn();
+    mtWrite(function (s) { if (ok) s.sc[tm]++; s.la = { q: s.q, tm: tm, ok: ok ? 1 : 0, a: a == null ? "" : String(a).slice(0, 60) }; s.q++; s.t = mtSrv() + MT_GAP; });
+  }
+  function mtPhaseOf() {
+    var s = mt.st, now = mtSrv();
+    if (!s.go) return "wait";
+    if (s.q >= s.n) return "end";
+    if (now < s.t) return "ready";
+    if (now <= s.t + MT_SEC * 1000) return "q";
+    return "late";
+  }
+  function mtStep(force) { // every half second: the clock, and a full drawing only when the phase changes
+    if (!mt || mtView !== "play") return;
+    var ph = mtPhaseOf(), key = mt.ver + ":" + ph;
+    if (ph === "late" && !mt.busy && (mtMine() || mtSrv() > mt.st.t + MT_SEC * 1000 + MT_GAP)) { // time is up: the team whose turn it is writes it; the other phone does if that one is gone
+      var tm = mtTurn();
+      mtWrite(function (s) { s.la = { q: s.q, tm: tm, ok: 0, a: "", late: 1 }; s.q++; s.t = mtSrv() + MT_GAP; });
+    }
+    if (force === true || key !== mtPhase) { mtPhase = key; pzRender(); return; }
+    var ck = $("mtClock");
+    if (ck) ck.textContent = ph === "ready" ? Math.max(1, Math.ceil((mt.st.t - mtSrv()) / 1000)) : Math.max(0, Math.ceil((mt.st.t + MT_SEC * 1000 - mtSrv()) / 1000));
+  }
+  function mtQ(i) { // the same question on both phones
+    if (mt.curQ !== i) { clearTimeout(pzT); pzSel = null; pzMsg = null; mt.curQ = i; mt.cur = pzPrep(pzMake(mt.st.lv, pzSeeded(mt.st.s + ":" + i), mt.st.k)); }
+    pzCur = mt.cur; return mt.cur;
+  }
+  function mtLeave() {
+    mtStop(); mt = null; mtSave(); mtView = ""; pzCur = null; pzMsg = null;
+    if (pz.day !== pzToday()) pzNew(true);
+    pzRender();
+  }
+  function mtSeg(list, on, act) { return '<div class="rangeseg' + (act === "kind" ? " pzkinds" : "") + '">' + list.map(function (l) { return '<button data-pz="' + act + '" data-v="' + l[0] + '" aria-pressed="' + (on === l[0]) + '">' + l[1] + '</button>'; }).join("") + '</div>'; }
+  function mtRender() {
+    var body = $("pzBody"), h = "";
+    if (mtView === "lobby") {
+      h += '<p style="margin:0"><button class="ghost" data-pz="mtback">→ الألغاز</button></p>';
+      h += '<div class="pzcard"><h3>🏆 مسابقة بين فريقين</h3><p class="small muted" style="margin:0">لكل فريق جوال واحد مع رئيسه. الأسئلة بالتناوب: الأول للفريق الأول والثاني للفريق الثاني وهكذا، ولكل سؤال ' + MT_SEC + ' ثانية، والنقاط ظاهرة للفريقين.</p>' +
+        '<input class="field" id="mtName" maxlength="20" placeholder="اسم فريقك" aria-label="اسم فريقك"></div>';
+      h += '<div class="pzcard"><h3>افتح مسابقة</h3><p class="small muted" style="margin:0">المستوى والنوع:</p>' +
+        mtSeg([["easy", "سهل"], ["mid", "متوسط"], ["hard", "صعب"]], pz.lv, "lv") + mtSeg(PZ_KINDS, pz.kind, "kind") +
+        '<p class="small muted" style="margin:0">عدد الأسئلة:</p>' + mtSeg([[6, "6"], [10, "10"], [20, "20"]], mtN, "mtn") +
+        '<button class="btn" data-pz="mtnew">افتح المسابقة</button></div>';
+      h += '<div class="pzcard"><h3>ادخل مسابقة</h3><input class="field" id="mtCode" inputmode="numeric" dir="ltr" maxlength="6" placeholder="الرمز (٦ أرقام)" aria-label="رمز المسابقة"><button class="btn" data-pz="mtjoin">ادخل</button></div>';
+      body.innerHTML = h; return;
+    }
+    if (!mt) { body.innerHTML = '<p class="muted" style="text-align:center">… لحظة</p>'; return; }
+    var s = mt.st, ph = mtPhaseOf(), me = mtMe(), turn = s.q % 2;
+    h += '<div class="mtscore">' + [0, 1].map(function (i) {
+      return '<div class="' + ((ph === "q" || ph === "ready") && turn === i ? "on" : "") + '"><span>' + esc(s.nm[i] || "…") + (i === me ? " (أنتم)" : "") + '</span><b>' + s.sc[i] + '</b></div>'; }).join("") + '</div>';
+    if (ph === "wait") {
+      h += '<div class="pzcard"><h3>رمز المسابقة</h3><div class="pzq" dir="ltr" style="letter-spacing:.2em">' + mt.code + '</div>';
+      if (mt.host) h += s.nm[1] ? '<p class="small" style="margin:0">✓ دخل «' + esc(s.nm[1]) + '»</p><button class="btn" data-pz="mtgo">ابدأ المسابقة</button>'
+        : '<p class="small muted" style="margin:0">أرسل الرمز لرئيس الفريق الثاني، وانتظر حتى يدخل…</p><button class="ghost" data-pz="mtshare">📤 أرسل الرمز</button>';
+      else h += '<p class="small muted" style="margin:0">بانتظار أن يبدأ «' + esc(s.nm[0]) + '» المسابقة…</p>';
+      h += '<p class="small muted" style="margin:0">' + s.n + ' أسئلة · ' + ({ easy: "سهل", mid: "متوسط", hard: "صعب" }[s.lv]) + ' · ' + (PZ_KINDS.filter(function (k) { return k[0] === s.k; })[0] || ["", ""])[1] + '</p></div>';
+    } else if (ph === "end") {
+      var w = s.sc[0] === s.sc[1] ? -1 : s.sc[0] > s.sc[1] ? 0 : 1;
+      h += '<div class="pzcard"><h3>🏁 انتهت المسابقة</h3>' + (s.la ? '<p class="pzmsg ' + (s.la.ok ? "good" : "bad") + '">' + mtLast(s.la) + '</p>' : "") +
+        '<div class="pzq s">' + (w < 0 ? "تعادل 🤝" : "🏆 فاز «" + esc(s.nm[w]) + "»") + '</div></div>';
+    } else if (ph === "ready") {
+      h += '<div class="pzcard">' + (s.la ? '<p class="pzmsg ' + (s.la.ok ? "good" : "bad") + '">' + mtLast(s.la) + '</p>' : "") +
+        '<h3>السؤال ' + (s.q + 1) + ' من ' + s.n + ' لـ«' + esc(s.nm[turn]) + '»</h3><div class="pzq" id="mtClock">' + Math.max(1, Math.ceil((s.t - mtSrv()) / 1000)) + '</div></div>';
+    } else {
+      var c = mtQ(s.q), mine = turn === me;
+      var top = '<p class="small" style="margin:0">' + (mine ? "دوركم! ⏱ " : "دور «" + esc(s.nm[turn]) + "»، شاهدوا فقط ⏱ ") + '<b id="mtClock">' + Math.max(0, Math.ceil((s.t + MT_SEC * 1000 - mtSrv()) / 1000)) + '</b></p>';
+      h += '<div' + (mine ? "" : ' class="mtwatch" inert') + '>' + pzCardHtml(c, "السؤال " + (s.q + 1) + " من " + s.n, top) + '</div>';
+      if (mine && pzMsg) h += '<p class="pzmsg ' + pzMsg[0] + '">' + esc(pzMsg[1]) + '</p>';
+    }
+    h += '<p style="text-align:center;margin:12px 0 0"><button class="ghost small" data-pz="mtleave">' + (ph === "end" ? "🏁 خروج" : "✕ اخرج من المسابقة") + '</button></p>';
+    body.innerHTML = h;
+    if (ph === "q" && turn === me) { var inp = $("pzAns"); if (inp) inp.focus(); }
+  }
+  function mtLast(la) { // «✓ the team answered right», or the right answer
+    var nm = esc(mt.st.nm[la.tm]), q = pzMake(mt.st.lv, pzSeeded(mt.st.s + ":" + la.q), mt.st.k);
+    if (la.ok) return "✓ أجاب «" + nm + "» صحيحًا";
+    return (la.late ? "⏱ انتهى الوقت على «" : "✗ أخطأ «") + nm + "»" + (q.irab ? "" : "، الجواب: " + esc(q.a));
+  }
+  function mtClick(a, b) {
+    if (a === "mtopen") { mtView = "lobby"; pzRender(); }
+    else if (a === "mtback") { mtView = ""; pzRender(); }
+    else if (a === "mtn") { mtN = +b.dataset.v; pzRender(); }
+    else if (a === "mtnew") mtNew(($("mtName").value || "").trim());
+    else if (a === "mtjoin") mtJoin($("mtCode").value, ($("mtName").value || "").trim());
+    else if (a === "mtgo") mtWrite(function (s) { s.go = 1; s.q = 0; s.t = mtSrv() + MT_GAP; });
+    else if (a === "mtshare") {
+      var t = "تعال نتسابق في ألغاز «يومي» 🏆\nرمز المسابقة: " + mt.code + "\nمن 🧩 ← «🏆 مسابقة بين فريقين» ← «ادخل مسابقة»";
+      if (navigator.share) navigator.share({ text: t }).catch(function () {});
+      else if (navigator.clipboard) navigator.clipboard.writeText(t).then(function () { toast("نُسخ الرمز"); });
+    }
+    else if (a === "mtleave") { if (mtPhaseOf() === "end" || confirm("تخرج من المسابقة؟")) mtLeave(); }
+  }
 
   /* ---------- QURAN: daily reading, new memorization and review ---------- */
   // Settings: state.settings.quran = { on, read, hifz, rev (daily goals in pages), page (next page to read), mem (pages memorized), khatmat }
