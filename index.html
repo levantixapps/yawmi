@@ -1230,7 +1230,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   }
 
   var ui = { tab: null, step: 1, open: null, lastCat: "study", lastDur: 60, newDays: [0, 1, 2, 3, 4, 5, 6], confirmWipe: false };
-  try { ui.mine = localStorage.getItem(pkey("yawmi-mine")) === "1"; } catch (e) {}
+  try { ui.onlyMine = localStorage.getItem(pkey("yawmi-mine")) === "1"; } catch (e) {}
   try { if (localStorage.getItem("yawmi-open-settings")) { localStorage.removeItem("yawmi-open-settings"); ui.tab = "settings"; } } catch (e) {}
 
   /* ---------- first run ---------- */
@@ -2451,8 +2451,8 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   function teamFilterHtml(d) {
     if (!teamOn()) return "";
     var others = active(d).filter(function (i) { return !isMine(i); }).length;
-    return '<div class="rangeseg" style="grid-template-columns:repeat(2,1fr)"><button data-act="mine" data-v="0" aria-pressed="' + !ui.mine + '">كل مهام الفريق</button>' +
-      '<button data-act="mine" data-v="1" aria-pressed="' + !!ui.mine + '">مهامي فقط' + (ui.mine && others ? " (أُخفي " + others + ")" : "") + '</button></div>';
+    return '<div class="rangeseg" style="grid-template-columns:repeat(2,1fr)"><button data-act="mine" data-v="0" aria-pressed="' + !ui.onlyMine + '">كل مهام الفريق</button>' +
+      '<button data-act="mine" data-v="1" aria-pressed="' + !!ui.onlyMine + '">مهامي فقط' + (ui.onlyMine && others ? " (أُخفي " + others + ")" : "") + '</button></div>';
   }
   function teamReviewHtml(d) {
     if (!teamOn()) return "";
@@ -2535,7 +2535,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       '<p class="small muted">الوقت اختياري. وللملاحظة الطويلة اضغط على البند بعد إضافته واكتبها تحته.</p></section>';
   }
   function dayView() {
-    var d = day(), items = active(d).filter(function (i) { return !ui.mine || isMine(i); });
+    var d = day(), items = active(d).filter(function (i) { return !ui.onlyMine || isMine(i); });
     if (!d.items.length) return spCard() + ramadanCard() + prayCard(dk()) + quranCard() + booksCard() + kidsCard() + cycCard() + '<div class="empty"><p>لم تخطّط لهذا اليوم بعد.</p><button class="btn" data-act="tab" data-tab="plan">خطّط ليومك في ٤ خطوات</button></div>' +
       quickAddHtml("أو أضف مهمة أو ملاحظة سريعة", "مثل: موعد طبيب الأسنان");
     var st = dayStats(d), pct = Math.min(100, Math.round(st.rate * 100));
@@ -3628,7 +3628,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
         if (navigator.share) navigator.share({ title: "يومي", text: itxt, url: teamUrl(id) }).catch(function () {});
         else try { navigator.clipboard.writeText(itxt + "\n" + teamUrl(id)).then(function () { toast("نُسخت الدعوة، الصقها في واتساب"); }, function () {}); } catch (err) {}
         break;
-      case "mine": ui.mine = b.dataset.v === "1"; try { localStorage.setItem(pkey("yawmi-mine"), ui.mine ? "1" : ""); } catch (e) {} render(); break;
+      case "mine": ui.onlyMine = b.dataset.v === "1"; try { localStorage.setItem(pkey("yawmi-mine"), ui.onlyMine ? "1" : ""); } catch (e) {} render(); break;
       case "shareApp": shareApp(b.dataset.to); if (!b.dataset.to) render(); break;
       case "shareLater": try { localStorage.setItem("yawmi-share-asked", "later"); } catch (e) {} render(); break;
       case "gPer": ui.gPer = b.dataset.v; view.querySelectorAll('[data-act="gPer"]').forEach(function (x) { x.setAttribute("aria-pressed", x.dataset.v === ui.gPer); }); break;
