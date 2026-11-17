@@ -24,6 +24,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=swap">
 <script>
 try { var t0 = localStorage.getItem("yawmi-theme"); if (t0 === "light" || t0 === "dark") document.documentElement.setAttribute("data-theme", t0); } catch (e) {}
+try { if (localStorage.getItem("yawmi-icons") === "1") document.documentElement.setAttribute("data-icons", ""); } catch (e) {}
 </script>
 <script src="config.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -198,6 +199,10 @@ button.iw[aria-pressed="true"] .ir { border-color: var(--accent); color: var(--a
 .settabs button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 700; }
 .tab b { font-family: var(--font-display); font-size: 1rem; font-weight: 600; }
 .tab[aria-current="true"] { background: var(--accent-soft); color: var(--accent); }
+.tab .ti { display: none; font-style: normal; font-size: 1.6rem; line-height: 1.3; }
+[data-icons] .tab b, [data-icons] .tab span { display: none; }
+[data-icons] .tab .ti { display: block; }
+[data-icons] .tab #shopCount { display: block; font-size: 1.3rem; line-height: 1.5; white-space: nowrap; }
 
 /* Controls */
 .field { height: 44px; padding-inline: 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); min-width: 0; }
@@ -618,11 +623,11 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
 
 <nav class="tabbar" aria-label="الأقسام">
   <div class="in">
-    <button class="tab" data-tab="plan"><b>خطّط</b><span>صباحًا</span></button>
-    <button class="tab" data-tab="day"><b>جدولي</b><span>تابع</span></button>
-    <button class="tab" data-tab="review"><b>راجع</b><span>التقرير</span></button>
-    <button class="tab" data-tab="shop" hidden><b>المشتريات</b><span id="shopCount">🛒</span></button>
-    <button class="tab" data-tab="flows" hidden><b>المعاملات</b><span>📨</span></button>
+    <button class="tab" data-tab="plan" aria-label="خطّط"><i class="ti" aria-hidden="true">🌅</i><b>خطّط</b><span>صباحًا</span></button>
+    <button class="tab" data-tab="day" aria-label="جدولي"><i class="ti" aria-hidden="true">📋</i><b>جدولي</b><span>تابع</span></button>
+    <button class="tab" data-tab="review" aria-label="راجع"><i class="ti" aria-hidden="true">📊</i><b>راجع</b><span>التقرير</span></button>
+    <button class="tab" data-tab="shop" aria-label="المشتريات" hidden><b>المشتريات</b><span id="shopCount">🛒</span></button>
+    <button class="tab" data-tab="flows" aria-label="المعاملات" hidden><i class="ti" aria-hidden="true">📨</i><b>المعاملات</b><span>📨</span></button>
   </div>
 </nav>
 <div class="toast" id="toast" hidden></div>
@@ -3466,6 +3471,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   }
   function led(kind, text) { return '<div class="line"><span class="led' + (kind ? " " + kind : "") + '"></span><span>' + text + '</span></div>'; }
   function stamp(ms) { var d = new Date(ms); return fmt12(pad(d.getHours()) + ":" + pad(d.getMinutes())); }
+  function iconsOnly() { return document.documentElement.hasAttribute("data-icons"); }
   function themeNow() { try { return localStorage.getItem("yawmi-theme") || "auto"; } catch (e) { return "auto"; } }
   function applyTheme(t) {
     var root = document.documentElement;
@@ -3528,7 +3534,9 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     h += '</section>';
     h += '<section><h2>المظهر</h2><div class="rangeseg">' + [["auto", "تلقائي"], ["light", "☀️ فاتح"], ["dark", "🌙 غامق"]].map(function (o) {
       return '<button data-act="theme" data-t="' + o[0] + '" aria-pressed="' + (th === o[0]) + '">' + o[1] + '</button>';
-    }).join("") + '</div><p class="small muted">«تلقائي» يتبع إعداد جهازك.</p></section>';
+    }).join("") + '</div><p class="small muted">«تلقائي» يتبع إعداد جهازك.</p>' +
+      '<p class="small" style="margin:12px 0 6px">الشريط السفلي:</p><div class="rangeseg">' + [["0", "كلمات"], ["1", "أيقونات فقط"]].map(function (o) {
+        return '<button data-act="icons" data-v="' + o[0] + '" aria-pressed="' + (iconsOnly() === (o[0] === "1")) + '">' + o[1] + '</button>'; }).join("") + '</div></section>';
     h += '<section><h2>اسمك</h2><input class="field" value="' + esc(userName) + '" data-act="uname" placeholder="اسمك" aria-label="اسمك"><p class="small muted">يظهر لمسؤول الفريق مع سجل تغييراتك.</p></section>';
     h += '<section><h2>🎬 شاهد كيف يعمل</h2><p class="small muted">يد تستعمل التطبيق أمامك على مثال، ثم يعود كل شيء كما كان.</p><div class="row-wrap">' +
       Object.keys(DEMOS).map(function (k) { return '<button class="ghost" data-act="demo" data-d="' + k + '">' + DEMOS[k].name + '</button>'; }).join("") + '</div></section>' +
@@ -4092,6 +4100,10 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
         break;
       case "syncNow": syncNow(); meLoad(); break;
       case "theme": applyTheme(b.dataset.t); render(); break;
+      case "icons": // on this device only, like the theme
+        try { if (b.dataset.v === "1") localStorage.setItem("yawmi-icons", "1"); else localStorage.removeItem("yawmi-icons"); } catch (e) {}
+        if (b.dataset.v === "1") document.documentElement.setAttribute("data-icons", ""); else document.documentElement.removeAttribute("data-icons");
+        render(); break;
       case "focus": focusStart(it); break;
       case "tpl": tplApply(b.dataset.t); break;
       case "teamLinkNew": teamLink(+($("teamLinkHrs") || {}).value || 24); break;
