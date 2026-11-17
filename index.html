@@ -128,6 +128,9 @@ a.adbtn { display: grid; place-items: center; text-decoration: none; color: inhe
 .pzcard h3 { margin: 0; font-size: 1rem; }
 .pzq { font-size: 1.9rem; font-weight: 700; direction: ltr; font-family: var(--font-mono); word-break: break-word; }
 .pzq.w { direction: rtl; font-family: inherit; letter-spacing: .25em; }
+.pzq.s { direction: rtl; font-family: inherit; letter-spacing: 0; font-size: 1.6rem; }
+.pzkinds button:nth-child(n+4) { border-top: 1px solid var(--line); }
+.pzkinds button:nth-child(4) { border-inline-start: 0; }
 .pzopts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .pzopts button { padding: 12px 4px; font-size: 1.25rem; border-radius: 12px; border: 1px solid var(--line); background: var(--accent-soft); color: inherit; }
 .pzmsg { margin: 0; min-height: 1.4em; font-weight: 600; }
@@ -1606,7 +1609,11 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   var PZ_WORDS = { easy: ["صباح", "نور", "خير", "شمس", "ماء", "بيت", "سلام", "قمر", "ورد", "بحر", "جبل", "نجم"],
     mid: ["كتاب", "حصان", "ليمون", "شجرة", "تفاحة", "زيتون", "مسجد", "قلم", "عصفور", "نافذة", "سحابة", "قهوة"],
     hard: ["برتقال", "مستشفى", "طائرة", "مكتبة", "حديقة", "سيارة", "فراشة", "مدرسة", "ياسمين", "بستان", "مسافر", "شلالات"] };
-  var pz = { lv: "easy", day: "", streak: 0, best: 0, n: 0, nd: "" }, pzCur = null, pzDaily = false, pzWrong = 0, pzMsg = null, pzT = 0;
+  // The surahs: [name, verses, the juz it starts in], from Tanzil's quran-data.js (verses total 6236)
+  var PZ_SURAS = [["الفاتحة",7,1],["البقرة",286,1],["آل عمران",200,3],["النساء",176,4],["المائدة",120,6],["الأنعام",165,7],["الأعراف",206,8],["الأنفال",75,9],["التوبة",129,10],["يونس",109,11],["هود",123,11],["يوسف",111,12],["الرعد",43,13],["إبراهيم",52,13],["الحجر",99,14],["النحل",128,14],["الإسراء",111,15],["الكهف",110,15],["مريم",98,16],["طه",135,16],["الأنبياء",112,17],["الحج",78,17],["المؤمنون",118,18],["النور",64,18],["الفرقان",77,18],["الشعراء",227,19],["النمل",93,19],["القصص",88,20],["العنكبوت",69,20],["الروم",60,21],["لقمان",34,21],["السجدة",30,21],["الأحزاب",73,21],["سبأ",54,22],["فاطر",45,22],["يس",83,22],["الصافات",182,23],["ص",88,23],["الزمر",75,23],["غافر",85,24],["فصلت",54,24],["الشورى",53,25],["الزخرف",89,25],["الدخان",59,25],["الجاثية",37,25],["الأحقاف",35,26],["محمد",38,26],["الفتح",29,26],["الحجرات",18,26],["ق",45,26],["الذاريات",60,26],["الطور",49,27],["النجم",62,27],["القمر",55,27],["الرحمن",78,27],["الواقعة",96,27],["الحديد",29,27],["المجادلة",22,28],["الحشر",24,28],["الممتحنة",13,28],["الصف",14,28],["الجمعة",11,28],["المنافقون",11,28],["التغابن",18,28],["الطلاق",12,28],["التحريم",12,28],["الملك",30,29],["القلم",52,29],["الحاقة",52,29],["المعارج",44,29],["نوح",28,29],["الجن",28,29],["المزمل",20,29],["المدثر",56,29],["القيامة",40,29],["الإنسان",31,29],["المرسلات",50,29],["النبأ",40,30],["النازعات",46,30],["عبس",42,30],["التكوير",29,30],["الانفطار",19,30],["المطففين",36,30],["الانشقاق",25,30],["البروج",22,30],["الطارق",17,30],["الأعلى",19,30],["الغاشية",26,30],["الفجر",30,30],["البلد",20,30],["الشمس",15,30],["الليل",21,30],["الضحى",11,30],["الشرح",8,30],["التين",8,30],["العلق",19,30],["القدر",5,30],["البينة",8,30],["الزلزلة",8,30],["العاديات",11,30],["القارعة",11,30],["التكاثر",8,30],["العصر",3,30],["الهمزة",9,30],["الفيل",5,30],["قريش",4,30],["الماعون",7,30],["الكوثر",3,30],["الكافرون",6,30],["النصر",3,30],["المسد",5,30],["الإخلاص",4,30],["الفلق",5,30],["الناس",6,30]];
+  var PZ_EASY = [1, 18, 36, 55, 56, 67]; for (var pzi = 78; pzi <= 114; pzi++) PZ_EASY.push(pzi); // well-known surahs for the easy level
+  var PZ_KINDS = [["mixed", "🎲 منوّع"], ["quran", "📖 القرآن"], ["math", "➕ حساب"], ["seq", "🔢 تسلسل"], ["memory", "🧠 حفظ"], ["word", "🔤 كلمات"]];
+  var pz = { lv: "easy", kind: "mixed", day: "", streak: 0, best: 0, n: 0, nd: "" }, pzCur = null, pzDaily = false, pzWrong = 0, pzMsg = null, pzT = 0;
   try { var pz0 = JSON.parse(localStorage.getItem("yawmi-puzzle") || "null"); if (pz0) Object.keys(pz).forEach(function (k) { if (pz0[k] != null) pz[k] = pz0[k]; }); } catch (e) {}
   function pzSave() { if (demo) return; try { localStorage.setItem("yawmi-puzzle", JSON.stringify(pz)); } catch (e) {} }
   function pzSeeded(seed) { // the same numbers for the same seed
@@ -1614,10 +1621,18 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     return function () { s = (s + 0x6D2B79F5) | 0; var r = Math.imul(s ^ (s >>> 15), 1 | s); r = (r + Math.imul(r ^ (r >>> 7), 61 | r)) ^ r; return ((r ^ (r >>> 14)) >>> 0) / 4294967296; };
   }
   function pzPlain(s) { return String(s).replace(/[٠-٩]/g, function (d) { return "٠١٢٣٤٥٦٧٨٩".indexOf(d); }).replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي").replace(/\s+/g, ""); }
-  function pzMake(lv, R) {
+  function pzMake(lv, R, kind) {
     function rnd(a, b) { return a + Math.floor(R() * (b - a + 1)); }
     function pick(a) { return a[rnd(0, a.length - 1)]; }
-    var k = pick(["math", "seq", "memory", "word"]), x, y, z, st;
+    var k = kind && kind !== "mixed" ? kind : pick(["math", "seq", "memory", "word", "quran"]), x, y, z, st;
+    if (k === "quran") { // only facts read from the table: order, verses, juz, the surah before or after
+      var i = lv === "easy" ? pick(PZ_EASY) : rnd(1, 114), su = PZ_SURAS[i - 1];
+      var ty = pick(["order", "ayas", "juz", "next", "prev"].filter(function (x) { return !(x === "next" && i === 114) && !(x === "prev" && i === 1); }));
+      if (ty === "next" || ty === "prev") return { q: "سورة " + su[0], a: PZ_SURAS[(ty === "next" ? i + 1 : i - 1) - 1][0], sura: i, text: true, reveal: true, choices: true,
+        ask: ty === "next" ? "ما السورة التي بعدها في المصحف؟" : "ما السورة التي قبلها في المصحف؟" };
+      return { q: "سورة " + su[0], a: ty === "order" ? i : ty === "ayas" ? su[1] : su[2], sura: i, max: ty === "order" ? 114 : ty === "juz" ? 30 : 286, reveal: true,
+        choices: lv !== "hard", ask: { order: "ما ترتيبها في المصحف؟", ayas: "كم عدد آياتها؟", juz: "في أي جزء تبدأ؟" }[ty] };
+    }
     if (k === "seq") {
       if (lv === "easy") { x = rnd(2, 20); y = rnd(2, 9); return { q: [x, x + y, x + 2 * y, x + 3 * y].join("، ") + "، ؟", a: x + 4 * y, choices: true, ask: "ما الرقم التالي؟" }; }
       if (lv === "mid") { x = rnd(2, 5); y = pick([2, 3]); return { q: [x, x * y, x * y * y, x * y * y * y].join("، ") + "، ؟", a: x * y * y * y * y, ask: "ما الرقم التالي؟" }; }
@@ -1639,7 +1654,15 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   }
   function pzOptions(c) { // three buttons for the easy level, in a random order
     var o;
-    if (c.word) o = [c.a].concat(PZ_WORDS.easy.concat(PZ_WORDS.mid).filter(function (w) { return w !== c.a && w.length === c.a.length; }).sort(function () { return Math.random() - .5; }).slice(0, 2));
+    if (c.sura && c.text) {
+      var near = [];
+      for (var g = -4; g <= 4; g++) { var nm = PZ_SURAS[c.sura + g - 1]; if (g && nm && nm[0] !== c.a) near.push(nm[0]); }
+      o = [c.a].concat(near.sort(function () { return Math.random() - .5; }).slice(0, 2));
+    } else if (c.sura) {
+      var nums = [];
+      for (var g2 = -6; g2 <= 6; g2++) if (g2 && c.a + g2 >= 1 && c.a + g2 <= c.max) nums.push(c.a + g2);
+      o = [c.a].concat(nums.sort(function () { return Math.random() - .5; }).slice(0, 2));
+    } else if (c.word) o = [c.a].concat(PZ_WORDS.easy.concat(PZ_WORDS.mid).filter(function (w) { return w !== c.a && w.length === c.a.length; }).sort(function () { return Math.random() - .5; }).slice(0, 2));
     else if (c.memo) { var s = String(c.a); o = [c.a, +(s.slice(0, -1) + ((+s.slice(-1) + 1) % 10)), +(s.slice(1) + s[0])]; }
     else { var d1 = 1 + Math.floor(Math.random() * 5); o = [c.a, c.a + d1, c.a - d1 - 5]; }
     while (o.length < 3 || o.filter(function (v, i) { return o.indexOf(v) === i; }).length < 3) o = o.filter(function (v, i) { return o.indexOf(v) === i; }).concat([c.word ? PZ_WORDS.easy[o.length] : c.a + 7 * o.length]);
@@ -1649,7 +1672,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   function pzStreak() { return pz.day === pzToday() || pz.day === keyOf(addDays(today(), -1)) ? pz.streak : 0; } // a missed day ends it
   function pzNew(daily, fresh) {
     clearTimeout(pzT); pzDaily = daily; pzWrong = 0;
-    pzCur = pzMake(pz.lv, daily && !fresh ? pzSeeded(pzToday() + pz.lv) : Math.random);
+    pzCur = pzMake(pz.lv, daily && !fresh ? pzSeeded(pzToday() + pz.lv + pz.kind) : Math.random, pz.kind);
     if (pzCur.choices) pzCur.opts = pzOptions(pzCur);
     if (pzCur.memo) pzT = setTimeout(function () { if (pzCur) { pzCur.hide = true; pzRender(); } }, 3000);
   }
@@ -1659,6 +1682,8 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     h += '<p class="small muted" style="margin:0">🔥 أيام متتالية: <b>' + st + '</b> · حللت اليوم: <b>' + n + '</b>' + (pz.best > 1 ? ' · أطول سلسلة: <b>' + pz.best + '</b>' : "") + '</p>';
     h += '<div class="rangeseg">' + [["easy", "سهل"], ["mid", "متوسط"], ["hard", "صعب"]].map(function (l) {
       return '<button data-pz="lv" data-v="' + l[0] + '" aria-pressed="' + (pz.lv === l[0]) + '">' + l[1] + '</button>'; }).join("") + '</div>';
+    h += '<div class="rangeseg pzkinds" aria-label="نوع اللغز">' + PZ_KINDS.map(function (l) {
+      return '<button data-pz="kind" data-v="' + l[0] + '" aria-pressed="' + (pz.kind === l[0]) + '">' + l[1] + '</button>'; }).join("") + '</div>';
     if (!c) {
       h += '<div class="pzcard"><h3>✓ حللت لغز اليوم، أحسنت</h3><p class="small muted" style="margin:0">لغز جديد غدًا إن شاء الله، وحافظ على السلسلة 🔥</p>' +
         '<button class="btn" data-pz="more">🧩 لغز آخر</button></div>';
@@ -1666,10 +1691,10 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       var waiting = c.memo && !c.hide;
       h += '<div class="pzcard"><h3>' + (pzDaily ? "🌟 لغز اليوم" : "🧩 لغز") + '</h3>' +
         '<p class="small" style="margin:0">' + (c.memo && c.hide ? "اكتب الرقم الذي رأيته" : c.ask) + '</p>' +
-        '<div class="pzq' + (c.word ? " w" : "") + '">' + esc(c.memo && c.hide ? new Array(String(c.a).length + 1).join("•") : c.q) + '</div>';
+        '<div class="pzq' + (c.sura ? " s" : c.word ? " w" : "") + '">' + esc(c.memo && c.hide ? new Array(String(c.a).length + 1).join("•") : c.q) + '</div>';
       if (!waiting) h += c.choices
         ? '<div class="pzopts">' + c.opts.map(function (v) { return '<button data-pz="ans" data-v="' + esc(v) + '">' + esc(v) + '</button>'; }).join("") + '</div>'
-        : '<form class="addform" data-pz="form"><input class="field grow" id="pzAns" ' + (c.word ? 'type="text"' : 'type="text" inputmode="numeric" dir="ltr"') + ' autocomplete="off" aria-label="الجواب"><button class="btn" type="submit">تحقق</button></form>';
+        : '<form class="addform" data-pz="form"><input class="field grow" id="pzAns" ' + (c.word || c.text ? 'type="text"' : 'type="text" inputmode="numeric" dir="ltr"') + ' autocomplete="off" aria-label="الجواب"><button class="btn" type="submit">تحقق</button></form>';
       h += '</div>';
       if (!pzDaily) h += '<button class="ghost" data-pz="skip">↻ لغز غيره</button>';
     }
@@ -1689,8 +1714,9 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       if (pzDaily) { clearTimeout(pzT); pzCur = null; } else pzNew(false);
     } else {
       pzWrong++;
-      pzMsg = ["bad", "✗ ليس صحيحًا" + (c.memo || c.word || pzWrong >= 2 ? "، الجواب: " + c.a + "، وهذا لغز آخر" : "، حاول مرة أخرى")];
-      if (c.memo || c.word || pzWrong >= 2) pzNew(pzDaily, true);
+      var show = c.memo || c.word || c.reveal || pzWrong >= 2;
+      pzMsg = ["bad", "✗ ليس صحيحًا" + (show ? "، الجواب: " + (c.sura ? c.q + " ← " : "") + c.a + "، وهذا لغز آخر" : "، حاول مرة أخرى")];
+      if (show) pzNew(pzDaily, true);
     }
     pzRender();
     var inp = $("pzAns"); if (inp) inp.focus();
@@ -1706,7 +1732,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     var b = e.target.closest("[data-pz]"); if (!b || b.tagName === "FORM") return;
     var a = b.dataset.pz;
     if (a === "close") pzClose();
-    else if (a === "lv") { pz.lv = b.dataset.v; pzSave(); pzMsg = null; if (pzCur) pzNew(pzDaily); pzRender(); }
+    else if (a === "lv" || a === "kind") { pz[a] = b.dataset.v; pzSave(); pzMsg = null; if (pzCur) pzNew(pzDaily); pzRender(); }
     else if (a === "more" || a === "skip") { pzMsg = null; pzNew(false); pzRender(); }
     else if (a === "ans") pzCheck(b.dataset.v);
   });
