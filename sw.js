@@ -1,7 +1,7 @@
 // Offline support: the app shell is served network-first (so updates arrive),
 // fonts and the Supabase library cache-first. Personal data never passes through here;
 // it lives in the browser's localStorage.
-var CACHE = "yawmi-v132";
+var CACHE = "yawmi-v133";
 var CORE = ["./", "index.html", "guide.html", "alarm.html", "config.js", "manifest.webmanifest", "icon.svg", "icon-192.png", "icon-512.png"];
 
 // Each file is stored on its own, so one failed file does not leave the app without its copy. Only the page itself is
