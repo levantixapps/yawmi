@@ -114,6 +114,14 @@ section, .stack { display: flex; flex-direction: column; gap: 10px; }
 .brandbar .hello .g { font-size: .78rem; color: var(--muted); }
 .brandbar .hello .nm { font-family: var(--font-display); font-weight: 700; font-size: 1.05rem; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .brandbar .who { display: flex; justify-content: flex-end; align-items: center; gap: 6px; }
+/* On a phone the greeting gets its own line under the logo and the buttons, so the whole name shows */
+@media (max-width: 560px) {
+  .brandbar { grid-template-columns: auto minmax(0, 1fr); row-gap: 6px; }
+  .brandbar .who { grid-column: 2; grid-row: 1; }
+  .brandbar .hello { grid-column: 1 / -1; grid-row: 2; flex-direction: row; flex-wrap: wrap; justify-content: center; align-items: baseline; gap: 0 6px; }
+  .brandbar .hello:empty { display: none; }
+  .brandbar .hello .nm { white-space: normal; }
+}
 .adbtn { width: 36px; height: 36px; border-radius: 99px; border: 0; background: var(--accent-soft); font-size: 1.05rem; line-height: 1; padding: 0; flex: none; }
 a.adbtn { display: grid; place-items: center; text-decoration: none; color: inherit; } /* ⏰ opens alarm.html */
 .alarmbox { position: fixed; inset: 0; z-index: 45; background: var(--bg); display: flex; }
@@ -750,7 +758,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   // «الأقسام الظاهرة»: each person hides what they don't use. Kept on this device for this account (yawmi-show), not synced,
   // so in a shared family account one member's choice doesn't hide it for the others.
   var FEATS = [["sleep", "🌙 خطة النوم"], ["pray", "🕌 أوقات الصلاة"], ["ramadan", "☪️ رمضان"], ["quran", "📖 القرآن"], ["books", "📚 الكتب"],
-    ["kids", "👨‍👩‍👧 الأبناء"], ["cyc", "🌸 الدورة الشهرية"], ["shop", "🛒 المشتريات"], ["alarm", "⏰ المنبّه"], ["adhkar", "🤲 الأذكار"], ["puzzle", "🧩 الألغاز"]];
+    ["kids", "👨‍👩‍👧 الأبناء"], ["shop", "🛒 المشتريات"], ["alarm", "⏰ المنبّه"], ["adhkar", "🤲 الأذكار"], ["puzzle", "🧩 الألغاز"]];
   var TEAM_FEATS = ["pray", "quran", "adhkar", "alarm"]; // the others are always off in a team account (a work account)
   var hiddenF = {};
   try { hiddenF = JSON.parse(localStorage.getItem(pkey("yawmi-show")) || "{}") || {}; } catch (e) {}
@@ -2056,7 +2064,18 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   var CYC_T = { p: ["🩸", "أيام الدورة"], k: ["🔴", "ذروة الخصوبة: عزل تام"], f: ["🟠", "خصوبة متصاعدة: يُفضَّل البدء بالعزل"], d: ["🟠", "احتياط بعد الذروة: يُفضَّل العزل"], s: ["🟢", "خصوبة منخفضة جدًا: أمان نسبي"], a: ["🟢", "ما بعد الإباضة: خصوبة منخفضة جدًا"], l: ["⚠️", "الدورة متأخرة"] };
   function cycWord() { try { return localStorage.getItem(pkey(CYC_KEY)) || ""; } catch (e) { return ""; } }
   function cycBox() { var b = state.settings.cyc; return b && b.c ? b : null; }
-  function cycOn() { return !isTeamOnly() && !!cycBox() && !!cyc && shown("cyc"); }
+  // Not in «الأقسام الظاهرة»: hidden unless turned on on this device (⚙ العبادة), or the device holds the secret word
+  // (it was opened here before), so a shared family account never shows it on others' devices.
+  function cycWanted() {
+    var v = ""; try { v = localStorage.getItem(pkey("yawmi-cycshow")) || ""; } catch (e) {}
+    return v === "1" || (v !== "0" && !!cycWord());
+  }
+  function cycOn() { return !isTeamOnly() && !!cycBox() && !!cyc && cycWanted(); }
+  function cycOffHtml() {
+    return '<section id="cyc"><h2>🌸 الدورة الشهرية <span class="small muted">للزوجين فقط</span></h2>' +
+      '<p class="muted small">مخفية. إن فعّلتها تظهر على هذا الجهاز فقط، ولا تظهر لغيرك ممن معك في الحساب.</p>' +
+      '<div><button class="ghost" data-act="cycShow" data-v="1">فعّلها على هذا الجهاز</button></div></section>';
+  }
   function b64(u) { return btoa(String.fromCharCode.apply(null, new Uint8Array(u))); }
   function unb64(s) { return Uint8Array.from(atob(s), function (c) { return c.charCodeAt(0); }); }
   function cycKey(word, salt) {
@@ -2313,7 +2332,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   }
   function cycSettingsHtml() {
     cycFresh();
-    var box = cycBox(), h = '<section id="cyc"><h2>🌸 الدورة الشهرية <span class="small muted">للزوجين فقط</span></h2>';
+    var box = cycBox(), h = '<section id="cyc"><h2>🌸 الدورة الشهرية <span class="small muted">للزوجين فقط</span> <button class="linkbtn small" data-act="cycShow" data-v="0">إخفاء</button></h2>';
     if (!box) return h + '<p class="muted small">تسجّل الزوجة أول يوم من دورتها وعدد أيامها، فيظهر في «جدولي» كل يوم: 🩸 أيام الدورة، و🟢 الخصوبة المنخفضة، و🟠 المتصاعدة (يُفضَّل البدء بالعزل)، و🔴 الذروة (عزل تام)، وموعد الدورة القادمة، مع تقويم ملوّن.</p>' +
       '<p class="muted small">🔒 تُشفَّر بكلمة سرية تختارانها أنتما، فتتزامن بين جهازيكما ولا يقرؤها أحد غيركما، حتى من معكما في الحساب نفسه. اكتبا الكلمة نفسها على الجهازين، وإن نُسيت لا يمكن فتح البيانات.</p>' + cycWordForm("ابدأ") + '</section>';
     if (!cyc) return h + '<p class="muted small">' + (ui.cycBad ? "تغيّرت الكلمة السرية أو كُتبت خطأ. اكتبها من جديد." : "🔒 مقفلة على هذا الجهاز. اكتب الكلمة السرية لفتحها.") + '</p>' + cycWordForm("افتح") + '</section>';
@@ -3284,7 +3303,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     h += '</section>';
     }
     h += safe(quranSettingsHtml, "quranSettingsHtml");
-    if (!isTeamOnly()) h += (shown("kids") ? safe(kidsSettingsHtml, "kidsSettingsHtml") : "") + (shown("cyc") ? safe(cycSettingsHtml, "cycSettingsHtml") : "");
+    if (!isTeamOnly()) h += (shown("kids") ? safe(kidsSettingsHtml, "kidsSettingsHtml") : "") + (cycWanted() ? safe(cycSettingsHtml, "cycSettingsHtml") : cycOffHtml());
     h += setGroup("plan");
     h += safe(booksSettingsHtml, "booksSettingsHtml");
     h += safe(focusSettingsHtml, "focusSettingsHtml");
@@ -3853,6 +3872,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
         var cyo = ((cyc && cyc.ob) || {})[cycSel()] || {}, cyf = b.dataset.f || "m", cych = {};
         cych[cyf] = cyo[cyf] === b.dataset.v ? "" : b.dataset.v; cycSign(cycSel(), cych); break;
       case "cycLock": cycLock(); render(); toast("أُقفلت على هذا الجهاز 🔒"); break;
+      case "cycShow": try { localStorage.setItem(pkey("yawmi-cycshow"), b.dataset.v); } catch (e) {} render(); break;
       case "cycWipeAsk": ui.cycWipe = true; render(); break;
       case "cycWipeNo": ui.cycWipe = false; render(); break;
       case "cycWipe": ui.cycWipe = false; cycLock(); state.settings.cyc = { off: 1 }; commit(); toast("حُذفت بيانات الدورة"); break;

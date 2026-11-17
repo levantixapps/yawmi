@@ -23,7 +23,7 @@ setTimeout(function () {
   ok("راجع", function () { return tab("review") && all("#view *") > 5; });
   ok("البحث يفتح", function () { q("#searchBtn").click(); var o = !!q("#srRes"); document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })); return o; });
   ok("الإعدادات تفتح", function () { q("#setBtn").click(); return all('[data-act="setTab"]') >= 4; });
-  ok("الأقسام الظاهرة", function () { return all('[data-act="showF"]') === (APP ? 11 : 10); });
+  ok("الأقسام الظاهرة", function () { return all('[data-act="showF"]') === (APP ? 10 : 9); });
   ok("⏰ " + (APP ? "ظاهر في التطبيق" : "مخفي في المتصفح"), function () { return q("#alarmBtn").hidden === !APP; });
   ok("القرآن: المربع يشغّله", function () {
     var b = q('[data-act="showF"][data-k="quran"]'); if (!b.checked) b.click();
