@@ -124,6 +124,14 @@ a.adbtn { display: grid; place-items: center; text-decoration: none; color: inhe
 .dpanel { position: absolute; top: 0; bottom: 0; inset-inline-start: 0; width: min(440px, 92vw); background: var(--surface); display: flex; flex-direction: column; box-shadow: 0 0 28px rgba(0, 0, 0, .25); }
 .dhead { display: flex; align-items: center; gap: 6px; padding: 12px; border-bottom: 1px solid var(--line); }
 .dhead h2 { flex: 1; margin: 0; font-size: 1.15rem; }
+.pzcard { border: 1px solid var(--line); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 12px; text-align: center; }
+.pzcard h3 { margin: 0; font-size: 1rem; }
+.pzq { font-size: 1.9rem; font-weight: 700; direction: ltr; font-family: var(--font-mono); word-break: break-word; }
+.pzq.w { direction: rtl; font-family: inherit; letter-spacing: .25em; }
+.pzopts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.pzopts button { padding: 12px 4px; font-size: 1.25rem; border-radius: 12px; border: 1px solid var(--line); background: var(--accent-soft); color: inherit; }
+.pzmsg { margin: 0; min-height: 1.4em; font-weight: 600; }
+.pzmsg.good { color: var(--done); } .pzmsg.bad { color: var(--q-now); }
 .dbody { flex: 1; overflow-y: auto; padding: 12px 14px calc(20px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 10px; }
 .dcat { display: flex; justify-content: space-between; align-items: center; gap: 8px; border: 1px solid var(--line); background: var(--bg); border-radius: 12px; padding: 13px 14px; font: inherit; font-size: 1rem; font-weight: 600; color: var(--ink); text-align: start; }
 .dcat small { font-weight: 400; color: var(--muted); }
@@ -556,6 +564,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     <div class="who">
       <a class="adbtn" id="alarmBtn" href="alarm.html" aria-label="منبّه القفل" title="منبّه القفل">⏰</a>
       <button class="adbtn" id="adBtn" aria-label="الأذكار" title="الأذكار">🤲</button>
+      <button class="adbtn" id="pzBtn" aria-label="الألغاز" title="الألغاز">🧩</button>
       <button class="profchip" id="profBtn" aria-label="الحسابات" aria-haspopup="menu"><span id="profName"></span> ▾</button>
     </div>
     <div class="profmenu" id="profMenu" role="menu" hidden></div>
@@ -585,6 +594,13 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   </div>
 </nav>
 <div class="toast" id="toast" hidden></div>
+<div class="drawer" id="puzzles" hidden>
+  <div class="dshade" data-pz="close"></div>
+  <aside class="dpanel" role="dialog" aria-modal="true" aria-labelledby="pzTitle">
+    <div class="dhead"><h2 id="pzTitle">🧩 الألغاز</h2><button class="del" data-pz="close" aria-label="إغلاق">✕</button></div>
+    <div class="dbody" id="pzBody"></div>
+  </aside>
+</div>
 <div class="drawer" id="adhkar" hidden>
   <div class="dshade" data-ad="close"></div>
   <aside class="dpanel" role="dialog" aria-modal="true" aria-labelledby="adTitle">
@@ -731,7 +747,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   // «الأقسام الظاهرة»: each person hides what they don't use. Kept on this device for this account (yawmi-show), not synced,
   // so in a shared family account one member's choice doesn't hide it for the others.
   var FEATS = [["sleep", "🌙 خطة النوم"], ["pray", "🕌 أوقات الصلاة"], ["ramadan", "☪️ رمضان"], ["quran", "📖 القرآن"], ["books", "📚 الكتب"],
-    ["kids", "👨‍👩‍👧 الأبناء"], ["cyc", "🌸 الدورة الشهرية"], ["shop", "🛒 المشتريات"], ["alarm", "⏰ المنبّه"], ["adhkar", "🤲 الأذكار"]];
+    ["kids", "👨‍👩‍👧 الأبناء"], ["cyc", "🌸 الدورة الشهرية"], ["shop", "🛒 المشتريات"], ["alarm", "⏰ المنبّه"], ["adhkar", "🤲 الأذكار"], ["puzzle", "🧩 الألغاز"]];
   var TEAM_FEATS = ["pray", "quran", "adhkar", "alarm"]; // the others are always off in a team account (a work account)
   var hiddenF = {};
   try { hiddenF = JSON.parse(localStorage.getItem(pkey("yawmi-show")) || "{}") || {}; } catch (e) {}
@@ -1306,7 +1322,9 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     document.querySelectorAll(".tab").forEach(function (b) { b.setAttribute("aria-current", b.dataset.tab === ui.tab ? "true" : "false"); });
     var ftab = document.querySelector('.tab[data-tab="flows"]'); if (ftab) ftab.hidden = !flowsTab();
     var stab = document.querySelector('.tab[data-tab="shop"]'); if (stab) stab.hidden = !shopOn();
-    $("alarmBtn").hidden = !shown("alarm") || !natKey(); // a page alarm rings only while the page is open: kept for the Android app $("adBtn").hidden = !shown("adhkar");
+    $("alarmBtn").hidden = !shown("alarm") || !natKey(); // a page alarm rings only while the page is open: kept for the Android app
+    $("adBtn").hidden = !shown("adhkar");
+    $("pzBtn").hidden = !shown("puzzle") || isTeamOnly();
     var sn = shopLeft().length; $("shopCount").textContent = sn ? "🛒 " + sn : "🛒";
     var dot = $("cloudDot");
     dot.hidden = cloud.status === "off" || cloud.status === "nocode";
@@ -1581,6 +1599,119 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     }
   });
   document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !$("adhkar").hidden) adClose(); });
+
+  /* ---------- PUZZLES 🧩: made on this device, offline, no server. The same four kinds as the alarm in the Android app. ---------- */
+  // «لغز اليوم» is the same all day (seeded by the date); then as many more as the person likes.
+  // yawmi-puzzle = { lv, day: date today's puzzle was solved, streak, best, n: solved on date nd }, on this device only.
+  var PZ_WORDS = { easy: ["صباح", "نور", "خير", "شمس", "ماء", "بيت", "سلام", "قمر", "ورد", "بحر", "جبل", "نجم"],
+    mid: ["كتاب", "حصان", "ليمون", "شجرة", "تفاحة", "زيتون", "مسجد", "قلم", "عصفور", "نافذة", "سحابة", "قهوة"],
+    hard: ["برتقال", "مستشفى", "طائرة", "مكتبة", "حديقة", "سيارة", "فراشة", "مدرسة", "ياسمين", "بستان", "مسافر", "شلالات"] };
+  var pz = { lv: "easy", day: "", streak: 0, best: 0, n: 0, nd: "" }, pzCur = null, pzDaily = false, pzWrong = 0, pzMsg = null, pzT = 0;
+  try { var pz0 = JSON.parse(localStorage.getItem("yawmi-puzzle") || "null"); if (pz0) Object.keys(pz).forEach(function (k) { if (pz0[k] != null) pz[k] = pz0[k]; }); } catch (e) {}
+  function pzSave() { if (demo) return; try { localStorage.setItem("yawmi-puzzle", JSON.stringify(pz)); } catch (e) {} }
+  function pzSeeded(seed) { // the same numbers for the same seed
+    var s = 0; for (var i = 0; i < seed.length; i++) s = (s * 31 + seed.charCodeAt(i)) | 0;
+    return function () { s = (s + 0x6D2B79F5) | 0; var r = Math.imul(s ^ (s >>> 15), 1 | s); r = (r + Math.imul(r ^ (r >>> 7), 61 | r)) ^ r; return ((r ^ (r >>> 14)) >>> 0) / 4294967296; };
+  }
+  function pzPlain(s) { return String(s).replace(/[٠-٩]/g, function (d) { return "٠١٢٣٤٥٦٧٨٩".indexOf(d); }).replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي").replace(/\s+/g, ""); }
+  function pzMake(lv, R) {
+    function rnd(a, b) { return a + Math.floor(R() * (b - a + 1)); }
+    function pick(a) { return a[rnd(0, a.length - 1)]; }
+    var k = pick(["math", "seq", "memory", "word"]), x, y, z, st;
+    if (k === "seq") {
+      if (lv === "easy") { x = rnd(2, 20); y = rnd(2, 9); return { q: [x, x + y, x + 2 * y, x + 3 * y].join("، ") + "، ؟", a: x + 4 * y, choices: true, ask: "ما الرقم التالي؟" }; }
+      if (lv === "mid") { x = rnd(2, 5); y = pick([2, 3]); return { q: [x, x * y, x * y * y, x * y * y * y].join("، ") + "، ؟", a: x * y * y * y * y, ask: "ما الرقم التالي؟" }; }
+      x = rnd(1, 9); st = rnd(2, 4); return { q: [x, x + st, x + 3 * st, x + 6 * st].join("، ") + "، ؟", a: x + 10 * st, ask: "ما الرقم التالي؟ (الفرق يزيد كل مرة)" };
+    }
+    if (k === "memory") {
+      var n = { easy: 3, mid: 4, hard: 6 }[lv], num = String(rnd(1, 9));
+      while (num.length < n) num += rnd(0, 9);
+      return { q: num, a: +num, choices: lv === "easy", memo: true, ask: "احفظ هذا الرقم، سيختفي بعد ٣ ثوانٍ" };
+    }
+    if (k === "word") {
+      var w = pick(PZ_WORDS[lv]), a = w.split("");
+      for (var i = 0; i < 8 && a.join("") === w; i++) for (var j = a.length - 1; j > 0; j--) { var r = rnd(0, j), c = a[j]; a[j] = a[r]; a[r] = c; }
+      return { q: a.join(" "), a: w, word: true, choices: lv === "easy", ask: "رتّب الحروف لتكوّن كلمة" };
+    }
+    if (lv === "easy") { x = rnd(12, 49); y = rnd(11, 39); return { q: x + " + " + y + " = ؟", a: x + y, choices: true, ask: "احسب الناتج" }; }
+    if (lv === "mid") { x = rnd(3, 9); y = rnd(12, 19); return { q: x + " × " + y + " = ؟", a: x * y, ask: "احسب الناتج" }; }
+    x = rnd(6, 9); y = rnd(13, 29); z = rnd(21, 89); return { q: x + " × " + y + " + " + z + " = ؟", a: x * y + z, ask: "احسب الناتج" };
+  }
+  function pzOptions(c) { // three buttons for the easy level, in a random order
+    var o;
+    if (c.word) o = [c.a].concat(PZ_WORDS.easy.concat(PZ_WORDS.mid).filter(function (w) { return w !== c.a && w.length === c.a.length; }).sort(function () { return Math.random() - .5; }).slice(0, 2));
+    else if (c.memo) { var s = String(c.a); o = [c.a, +(s.slice(0, -1) + ((+s.slice(-1) + 1) % 10)), +(s.slice(1) + s[0])]; }
+    else { var d1 = 1 + Math.floor(Math.random() * 5); o = [c.a, c.a + d1, c.a - d1 - 5]; }
+    while (o.length < 3 || o.filter(function (v, i) { return o.indexOf(v) === i; }).length < 3) o = o.filter(function (v, i) { return o.indexOf(v) === i; }).concat([c.word ? PZ_WORDS.easy[o.length] : c.a + 7 * o.length]);
+    return o.sort(function () { return Math.random() - .5; });
+  }
+  function pzToday() { return keyOf(new Date()); }
+  function pzStreak() { return pz.day === pzToday() || pz.day === keyOf(addDays(today(), -1)) ? pz.streak : 0; } // a missed day ends it
+  function pzNew(daily, fresh) {
+    clearTimeout(pzT); pzDaily = daily; pzWrong = 0;
+    pzCur = pzMake(pz.lv, daily && !fresh ? pzSeeded(pzToday() + pz.lv) : Math.random);
+    if (pzCur.choices) pzCur.opts = pzOptions(pzCur);
+    if (pzCur.memo) pzT = setTimeout(function () { if (pzCur) { pzCur.hide = true; pzRender(); } }, 3000);
+  }
+  function pzRender() {
+    var body = $("pzBody"); if (!body) return;
+    var st = pzStreak(), n = pz.nd === pzToday() ? pz.n : 0, c = pzCur, h = "";
+    h += '<p class="small muted" style="margin:0">🔥 أيام متتالية: <b>' + st + '</b> · حللت اليوم: <b>' + n + '</b>' + (pz.best > 1 ? ' · أطول سلسلة: <b>' + pz.best + '</b>' : "") + '</p>';
+    h += '<div class="rangeseg">' + [["easy", "سهل"], ["mid", "متوسط"], ["hard", "صعب"]].map(function (l) {
+      return '<button data-pz="lv" data-v="' + l[0] + '" aria-pressed="' + (pz.lv === l[0]) + '">' + l[1] + '</button>'; }).join("") + '</div>';
+    if (!c) {
+      h += '<div class="pzcard"><h3>✓ حللت لغز اليوم، أحسنت</h3><p class="small muted" style="margin:0">لغز جديد غدًا إن شاء الله، وحافظ على السلسلة 🔥</p>' +
+        '<button class="btn" data-pz="more">🧩 لغز آخر</button></div>';
+    } else {
+      var waiting = c.memo && !c.hide;
+      h += '<div class="pzcard"><h3>' + (pzDaily ? "🌟 لغز اليوم" : "🧩 لغز") + '</h3>' +
+        '<p class="small" style="margin:0">' + (c.memo && c.hide ? "اكتب الرقم الذي رأيته" : c.ask) + '</p>' +
+        '<div class="pzq' + (c.word ? " w" : "") + '">' + esc(c.memo && c.hide ? new Array(String(c.a).length + 1).join("•") : c.q) + '</div>';
+      if (!waiting) h += c.choices
+        ? '<div class="pzopts">' + c.opts.map(function (v) { return '<button data-pz="ans" data-v="' + esc(v) + '">' + esc(v) + '</button>'; }).join("") + '</div>'
+        : '<form class="addform" data-pz="form"><input class="field grow" id="pzAns" ' + (c.word ? 'type="text"' : 'type="text" inputmode="numeric" dir="ltr"') + ' autocomplete="off" aria-label="الجواب"><button class="btn" type="submit">تحقق</button></form>';
+      h += '</div>';
+      if (!pzDaily) h += '<button class="ghost" data-pz="skip">↻ لغز غيره</button>';
+    }
+    h += '<p class="pzmsg' + (pzMsg ? " " + pzMsg[0] : "") + '" aria-live="polite">' + (pzMsg ? esc(pzMsg[1]) : "") + '</p>';
+    body.innerHTML = h;
+  }
+  function pzCheck(v) {
+    var c = pzCur; if (!c || !String(v).trim()) return;
+    if (pzPlain(v) === pzPlain(c.a)) {
+      var d = pzToday();
+      if (pz.nd !== d) { pz.nd = d; pz.n = 0; }
+      pz.n++;
+      if (pzDaily && pz.day !== d) { pz.streak = pzStreak() + 1; pz.day = d; pz.best = Math.max(pz.best || 0, pz.streak); }
+      pzSave();
+      if (navigator.vibrate) try { navigator.vibrate([30, 60, 30]); } catch (e) {}
+      pzMsg = ["good", pzDaily ? "✓ أحسنت!" : "✓ صحيح"];
+      if (pzDaily) { clearTimeout(pzT); pzCur = null; } else pzNew(false);
+    } else {
+      pzWrong++;
+      pzMsg = ["bad", "✗ ليس صحيحًا" + (c.memo || c.word || pzWrong >= 2 ? "، الجواب: " + c.a + "، وهذا لغز آخر" : "، حاول مرة أخرى")];
+      if (c.memo || c.word || pzWrong >= 2) pzNew(pzDaily, true);
+    }
+    pzRender();
+    var inp = $("pzAns"); if (inp) inp.focus();
+  }
+  function pzOpen() {
+    pzMsg = null;
+    if (pz.day === pzToday()) { if (pzDaily) pzCur = null; } else if (!pzCur || !pzDaily) pzNew(true);
+    pzRender(); $("puzzles").hidden = false; document.body.style.overflow = "hidden";
+  }
+  function pzClose() { clearTimeout(pzT); if (pzCur && pzCur.memo) pzCur = null; $("puzzles").hidden = true; document.body.style.overflow = ""; }
+  $("pzBtn").addEventListener("click", pzOpen);
+  $("puzzles").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-pz]"); if (!b || b.tagName === "FORM") return;
+    var a = b.dataset.pz;
+    if (a === "close") pzClose();
+    else if (a === "lv") { pz.lv = b.dataset.v; pzSave(); pzMsg = null; if (pzCur) pzNew(pzDaily); pzRender(); }
+    else if (a === "more" || a === "skip") { pzMsg = null; pzNew(false); pzRender(); }
+    else if (a === "ans") pzCheck(b.dataset.v);
+  });
+  $("puzzles").addEventListener("submit", function (e) { e.preventDefault(); var inp = $("pzAns"); if (inp) pzCheck(inp.value); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !$("puzzles").hidden) pzClose(); });
 
   /* ---------- QURAN: daily reading, new memorization and review ---------- */
   // Settings: state.settings.quran = { on, read, hifz, rev (daily goals in pages), page (next page to read), mem (pages memorized), khatmat }
@@ -5404,7 +5535,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     clearTimeout(dTimer);
     var d0 = demo; demo = null;
     state = JSON.parse(d0.real); fixState(); takeSnap();
-    adCount = JSON.parse(d0.ad); hiddenF = JSON.parse(d0.hid); if (!$("adhkar").hidden) adClose();
+    adCount = JSON.parse(d0.ad); hiddenF = JSON.parse(d0.hid); if (!$("adhkar").hidden) adClose(); if (!$("puzzles").hidden) pzClose();
     if (d0.env) { code = d0.env.code; cloud.role = d0.env.role; cloud.num = d0.env.num; ui.teamInfo = d0.env.teamInfo; ui.flows = d0.env.flows; flowsAt = d0.env.flowsAt; }
     ui.pathSteps = []; ui.pathName = ""; ui.pathEdit = null; ui.flowForm = false;
     ui.tab = d0.tab; ui.open = d0.open; ui.step = d0.step; ui.setTab = d0.setTab; current = d0.day;
