@@ -138,11 +138,9 @@ a.adbtn { display: grid; place-items: center; text-decoration: none; color: inhe
 .pzq { font-size: 1.9rem; font-weight: 700; direction: ltr; font-family: var(--font-mono); word-break: break-word; }
 .notes { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
 .cash { display: flex; flex-direction: column; align-items: center; gap: 6px; }
-.cashwad { position: relative; width: 280px; height: 330px; border: 0; padding: 0; background: none; cursor: pointer; direction: ltr; touch-action: manipulation; overflow: hidden; }
-.cashwad .wadin { position: absolute; inset: 0; }
-.cashwad img { position: absolute; left: 92px; top: 40px; width: 96px; height: auto; border-radius: 4px; box-shadow: 0 1px 5px rgba(0, 0, 0, .3); transform-origin: 50% 92%; transition: transform .3s ease, filter .3s; }
-.cashwad .hand { position: absolute; left: 50px; bottom: 0; width: 200px; z-index: 70; }
-.hand .hp { fill: #D9A27A; } .hand .ht { fill: #E8B892; stroke: #C48B62; stroke-width: 2; } .hand .hn { fill: none; stroke: #C48B62; stroke-width: 2; stroke-linecap: round; }
+.cashwad { position: relative; width: 300px; height: 225px; border: 0; padding: 0; background: none; cursor: pointer; direction: ltr; touch-action: manipulation; }
+.cashwad img { position: absolute; left: 0; top: 14px; width: 96px; height: auto; border-radius: 5px; box-shadow: 0 1px 5px rgba(0, 0, 0, .3); transition: transform .35s ease, opacity .35s; }
+.cashlbl { width: 300px; display: flex; justify-content: space-between; direction: ltr; font-size: .85rem; color: var(--muted); padding: 0 24px; }
 .pzq.w { direction: rtl; font-family: inherit; letter-spacing: .25em; }
 .pzq.s { direction: rtl; font-family: inherit; letter-spacing: 0; font-size: 1.6rem; }
 .rangeseg.pzkinds { grid-template-columns: repeat(4, 1fr); }
@@ -1818,18 +1816,15 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     h += '<p style="text-align:center;margin:12px 0 0"><button class="ghost small" data-pz="reset">↺ صفّر الألغاز</button></p>';
     body.innerHTML = h;
   }
-  function pzCashPose(c, k) { // a fan held at the bottom: the rest lean one way behind the next note, the counted ones the other way
-    var mess = ((k * 37) % 7 - 3) * .7, up = (k * 53) % 5 * 2; // not a neat wad: each note a little off
-    if (k >= c.cnt) { var j = Math.min(k - c.cnt, 8); return "z-index:" + (60 - j) + ";transform:translateY(" + up + "px) rotate(" + (j * 1.8 + (j ? mess : 0)) + "deg)"; }
-    var i = Math.min(c.cnt - 1 - k, 8);
-    return "z-index:" + (1 + k) + ";transform:translateY(" + up + "px) rotate(" + (-8 - i * 1.8 + mess) + "deg);filter:brightness(.93)";
+  function pzCashPose(c, k) { // two piles, like cards: «للعدّ» on the right, the counted ones on the left, paler; each note a little off
+    var rot = ((k * 37) % 7 - 3) * 1.6, dx = ((k * 13) % 5 - 2) * 2, dy = ((k * 29) % 5 - 2) * 2;
+    if (k >= c.cnt) return "z-index:" + (100 - k) + ";transform:translate(" + (172 + dx) + "px," + dy + "px) rotate(" + rot + "deg)";
+    return "z-index:" + (1 + k) + ";transform:translate(" + (30 + dx) + "px," + dy + "px) rotate(" + rot + "deg);opacity:.5";
   }
-  function pzCashHtml(c) { // counting a wad by hand, like holding the notes: a tap folds the front note back and shows the next
-    var left = c.notes.length - c.cnt, h = '<div class="cash"><button class="cashwad" data-pz="flick" aria-label="عُدّ الورقة التالية"' + (left ? "" : " disabled") + '><span class="wadin">';
+  function pzCashHtml(c) { // a tap moves the top note of «للعدّ» to the counted pile
+    var left = c.notes.length - c.cnt, h = '<div class="cash"><button class="cashwad" data-pz="flick" aria-label="عُدّ الورقة التالية"' + (left ? "" : " disabled") + '>';
     h += c.notes.map(function (v, k) { return '<img src="notes/' + v + '.webp" alt="' + (k === c.cnt ? v + " ليرة" : "") + '" style="' + pzCashPose(c, k) + '">'; }).join("");
-    h += '</span><svg class="hand" viewBox="0 0 200 150" aria-hidden="true"><path class="hp" d="M40 150 C30 110 34 78 52 62 C70 46 98 44 122 52 L176 70 C190 75 192 92 180 98 L132 92 C150 104 158 124 160 150 Z"/>' +
-      '<path class="ht" d="M58 74 C74 58 104 52 124 58 L170 74 C182 78 182 92 170 94 L120 90 C102 92 84 98 70 104 C56 100 50 84 58 74 Z"/><path class="hn" d="M150 76 C160 77 168 80 172 84"/></svg>';
-    return h + '</button><p class="small muted" id="cashN" style="margin:0">' + (left ? (c.cnt ? "عددت " + c.cnt : "انقر لتعدّ") : "✓ انتهت الرزمة، عددت " + c.cnt) + '</p></div>';
+    return h + '</button><div class="cashlbl"><span id="cashN">' + (c.cnt ? "عددت " + c.cnt : "") + '</span><span>' + (left ? "انقر لتعدّ ←" : "✓ انتهت") + '</span></div></div>';
   }
   function pzCardHtml(c, title, extra) { // a puzzle's card: also used by the match
       var waiting = c.memo && !c.hide || c.notes && c.cnt < c.notes.length, h = "";
