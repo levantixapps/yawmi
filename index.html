@@ -137,15 +137,10 @@ a.adbtn { display: grid; place-items: center; text-decoration: none; color: inhe
 .pzcard h3 { margin: 0; font-size: 1rem; }
 .pzq { font-size: 1.9rem; font-weight: 700; direction: ltr; font-family: var(--font-mono); word-break: break-word; }
 .notes { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
-.cash { display: flex; align-items: center; justify-content: center; gap: 18px; min-height: 120px; direction: ltr; }
-.cashpile { position: relative; width: 70px; height: 80px; }
-.cashpile img { position: absolute; left: 0; width: 70px; border-radius: 3px; box-shadow: 0 1px 2px rgba(0, 0, 0, .3); filter: saturate(.6) brightness(.9); }
-.cashpile small { position: absolute; bottom: -18px; left: 0; right: 0; text-align: center; color: var(--muted); direction: rtl; }
-.cashtop { border: 0; padding: 0; background: none; border-radius: 6px; cursor: pointer; }
-.cashtop span { display: block; width: 120px; height: 113px; overflow: hidden; border-radius: 6px; } /* half of a 240px note */
-.cashtop img { width: 240px; height: auto; display: block; animation: cashin .25s ease-out; }
-@keyframes cashin { from { transform: translateX(40px); opacity: .2; } to { transform: none; opacity: 1; } }
-.cashdone { font-weight: 600; color: var(--done); direction: rtl; }
+.cash { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.cashwad .wadin { position: absolute; inset: 0; transform: rotate(-28deg); }
+.cashwad { position: relative; width: 270px; height: 270px; border: 0; padding: 0; background: none; cursor: pointer; direction: ltr; touch-action: manipulation; }
+.cashwad img { position: absolute; left: 30px; bottom: 40px; width: 210px; border-radius: 4px; box-shadow: 0 2px 6px rgba(0, 0, 0, .3); transform-origin: 100% 100%; transition: transform .3s ease, filter .3s; }
 .pzq.w { direction: rtl; font-family: inherit; letter-spacing: .25em; }
 .pzq.s { direction: rtl; font-family: inherit; letter-spacing: 0; font-size: 1.6rem; }
 .rangeseg.pzkinds { grid-template-columns: repeat(4, 1fr); }
@@ -1821,15 +1816,15 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     h += '<p style="text-align:center;margin:12px 0 0"><button class="ghost small" data-pz="reset">↺ صفّر الألغاز</button></p>';
     body.innerHTML = h;
   }
-  function pzCashHtml(c) { // counting a wad by hand: half of the next note shows; a tap moves it to the counted pile
-    var left = c.notes.length - c.cnt, h = '<div class="cash">';
-    h += '<div class="cashpile" aria-label="عددت ' + c.cnt + '">' + c.notes.slice(0, c.cnt).map(function (v, i) {
-      return '<img src="notes/' + v + '.webp" alt="" style="top:' + (i * 5) + 'px">'; }).join("") + '<small>' + (c.cnt ? "عددت " + c.cnt : "") + '</small></div>';
-    if (left) h += '<button class="cashtop" data-pz="flick" aria-label="عُدّ هذه الورقة" style="box-shadow:' +
-      Array.apply(null, Array(Math.min(left - 1, 6))).map(function (x, i) { return (i + 1) * 2 + "px " + (i + 1) * 2 + "px 0 -1px #d9d2bf"; }).join(",") + (left > 1 ? "" : "none") + '">' +
-      '<span><img src="notes/' + c.notes[c.cnt] + '.webp" alt="' + c.notes[c.cnt] + ' ليرة"></span></button>';
-    else h += '<div class="cashdone">✓ انتهت الرزمة</div>';
-    return h + '</div>';
+  function pzCashPose(c, k) { // where note k sits: the rest of the wad behind the next one with their corners showing; the counted ones fanned back
+    if (k >= c.cnt) { var j = Math.min(k - c.cnt, 6); return "z-index:" + (50 - j) + ";transform:translate(" + j * 4 + "px," + -j * 9 + "px) rotate(" + -j * 2.5 + "deg)"; }
+    var i = Math.min(c.cnt - 1 - k, 6);
+    return "z-index:" + (1 + k) + ";transform:translate(" + -i * 7 + "px," + (-78 - i * 9) + "px) rotate(" + (-5 - i * 3) + "deg);filter:brightness(.92)";
+  }
+  function pzCashHtml(c) { // counting a wad by hand, like holding the notes: a tap folds the front note back and shows the next
+    var left = c.notes.length - c.cnt, h = '<div class="cash"><button class="cashwad" data-pz="flick" aria-label="عُدّ الورقة التالية"' + (left ? "" : " disabled") + '><span class="wadin">';
+    h += c.notes.map(function (v, k) { return '<img src="notes/' + v + '.webp" alt="' + (k === c.cnt ? v + " ليرة" : "") + '" style="' + pzCashPose(c, k) + '">'; }).join("");
+    return h + '</span></button><p class="small muted" id="cashN" style="margin:0">' + (left ? (c.cnt ? "عددت " + c.cnt : "انقر لتعدّ") : "✓ انتهت الرزمة، عددت " + c.cnt) + '</p></div>';
   }
   function pzCardHtml(c, title, extra) { // a puzzle's card: also used by the match
       var waiting = c.memo && !c.hide || c.notes && c.cnt < c.notes.length, h = "";
@@ -1927,7 +1922,12 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     }
     else if (a === "prev" || a === "next") { pzGo(a === "prev" ? -1 : 1); pzRender(); }
     else if (a === "ans") pzCheck(b.dataset.v);
-    else if (a === "flick" && pzCur && pzCur.notes && pzCur.cnt < pzCur.notes.length) { pzCur.cnt++; pzRender(); var nb = document.querySelector(".cashtop"); if (nb) nb.focus(); else { var ia = $("pzAns"); if (ia) ia.focus(); } }
+    else if (a === "flick" && pzCur && pzCur.notes && pzCur.cnt < pzCur.notes.length) { // move the notes in place, so they slide
+      var fc = pzCur; fc.cnt++;
+      [].forEach.call(b.querySelectorAll("img"), function (im, k) { im.style.cssText = pzCashPose(fc, k); });
+      var cn = $("cashN"); if (cn) cn.textContent = "عددت " + fc.cnt;
+      if (fc.cnt === fc.notes.length) setTimeout(function () { if (pzCur === fc) { pzRender(); var ia = $("pzAns"); if (ia) ia.focus(); } }, 350);
+    }
     else if ((a === "chip" || a === "iw") && pzCur && pzCur.irab) {
       if (a === "iw" && pzCur.placed[+b.dataset.i]) return; // already in place
       var v = a === "chip" ? +b.dataset.k : "w" + b.dataset.i;
