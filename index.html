@@ -142,6 +142,12 @@ a.adbtn { display: grid; place-items: center; text-decoration: none; color: inhe
 .cashwad img { position: absolute; left: 0; top: 14px; width: 96px; height: auto; border-radius: 5px; box-shadow: 0 1px 5px rgba(0, 0, 0, .3); transition: transform .35s ease, opacity .35s; }
 .paid { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
 .paid img { width: 62px; height: auto; border-radius: 4px; box-shadow: 0 1px 4px rgba(0, 0, 0, .3); }
+@media (min-width: 900px) { /* a computer: a wider puzzles panel, bigger notes */
+  #puzzles .dpanel { width: min(760px, 62vw); }
+  #puzzles .cash, #puzzles .paid { zoom: 1.4; }
+  #puzzles .pzq { font-size: 2.3rem; } #puzzles .pzq.s { font-size: 1.9rem; }
+  #puzzles .pzcard { padding: 20px; }
+}
 .cashlbl small { font-size: .72rem; }
 .cashlbl { width: 300px; display: flex; justify-content: space-between; direction: ltr; font-size: .85rem; color: var(--muted); padding: 0 24px; }
 .pzq.w { direction: rtl; font-family: inherit; letter-spacing: .25em; }
@@ -1936,7 +1942,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     else if (a === "prev" || a === "next") { pzGo(a === "prev" ? -1 : 1); pzRender(); }
     else if (a === "ans") pzCheck(b.dataset.v);
     else if (a === "flick" && pzCur && pzCur.notes) { // the right side counts the next note, the counted pile (left) gives the last one back; moved in place, so they slide
-      var fc = pzCur, n0 = fc.cnt, back = e.clientX - b.getBoundingClientRect().left < 135;
+      var fc = pzCur, n0 = fc.cnt, br = b.getBoundingClientRect(), back = e.clientX - br.left < br.width * .45;
       if (back ? !fc.cnt : fc.cnt >= fc.notes.length) return;
       fc.cnt += back ? -1 : 1;
       if (n0 === fc.notes.length) { pzRender(); return; } // the stack was done: hide the answer again
