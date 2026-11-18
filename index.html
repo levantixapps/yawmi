@@ -1816,7 +1816,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   function pzNew(daily, fresh) {
     clearTimeout(pzT); pzDaily = daily; pzWrong = 0;
     pzCur = pzPrep(pzMake(pz.lv, daily && !fresh ? pzSeeded(pzToday() + pz.lv + pz.kind) : Math.random, pz.kind));
-    pzCur.daily = daily; pzHist.push(pzCur); if (pzHist.length > 30) pzHist.shift(); pzPos = pzHist.length - 1;
+    pzCur.daily = daily; pzCur.pk = pz.kind + pz.lv; pzHist.push(pzCur); if (pzHist.length > 30) pzHist.shift(); pzPos = pzHist.length - 1;
   }
   function pzPrep(c) { // the buttons, and the memory number's timer
     pzCur = c;
@@ -1845,7 +1845,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     } else {
       h += pzCardHtml(c, pzDaily ? "🌟 لغز اليوم" : "🧩 لغز");
     }
-    var back = c ? pzPos > 0 : pzPos >= 0;
+    var back = pzFind(c ? pzPos - 1 : pzPos, -1) >= 0;
     h += '<div class="row-wrap" style="justify-content:space-between"><button class="ghost" data-pz="prev"' + (back ? "" : " disabled") + '>→ السابق</button>' +
       '<button class="ghost" data-pz="next">التالي ←</button></div>';
     h += '<p class="pzmsg' + (pzMsg ? " " + pzMsg[0] : "") + '" aria-live="polite">' + (pzMsg ? esc(pzMsg[1]) : "") + '</p>';
@@ -1943,11 +1943,13 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     pzRender();
     var inp = $("pzAns"); if (inp) inp.focus();
   }
+  function pzFind(i, d) { // the nearest seen puzzle from i in direction d with the chosen kind and level, or -1
+    for (; i >= 0 && i < pzHist.length; i += d) if (pzHist[i].pk === pz.kind + pz.lv) return i;
+    return -1;
+  }
   function pzGo(d) {
-    if (!pzCur) { if (d < 0 && pzPos >= 0) pzCur = pzHist[pzPos]; else pzNew(false); } // from «حللت لغز اليوم»: back shows it
-    else if (d < 0 && pzPos > 0) pzCur = pzHist[--pzPos];
-    else if (d > 0 && pzPos < pzHist.length - 1) pzCur = pzHist[++pzPos];
-    else if (d > 0) pzNew(false);
+    var j = pzFind(pzCur ? pzPos + d : d < 0 ? pzPos : pzHist.length, d); // only puzzles of the chosen kind and level
+    if (j >= 0) pzCur = pzHist[pzPos = j]; else if (d > 0 || !pzCur) pzNew(false); // from «حللت لغز اليوم»: back shows it
     pzDaily = !!pzCur.daily; pzSel = null; pzMsg = null;
     if (pzCur.memo && !pzCur.hide && pzHist.indexOf(pzCur) < pzHist.length - 1) pzCur.hide = true;
   }
