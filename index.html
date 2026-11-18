@@ -410,6 +410,10 @@ details.box textarea { font-size: .78rem; direction: ltr; }
 .voicehint { color: var(--q-now); }
 .tipcard { background: linear-gradient(135deg, var(--accent-soft), var(--surface)); border: 1px solid var(--line); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
 .tipcard p { line-height: 1.9; }
+.tippop { position: fixed; inset: 0; z-index: 35; background: rgba(10, 16, 28, .45); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.tippop .tipcard { background-color: var(--surface); width: 100%; max-width: 440px; box-shadow: 0 16px 40px rgba(0,0,0,.3); animation: tipin .25s ease-out; }
+.tippop .btn { align-self: center; min-width: 120px; }
+@keyframes tipin { from { transform: scale(.92); opacity: 0; } }
 .pushbox { background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
 .guidelink { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; text-decoration: none; color: var(--accent); font-weight: 700; background: var(--accent-soft); border-radius: 14px; padding: 12px 14px; }
 .guidelink span { font-weight: 500; font-size: .85rem; }
@@ -1403,7 +1407,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     if (!ui.tab) ui.tab = defaultTab();
     renderHeader();
     var html = ui.tab === "settings" ? "" : focusBar();
-    if (ui.tab === "day" || ui.tab === "plan") html += tipHtml();
+    tipPop(); // the tip of the day comes as a message to close, so it gets noticed
     if (ui.tab === "plan" && ui.step === 1) html += ramadanCard();
     if (ui.tab === "day") html += teamBarHtml();
     var nameFirst = !userName && !ui.nameLater && ui.tab !== "settings";
@@ -4090,9 +4094,25 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   function tipHtml() {
     if (!tip || tip.day !== tipDay() || tip.hidden) return "";
     return '<div class="tipcard"><div class="sechead"><b>💡 معلومة اليوم</b><span class="row-wrap" style="gap:2px">' +
-      '<button class="del" data-act="tipClose" aria-label="إخفاء لليوم">×</button></span></div>' +
-      '<p>' + esc(tip.body) + '</p>' + (tip.source ? '<span class="small muted">' + esc(tip.source) + '</span>' : "") + '</div>';
+      '<button class="del" data-tip="x" aria-label="إغلاق">×</button></span></div>' +
+      '<p>' + esc(tip.body) + '</p>' + (tip.source ? '<span class="small muted">' + esc(tip.source) + '</span>' : "") +
+      '<button class="btn" data-tip="x">حسنًا</button></div>';
   }
+  function tipPop() { // once a day (and again if the admin changes it): a message in the middle; closing it hides it for the day
+    var el = $("tipPop"), h = userName && (ui.tab === "day" || ui.tab === "plan") ? tipHtml() : "";
+    if (!h) { if (el) el.remove(); return; }
+    if (el) return;
+    el = document.createElement("div"); el.id = "tipPop"; el.className = "tippop";
+    el.setAttribute("role", "dialog"); el.setAttribute("aria-modal", "true"); el.setAttribute("aria-label", "معلومة اليوم");
+    el.innerHTML = h; document.body.appendChild(el);
+    el.addEventListener("click", function (e) { if (e.target === el || e.target.closest("[data-tip]")) tipShut(); });
+    var ok = el.querySelector(".btn"); if (ok) ok.focus();
+  }
+  function tipShut() {
+    if (tip) { tip.hidden = true; try { localStorage.setItem(TIP_KEY, JSON.stringify(tip)); } catch (e) {} }
+    var el = $("tipPop"); if (el) el.remove();
+  }
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && $("tipPop")) tipShut(); });
   function toggleIn(a, v) { var i = a.indexOf(v); if (i >= 0) a.splice(i, 1); else a.push(v); }
   function routine(id) { return state.settings.routines.filter(function (r) { return r.id === id; })[0]; }
 
@@ -4346,7 +4366,6 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       case "alertLead": alerts.lead = +b.dataset.v; saveAlerts(); pushRefresh(); render(); break;
       case "pushOn": if (pushOn) pushDisable(); else pushEnable(); break;
       case "pushTest": pushTest(); break;
-      case "tipClose": tip.hidden = true; try { localStorage.setItem(TIP_KEY, JSON.stringify(tip)); } catch (e) {} render(); break;
       case "alertSound": alerts.sound = !alerts.sound; saveAlerts(); render(); break;
       case "alertTest": unlockAudio(); var s0 = alerts.sound; alerts.sound = true; chime(); alerts.sound = s0; notify("تجربة: هذا شكل التنبيه", "سيصلك مثله عند بدء كل مهمة"); break;
       case "askNotify": askNotify(); break;
