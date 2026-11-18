@@ -137,7 +137,15 @@ a.adbtn { display: grid; place-items: center; text-decoration: none; color: inhe
 .pzcard h3 { margin: 0; font-size: 1rem; }
 .pzq { font-size: 1.9rem; font-weight: 700; direction: ltr; font-family: var(--font-mono); word-break: break-word; }
 .notes { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
-.note { width: 100px; height: auto; border-radius: 4px; box-shadow: 0 1px 4px rgba(0, 0, 0, .25); }
+.cash { display: flex; align-items: center; justify-content: center; gap: 18px; min-height: 120px; direction: ltr; }
+.cashpile { position: relative; width: 70px; height: 80px; }
+.cashpile img { position: absolute; left: 0; width: 70px; border-radius: 3px; box-shadow: 0 1px 2px rgba(0, 0, 0, .3); filter: saturate(.6) brightness(.9); }
+.cashpile small { position: absolute; bottom: -18px; left: 0; right: 0; text-align: center; color: var(--muted); direction: rtl; }
+.cashtop { border: 0; padding: 0; background: none; border-radius: 6px; cursor: pointer; }
+.cashtop span { display: block; width: 120px; height: 113px; overflow: hidden; border-radius: 6px; } /* half of a 240px note */
+.cashtop img { width: 240px; height: auto; display: block; animation: cashin .25s ease-out; }
+@keyframes cashin { from { transform: translateX(40px); opacity: .2; } to { transform: none; opacity: 1; } }
+.cashdone { font-weight: 600; color: var(--done); direction: rtl; }
 .pzq.w { direction: rtl; font-family: inherit; letter-spacing: .25em; }
 .pzq.s { direction: rtl; font-family: inherit; letter-spacing: 0; font-size: 1.6rem; }
 .rangeseg.pzkinds { grid-template-columns: repeat(4, 1fr); }
@@ -1730,10 +1738,10 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
         choices: lv !== "hard", ask: { order: "ما ترتيبها في المصحف؟", ayas: "كم عدد آياتها؟", juz: "في أي جزء تبدأ؟" }[ty] };
     }
     if (k === "money") { // the new Syrian pound (two zeros fewer): count the notes; the hard level asks it in the old pound
-      var nn = { easy: rnd(2, 3), mid: rnd(3, 5), hard: rnd(3, 6) }[lv], notes = [], tot = 0;
+      var nn = { easy: rnd(3, 4), mid: rnd(4, 6), hard: rnd(5, 8) }[lv], notes = [], tot = 0;
       for (var m = 0; m < nn; m++) { var nv = pick(lv === "easy" ? [50, 100, 200] : lv === "mid" ? [50, 100, 200, 500] : [10, 25, 50, 100, 200, 500]); notes.push(nv); tot += nv; }
-      return lv === "hard" ? { notes: notes, a: tot * 100, step: 5000, ask: "كم المجموع بالعملة القديمة؟ (الـ١٠٠ الجديدة = ١٠٠٠٠ قديمة)" }
-        : { notes: notes, a: tot, step: 50, choices: lv === "easy", ask: "كم المجموع بالعملة الجديدة؟" };
+      return lv === "hard" ? { notes: notes, cnt: 0, a: tot * 100, step: 5000, ask: "كم المجموع بالعملة القديمة؟ (الـ١٠٠ الجديدة = ١٠٠٠٠ قديمة)" }
+        : { notes: notes, cnt: 0, a: tot, step: 50, choices: lv === "easy", ask: "كم المجموع بالعملة الجديدة؟" };
     }
     if (k === "seq") {
       if (lv === "easy") { x = rnd(2, 20); y = rnd(2, 9); return { q: [x, x + y, x + 2 * y, x + 3 * y].join("، ") + "، ؟", a: x + 4 * y, choices: true, ask: "ما الرقم التالي؟" }; }
@@ -1813,15 +1821,25 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     h += '<p style="text-align:center;margin:12px 0 0"><button class="ghost small" data-pz="reset">↺ صفّر الألغاز</button></p>';
     body.innerHTML = h;
   }
+  function pzCashHtml(c) { // counting a wad by hand: half of the next note shows; a tap moves it to the counted pile
+    var left = c.notes.length - c.cnt, h = '<div class="cash">';
+    h += '<div class="cashpile" aria-label="عددت ' + c.cnt + '">' + c.notes.slice(0, c.cnt).map(function (v, i) {
+      return '<img src="notes/' + v + '.webp" alt="" style="top:' + (i * 5) + 'px">'; }).join("") + '<small>' + (c.cnt ? "عددت " + c.cnt : "") + '</small></div>';
+    if (left) h += '<button class="cashtop" data-pz="flick" aria-label="عُدّ هذه الورقة" style="box-shadow:' +
+      Array.apply(null, Array(Math.min(left - 1, 6))).map(function (x, i) { return (i + 1) * 2 + "px " + (i + 1) * 2 + "px 0 -1px #d9d2bf"; }).join(",") + (left > 1 ? "" : "none") + '">' +
+      '<span><img src="notes/' + c.notes[c.cnt] + '.webp" alt="' + c.notes[c.cnt] + ' ليرة"></span></button>';
+    else h += '<div class="cashdone">✓ انتهت الرزمة</div>';
+    return h + '</div>';
+  }
   function pzCardHtml(c, title, extra) { // a puzzle's card: also used by the match
-      var waiting = c.memo && !c.hide, h = "";
+      var waiting = c.memo && !c.hide || c.notes && c.cnt < c.notes.length, h = "";
       h += '<div class="pzcard"><h3>' + title + '</h3>' + (extra || "") +
-        '<p class="small" style="margin:0">' + (c.memo && c.hide ? "اكتب الرقم الذي رأيته" : c.ask) + '</p>' +
+        '<p class="small" style="margin:0">' + (c.memo && c.hide ? "اكتب الرقم الذي رأيته" : c.notes && waiting ? "عُدّ الرزمة: انقر على الورقة لتعدّها، فتظهر التي بعدها" : c.ask) + '</p>' +
         (c.irab ? '<div class="irab">' + c.irab.map(function (w, i) {
           if (!w[1]) return '<span class="iw"><span class="ia">' + esc(w[0]) + '</span></span>';
           return '<button class="iw' + (c.placed[i] ? " ok" : "") + '" data-pz="iw" data-i="' + i + '" aria-pressed="' + (pzSel === "w" + i) + '"><span class="ia">' + esc(w[0]) + '</span><span class="ir">' + (c.placed[i] ? esc(c.placed[i]) + (w[1].indexOf("~") >= 0 ? '<br><small>ويجوز: ' + esc(w[1].split("~").filter(function (x) { return x !== c.placed[i]; }).join("، ")) + '</small>' : "") : "؟") + '</span></button>';
         }).join("") + '</div><p class="small muted" style="margin:0">' + esc(c.ref) + '</p>'
-          : c.notes ? '<div class="notes">' + c.notes.map(function (v) { return '<img class="note" src="notes/' + v + '.webp" alt="' + v + ' ليرة" width="200" height="95">'; }).join("") + '</div>'
+          : c.notes ? pzCashHtml(c)
           : '<div class="pzq' + (c.long ? " s l" : c.sura ? " s" : c.word ? " w" : "") + '">' + esc(c.memo && c.hide ? new Array(String(c.a).length + 1).join("•") : c.q) + '</div>');
       if (c.solved || c.shown) h += c.irab ? '<p class="pzmsg good">✓ حللته</p>' : '<p class="pzmsg ' + (c.solved ? "good" : "bad") + '">' + (c.solved ? "✓ حللته" : "لم يُحلّ") + "، الجواب: " + esc(c.a) + (c.ref ? " · 📖 " + esc(c.ref) : "") + '</p>';
       else if (c.irab) h += '<div class="pzopts chips">' + c.chips.map(function (ch, k) {
@@ -1897,7 +1915,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     var b = e.target.closest("[data-pz]"); if (!b || b.tagName === "FORM") return;
     var a = b.dataset.pz;
     if (a.indexOf("mt") === 0 && a !== "close") { mtClick(a, b); return; }
-    if (mtView === "play" && a !== "close" && (["ans", "chip", "iw"].indexOf(a) < 0 || !mtMine())) return; // only the team whose turn it is answers
+    if (mtView === "play" && a !== "close" && (["ans", "chip", "iw", "flick"].indexOf(a) < 0 || !mtMine())) return; // only the team whose turn it is answers
     if (a === "close") pzClose();
     else if (a === "lv" || a === "kind") { pz[a] = b.dataset.v; pzSave(); pzMsg = null; if (pzCur) pzNew(pzDaily); pzRender(); }
     else if (a === "more") { pzMsg = null; pzNew(false); pzRender(); }
@@ -1909,6 +1927,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     }
     else if (a === "prev" || a === "next") { pzGo(a === "prev" ? -1 : 1); pzRender(); }
     else if (a === "ans") pzCheck(b.dataset.v);
+    else if (a === "flick" && pzCur && pzCur.notes && pzCur.cnt < pzCur.notes.length) { pzCur.cnt++; pzRender(); var nb = document.querySelector(".cashtop"); if (nb) nb.focus(); else { var ia = $("pzAns"); if (ia) ia.focus(); } }
     else if ((a === "chip" || a === "iw") && pzCur && pzCur.irab) {
       if (a === "iw" && pzCur.placed[+b.dataset.i]) return; // already in place
       var v = a === "chip" ? +b.dataset.k : "w" + b.dataset.i;
