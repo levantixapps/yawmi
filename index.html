@@ -1440,7 +1440,10 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     if (ui.tab === "flows" && !flowsTab()) ui.tab = "day";
     if (ui.tab === "shop" && !shopOn()) ui.tab = "day";
     html += ui.tab === "shop" ? shopView() : ui.tab === "flows" ? flowsView() : ui.tab === "settings" ? settingsView() : ui.tab === "plan" ? planView() : ui.tab === "day" ? dayView() : reviewView();
+    var wasOpen = view.dataset.tab === ui.tab ? [].map.call(view.querySelectorAll("details[open] > summary"), function (x) { return x.textContent; }) : [];
     view.innerHTML = '<div class="stack" style="gap:20px;padding-top:16px">' + html + '</div>';
+    view.dataset.tab = ui.tab; // a redraw (a sync, a refresh) keeps the sections the person opened, like «📤 شارك يومي»
+    if (wasOpen.length) view.querySelectorAll("details > summary").forEach(function (x) { if (wasOpen.indexOf(x.textContent) >= 0) x.parentNode.open = true; });
     labelFields(); drawQr();
   }
   // Screen readers need a name for every field: one without a label gets its placeholder, or the text just before it
@@ -4086,13 +4089,13 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     (hm ? sb.rpc("yawmi_tip_for", { p_day: tipDay(), p_hm: hm.m, p_hd: hm.d }).then(function (r) { return r.error && r.error.code === "PGRST202" ? rpc("tip_for", args) : r; }) : rpc("tip_for", args)).then(function (r) {
       if (r.error || !r.data) return;
       var same = tip && tip.day === tipDay() && tip.id === r.data.id;
-      tip = { day: tipDay(), at: Date.now(), id: r.data.id, body: r.data.body, source: r.data.source || "", hidden: same ? tip.hidden : false };
+      tip = { day: tipDay(), at: Date.now(), id: r.data.id, body: r.data.body, source: r.data.source || "" };
       try { localStorage.setItem(TIP_KEY, JSON.stringify(tip)); } catch (e) {}
       softRender();
     }, function () {});
   }
   function tipHtml() {
-    if (!tip || tip.day !== tipDay() || tip.hidden) return "";
+    if (!tip || tip.day !== tipDay() || tipRead === tip.id) return "";
     return '<div class="tipcard"><b>💡 معلومة اليوم</b>' +
       '<p>' + esc(tip.body) + '</p>' + (tip.source ? '<span class="small muted">' + esc(tip.source) + '</span>' : "") +
       '<button class="btn" data-tip="x">حسنًا</button></div>';
@@ -4108,8 +4111,12 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     el.addEventListener("keydown", function (e) { if (e.key === "Tab") { e.preventDefault(); var b = el.querySelector(".btn"); if (b) b.focus(); } });
     var ok = el.querySelector(".btn"); if (ok) ok.focus();
   }
+  var tipRead = null, tipAway = 0; // read in this opening only: it comes back each time the app is opened
+  document.addEventListener("visibilitychange", function () { // back to the app after 5 minutes or more counts as opening it again
+    if (document.hidden) tipAway = Date.now(); else if (tipAway && Date.now() - tipAway > 300000) { tipRead = null; tipPop(); }
+  });
   function tipShut() {
-    if (tip) { tip.hidden = true; try { localStorage.setItem(TIP_KEY, JSON.stringify(tip)); } catch (e) {} }
+    if (tip) tipRead = tip.id;
     var el = $("tipPop"); if (el) el.remove();
   }
   function toggleIn(a, v) { var i = a.indexOf(v); if (i >= 0) a.splice(i, 1); else a.push(v); }
