@@ -137,9 +137,7 @@ a.adbtn { display: grid; place-items: center; text-decoration: none; color: inhe
 .pzcard h3 { margin: 0; font-size: 1rem; }
 .pzq { font-size: 1.9rem; font-weight: 700; direction: ltr; font-family: var(--font-mono); word-break: break-word; }
 .notes { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
-.note { width: 74px; height: 44px; border-radius: 6px; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.1; box-shadow: inset 0 0 0 3px rgba(255,255,255,.35); }
-.note b { font-size: 1.15rem; font-family: var(--font-mono); } .note small { font-size: .65rem; opacity: .9; }
-.note.n50 { background: #2E7D4F; } .note.n100 { background: #2457A6; } .note.n200 { background: #7A4A9E; } .note.n500 { background: #B5482B; }
+.note { width: 100px; height: auto; border-radius: 4px; box-shadow: 0 1px 4px rgba(0, 0, 0, .25); }
 .pzq.w { direction: rtl; font-family: inherit; letter-spacing: .25em; }
 .pzq.s { direction: rtl; font-family: inherit; letter-spacing: 0; font-size: 1.6rem; }
 .rangeseg.pzkinds { grid-template-columns: repeat(4, 1fr); }
@@ -1733,7 +1731,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     }
     if (k === "money") { // the new Syrian pound (two zeros fewer): count the notes; the hard level asks it in the old pound
       var nn = { easy: rnd(2, 3), mid: rnd(3, 5), hard: rnd(3, 6) }[lv], notes = [], tot = 0;
-      for (var m = 0; m < nn; m++) { var nv = pick(lv === "easy" ? [50, 100, 200] : [50, 100, 200, 500]); notes.push(nv); tot += nv; }
+      for (var m = 0; m < nn; m++) { var nv = pick(lv === "easy" ? [50, 100, 200] : lv === "mid" ? [50, 100, 200, 500] : [10, 25, 50, 100, 200, 500]); notes.push(nv); tot += nv; }
       return lv === "hard" ? { notes: notes, a: tot * 100, step: 5000, ask: "كم المجموع بالعملة القديمة؟ (الـ١٠٠ الجديدة = ١٠٠٠٠ قديمة)" }
         : { notes: notes, a: tot, step: 50, choices: lv === "easy", ask: "كم المجموع بالعملة الجديدة؟" };
     }
@@ -1823,7 +1821,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
           if (!w[1]) return '<span class="iw"><span class="ia">' + esc(w[0]) + '</span></span>';
           return '<button class="iw' + (c.placed[i] ? " ok" : "") + '" data-pz="iw" data-i="' + i + '" aria-pressed="' + (pzSel === "w" + i) + '"><span class="ia">' + esc(w[0]) + '</span><span class="ir">' + (c.placed[i] ? esc(c.placed[i]) + (w[1].indexOf("~") >= 0 ? '<br><small>ويجوز: ' + esc(w[1].split("~").filter(function (x) { return x !== c.placed[i]; }).join("، ")) + '</small>' : "") : "؟") + '</span></button>';
         }).join("") + '</div><p class="small muted" style="margin:0">' + esc(c.ref) + '</p>'
-          : c.notes ? '<div class="notes">' + c.notes.map(function (v) { return '<span class="note n' + v + '"><b>' + v + '</b><small>ليرة</small></span>'; }).join("") + '</div>'
+          : c.notes ? '<div class="notes">' + c.notes.map(function (v) { return '<img class="note" src="notes/' + v + '.webp" alt="' + v + ' ليرة" width="200" height="95">'; }).join("") + '</div>'
           : '<div class="pzq' + (c.long ? " s l" : c.sura ? " s" : c.word ? " w" : "") + '">' + esc(c.memo && c.hide ? new Array(String(c.a).length + 1).join("•") : c.q) + '</div>');
       if (c.solved || c.shown) h += c.irab ? '<p class="pzmsg good">✓ حللته</p>' : '<p class="pzmsg ' + (c.solved ? "good" : "bad") + '">' + (c.solved ? "✓ حللته" : "لم يُحلّ") + "، الجواب: " + esc(c.a) + (c.ref ? " · 📖 " + esc(c.ref) : "") + '</p>';
       else if (c.irab) h += '<div class="pzopts chips">' + c.chips.map(function (ch, k) {
