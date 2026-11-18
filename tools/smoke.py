@@ -9,6 +9,7 @@ import os, re, subprocess, sys, tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 EDGE = [r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe", r"C:\Program Files\Microsoft\Edge\Application\msedge.exe"]
+CHROME = [r"C:\Program Files\Google\Chrome\Application\chrome.exe", r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"]
 
 # Runs inside the page. Each check: [name, function returning true/false]. Results go to <html data-test>.
 CHECKS = r"""
@@ -55,19 +56,22 @@ def run(mode):
     tmp = tempfile.mkdtemp(prefix="yawmi-smoke-")
     path = os.path.join(tmp, "t.html")
     open(path, "w", encoding="utf-8").write(page)
-    edge = next((e for e in EDGE if os.path.exists(e)), None)
-    if not edge: sys.exit("Edge غير موجود")
-    dump = os.path.join(tmp, "out.html")
-    with open(dump, "w", encoding="utf-8") as f:  # a file, not a pipe: Edge's helper processes keep a pipe open
-        try:
-            subprocess.run([edge, "--headless=new", "--disable-gpu", "--no-first-run", "--user-data-dir=" + os.path.join(tmp, "p"),
-                            "--virtual-time-budget=8000", "--dump-dom", "file:///" + path.replace("\\", "/")],
-                           stdout=f, stderr=subprocess.DEVNULL, timeout=90)
-        except subprocess.TimeoutExpired:
-            return "✗ انتهت المهلة (٩٠ ثانية) ولم يكتمل الفتح"
-    out = open(dump, encoding="utf-8", errors="replace").read()
-    m = re.search(r'data-test="([^"]*)"', out)
-    err = re.search(r'data-err="([^"]*)"', out)
+    browsers = [b for b in EDGE + CHROME if os.path.exists(b)]  # Edge first; Chrome when Edge gives an empty page
+    if not browsers: sys.exit("لا يوجد Edge ولا Chrome")
+    m = err = None
+    for i, browser in enumerate(browsers):
+        dump = os.path.join(tmp, "out%d.html" % i)
+        with open(dump, "w", encoding="utf-8") as f:  # a file, not a pipe: the browser's helper processes keep a pipe open
+            try:
+                subprocess.run([browser, "--headless=new", "--disable-gpu", "--no-first-run", "--user-data-dir=" + os.path.join(tmp, "p%d" % i),
+                                "--virtual-time-budget=8000", "--dump-dom", "file:///" + path.replace("\\", "/")],
+                               stdout=f, stderr=subprocess.DEVNULL, timeout=90)
+            except subprocess.TimeoutExpired:
+                continue
+        out = open(dump, encoding="utf-8", errors="replace").read()
+        m = re.search(r'data-test="([^"]*)"', out)
+        err = re.search(r'data-err="([^"]*)"', out)
+        if m or err: break
     res = m.group(1).replace("&quot;", '"') if m else "✗ لم تكتمل الفحوص"
     if err: res += "\n✗ خطأ: " + err.group(1)
     return res
