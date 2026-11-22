@@ -1096,6 +1096,11 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       if (old.b !== cur.b) { d.bu = now; any = true; }
       if (any) { d.updatedAt = now; real = true; }
     });
+    // The example day becomes the person's own once they change it: it syncs like any day, and linking or another device no longer wipes it
+    var sd = state.sample && state.days[state.sample];
+    if (sd && (sd.items.some(function (i) { return i.u; }) || Object.keys(sd.del || {}).length || sd.tu)) {
+      sd.items.forEach(function (i) { delete i.ex; }); delete state.sample; real = true;
+    }
     var s = setJson();
     var sp = shopSnap(), op = snap._p || sp;
     state.shop.items.concat(state.shop.log).forEach(function (i) { if (op[i.id] !== sp[i.id]) { i.u = now; real = true; } });
@@ -1342,7 +1347,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     if (!state.sample) return;
     var k = state.sample, d = state.days[k];
     if (d) {
-      d.items = d.items.filter(function (i) { return !i.ex && i.u && i.rid !== "ex-quran"; });
+      d.items = d.items.filter(function (i) { return i.u && i.rid !== "ex-quran"; }); // an example the person changed is theirs
       d.applied = arr(d.applied).filter(function (a) { return a !== "ex-quran"; });
       if (isEmptyDay(d)) { delete state.days[k]; delete state.dirtyDays[k]; }
       else d.updatedAt = Date.now();
