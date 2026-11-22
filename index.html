@@ -2933,14 +2933,26 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     h += '<div class="card"><h3>' + (dr.id ? "تعديل القالب" : "قالب جديد") + '</h3>' +
       '<input class="field" id="tplName" type="text" maxlength="30" placeholder="اسم القالب، مثل: يوم الدوام" autocomplete="off" value="' + esc(dr.name) + '">';
     h += dr.items.length ? '<ul class="list" style="margin-top:8px">' + dr.items.map(function (x, i) {
-      return '<li class="card"><div class="top"><span class="ttl"><span>' + esc(x.title) + '</span><span class="row-wrap" style="gap:4px 10px">' + catChip(x.cat) + '<span class="cat">' + durLabel(x.dur || 30) + '</span>' +
-        (x.time ? '<span class="cat">' + fmt12(x.time) + '</span>' : "") + '</span></span><button class="del" data-act="tplItemDel" data-i="' + i + '" aria-label="حذف">×</button></div></li>';
+      return '<li class="card"><div class="top"><button class="ttl linkbtn" style="text-align:start;color:inherit" data-act="tplItemEd" data-i="' + i + '" aria-label="تعديل: ' + esc(x.title) + '"><span>' + esc(x.title) + ' ✏️</span><span class="row-wrap" style="gap:4px 10px">' + catChip(x.cat) + '<span class="cat">' + durLabel(x.dur || 30) + '</span>' +
+        (x.time ? '<span class="cat">' + fmt12(x.time) + '</span>' : "") + '</span></button><button class="del" data-act="tplItemDel" data-i="' + i + '" aria-label="حذف">×</button></div></li>';
     }).join("") + '</ul>' : '<p class="small muted">أضف مهام القالب:</p>';
     h += '<div class="stack" style="gap:8px;margin-top:8px"><input class="field" id="tplItem" type="text" placeholder="مهمة، مثل: مراجعة البريد" autocomplete="off">' +
       '<div class="row-wrap">' + catSelect('id="tplCat"', ui.lastCat) + durSelect('id="tplDur"', 30) + '<input class="field" id="tplTime" type="time" aria-label="الوقت (اختياري)"></div>' +
-      '<div><button class="ghost" data-act="tplItemAdd">+ أضف المهمة</button></div></div>' +
+      '<div><button class="ghost" data-act="tplItemAdd">' + (dr.at != null ? "✓ احفظ تعديل المهمة" : "+ أضف المهمة") + '</button></div></div>' +
       '<div class="row-wrap" style="margin-top:8px"><button class="btn" data-act="tplDraftSave">💾 احفظ القالب</button><button class="ghost" data-act="tplDraftNo">إلغاء</button></div></div></section>';
     return h;
+  }
+  function tplAddTyped() { // the task written in the fields joins the template (in its old place when it was being edited)
+    var dr = ui.tplDraft, t = (($("tplItem") || {}).value || "").trim();
+    if (!dr || !t) return false;
+    ui.lastCat = $("tplCat").value;
+    var x = { title: t.slice(0, 80), cat: ui.lastCat, dur: +$("tplDur").value || 30, important: null, urgent: null, time: $("tplTime").value || "" };
+    if (dr.at != null) dr.items.splice(Math.min(dr.at, dr.items.length), 0, x); else dr.items.push(x);
+    delete dr.at; $("tplItem").value = ""; return true;
+  }
+  function tplKeepFields() { // redraw without losing a task being written
+    var v = ["tplItem", "tplCat", "tplDur", "tplTime"].map(function (k) { return $(k) ? $(k).value : null; });
+    render(); ["tplItem", "tplCat", "tplDur", "tplTime"].forEach(function (k, i) { if ($(k) && v[i] != null) $(k).value = v[i]; });
   }
   function tplKeepName() { if (ui.tplDraft && $("tplName")) ui.tplDraft.name = $("tplName").value; }
   function tplSave() {
@@ -2960,7 +2972,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       BUILTIN_TPL.concat(userTpls()).map(function (t) {
         var mine = t.id.charAt(0) === "u";
         return '<span class="tplchip"><button data-act="tpl" data-t="' + esc(t.id) + '">' + esc(t.name) + ' <small>' + arr(t.items).length + '</small></button>' +
-          (mine ? '<button class="del" data-act="tplDel" data-t="' + esc(t.id) + '" aria-label="حذف القالب">×</button>' : "") + '</span>';
+          (mine ? '<button class="del" data-act="tplEdit" data-t="' + esc(t.id) + '" aria-label="تعديل القالب">✏️</button><button class="del" data-act="tplDel" data-t="' + esc(t.id) + '" aria-label="حذف القالب">×</button>' : "") + '</span>';
       }).join("") + '</div><p class="small muted">يضيف بنود القالب إلى يومك (دون تكرار ما هو موجود)، ثم احذف أو عدّل ما تشاء.' +
       (d.items.length ? ' <button class="linkbtn" data-act="tplSave">💾 احفظ بنود هذا اليوم قالبًا</button>' : "") + '</p></details>';
     return h;
@@ -4279,21 +4291,29 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       case "goalDelYes": state.settings.goals = goals().filter(function (g) { return g.id !== id; }); ui.confirmGoal = null; commit(); toast("حُذف الهدف"); break;
       case "tplSave": tplSave(); break;
       case "tplNew": ui.tplDraft = { id: "", name: "", items: [] }; render(); break;
-      case "tplEdit":
+      case "tplEdit": // from ⚙ or from «خطّط»: the editor is in ⚙ ← «🗓 التخطيط»
         var tex = userTpls().filter(function (x) { return x.id === b.dataset.t; })[0];
-        if (tex) { ui.tplDraft = { id: tex.id, name: tex.name.replace(/^⭐\s*/, ""), items: arr(tex.items).map(function (x) { return Object.assign({}, x); }) }; render(); }
+        if (tex) {
+          ui.tplDraft = { id: tex.id, name: tex.name.replace(/^⭐\s*/, ""), items: arr(tex.items).map(function (x) { return Object.assign({}, x); }) };
+          ui.tab = "settings"; ui.setTab = "plan"; render();
+          var tse = $("tplset"); if (tse) tse.scrollIntoView({ block: "start" }); var tnf = $("tplName"); if (tnf) tnf.focus({ preventScroll: true });
+        }
+        break;
+      case "tplItemEd": // the task goes back into the fields; «✓ احفظ تعديل المهمة» puts it back in its place
+        tplKeepName();
+        var tdi = +b.dataset.i, tat = ui.tplDraft.at; if (tplAddTyped() && tat != null && tdi >= tat) tdi++; // the one being edited went back first
+        var tdx = ui.tplDraft.items.splice(tdi, 1)[0]; if (!tdx) break;
+        ui.tplDraft.at = tdi; render();
+        if ($("tplItem")) { $("tplItem").value = tdx.title; $("tplCat").value = tdx.cat; $("tplDur").value = tdx.dur || 30; $("tplTime").value = tdx.time || ""; $("tplItem").focus(); }
         break;
       case "tplItemAdd":
         tplKeepName();
-        var tti = ($("tplItem") || {}).value || "";
-        if (!tti.trim()) { toast("اكتب المهمة"); break; }
-        ui.lastCat = $("tplCat").value;
-        ui.tplDraft.items.push({ title: tti.trim().slice(0, 80), cat: ui.lastCat, dur: +$("tplDur").value || 30, important: null, urgent: null, time: $("tplTime").value || "" });
+        if (!tplAddTyped()) { toast("اكتب المهمة"); break; }
         render(); var tfi = $("tplItem"); if (tfi) tfi.focus(); break;
-      case "tplItemDel": tplKeepName(); ui.tplDraft.items.splice(+b.dataset.i, 1); render(); break;
+      case "tplItemDel": tplKeepName(); ui.tplDraft.items.splice(+b.dataset.i, 1); if (ui.tplDraft.at > +b.dataset.i) ui.tplDraft.at--; tplKeepFields(); break;
       case "tplDraftNo": ui.tplDraft = null; render(); break;
       case "tplDraftSave":
-        tplKeepName();
+        tplKeepName(); tplAddTyped(); // a task still in the fields (new or being edited) is kept
         var tdr = ui.tplDraft, tnm = (tdr.name || "").trim().slice(0, 30);
         if (!tnm) { toast("اكتب اسم القالب"); break; }
         if (!tdr.items.length) { toast("أضف مهمة واحدة على الأقل"); break; }
