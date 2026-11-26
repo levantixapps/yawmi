@@ -232,6 +232,9 @@ button.iw[aria-pressed="true"] .ir { border-color: var(--accent); color: var(--a
 .tab .ti { display: none; font-style: normal; font-size: 1.6rem; line-height: 1.3; }
 [data-icons] .tab b, [data-icons] .tab span { display: none; }
 [data-icons] .tab .ti { display: block; }
+.mboxes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.mbox { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.mbal { font-size: 1.3rem; font-variant-numeric: tabular-nums; }
 [data-icons] .tab #shopCount { display: block; font-size: 1.3rem; line-height: 1.5; white-space: nowrap; }
 
 /* Controls */
@@ -661,6 +664,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     <button class="tab" data-tab="day" aria-label="جدولي"><i class="ti" aria-hidden="true">📋</i><b>جدولي</b><span>تابع</span></button>
     <button class="tab" data-tab="review" aria-label="راجع"><i class="ti" aria-hidden="true">📊</i><b>راجع</b><span>التقرير</span></button>
     <button class="tab" data-tab="shop" aria-label="المشتريات" hidden><b>المشتريات</b><span id="shopCount">🛒</span></button>
+    <button class="tab" data-tab="money" aria-label="حسابي" hidden><i class="ti" aria-hidden="true">💰</i><b>حسابي</b><span>💰</span></button>
     <button class="tab" data-tab="flows" aria-label="المعاملات" hidden><i class="ti" aria-hidden="true">📨</i><b>المعاملات</b><span>📨</span></button>
   </div>
 </nav>
@@ -818,7 +822,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   // «الأقسام الظاهرة»: each person hides what they don't use. Kept on this device for this account (yawmi-show), not synced,
   // so in a shared family account one member's choice doesn't hide it for the others.
   var FEATS = [["sleep", "🌙 خطة النوم"], ["pray", "🕌 أوقات الصلاة"], ["ramadan", "☪️ رمضان"], ["quran", "📖 القرآن"], ["books", "📚 الكتب"],
-    ["kids", "👨‍👩‍👧 الأبناء"], ["shop", "🛒 المشتريات"], ["alarm", "⏰ المنبّه"], ["adhkar", "🤲 الأذكار والقرآن"], ["puzzle", "🧩 الألغاز"]];
+    ["kids", "👨‍👩‍👧 الأبناء"], ["shop", "🛒 المشتريات"], ["money", "💰 حسابي"], ["alarm", "⏰ المنبّه"], ["adhkar", "🤲 الأذكار والقرآن"], ["puzzle", "🧩 الألغاز"]];
   var TEAM_FEATS = ["pray", "quran", "adhkar", "alarm"]; // the others are always off in a team account (a work account)
   var hiddenF = {};
   try { hiddenF = JSON.parse(localStorage.getItem(pkey("yawmi-show")) || "{}") || {}; } catch (e) {}
@@ -847,6 +851,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     if (k === "quran") return qCfg().on;
     if (k === "books") return bCfg().on;
     if (k === "ramadan") return !(state.settings.ramadan || {}).off;
+    if (k === "money") return !!(state.settings.mon || {}).on;
     return true;
   }
   function featSet(k, on) {
@@ -856,6 +861,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     else if (k === "quran") { setQuran({ on: true }); commit(); }
     else if (k === "books") { setBooks({ on: true }); commit(); }
     else if (k === "ramadan") { state.settings.ramadan = { off: false }; commit(); }
+    else if (k === "money") { state.settings.mon = { on: true }; commit(); }
   }
   function featsHtml() {
     var many = profiles.list.length > 1;
@@ -965,7 +971,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   /* ---------- state ---------- */
   var state, storageOk = true, demo = null;
   function blankState() {
-    return { v: 3, days: {}, settings: { categories: defaultCats(), routines: [], updatedAt: 0 }, shop: { items: [], del: {}, log: [] }, dirtyDays: {}, dirtySettings: 0 };
+    return { v: 3, days: {}, settings: { categories: defaultCats(), routines: [], updatedAt: 0 }, shop: { items: [], del: {}, log: [] }, money: { items: [], del: {} }, dirtyDays: {}, dirtySettings: 0 };
   }
   function blankDay() { return { items: [], good: "", improve: "", notes: "", startAt: "08:00", applied: [], updatedAt: 0 }; }
   function fixState() {
@@ -976,6 +982,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     if (!state.settings.sleep) state.settings.sleep = { hours: 7, wake: "05:00" };
     if (!state.dirtyDays) state.dirtyDays = {};
     state.shop = mergeShop(state.shop);
+    state.money = mergeMoney(state.money);
     Object.keys(state.days).forEach(function (k) {
       var d = state.days[k];
       d.items = arr(d.items); d.applied = arr(d.applied);
@@ -1019,11 +1026,12 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   function itemsMap(d) { var m = {}; d.items.forEach(function (i) { m[i.id] = itemJson(i); }); return m; }
   function textJson(d) { return JSON.stringify([d.good, d.improve, d.notes, d.startAt, d.sleep || null]); }
   function daySnap(d) { return { m: itemsMap(d), t: textJson(d), a: JSON.stringify(d.applied), q: JSON.stringify(d.quran || null), k: JSON.stringify(d.kids || null), r: JSON.stringify(d.rmd || null), b: JSON.stringify(d.bk || null) }; }
-  function setJson() { return JSON.stringify([state.settings.categories, state.settings.routines, state.settings.sleep || null, state.settings.prayer || null, state.settings.quran || null, state.settings.templates || null, state.settings.goals || null, state.settings.team || null, state.settings.kids || null, state.settings.tcfg || null, state.settings.roles || null, state.settings.paths || null, state.settings.rejecters || null, state.settings.ramadan || null, state.settings.books || null, state.settings.cyc || null, state.settings.splan || null, state.settings.show || null]); }
+  function setJson() { return JSON.stringify([state.settings.categories, state.settings.routines, state.settings.sleep || null, state.settings.prayer || null, state.settings.quran || null, state.settings.templates || null, state.settings.goals || null, state.settings.team || null, state.settings.kids || null, state.settings.tcfg || null, state.settings.roles || null, state.settings.paths || null, state.settings.rejecters || null, state.settings.ramadan || null, state.settings.books || null, state.settings.cyc || null, state.settings.splan || null, state.settings.show || null, state.settings.mon || null]); }
   function isEmptyDay(d) { return !d.items.length && !d.good && !d.improve && !d.notes && !(d.sleep && (d.sleep.bed || d.sleep.wake)) && !qHas(d) && !kHas(d) && !rHas(d) && !bHas(d); }
   function shopSnap() { var m = {}; state.shop.items.concat(state.shop.log).forEach(function (i) { m[i.id] = itemJson(i); }); return m; }
+  function moneySnap() { var m = {}; state.money.items.forEach(function (i) { m[i.id] = itemJson(i); }); return m; }
   function takeSnap() {
-    snap = { _s: setJson(), _p: shopSnap() };
+    snap = { _s: setJson(), _p: shopSnap(), _m: moneySnap() };
     Object.keys(state.days).forEach(function (k) { snap[k] = daySnap(state.days[k]); });
   }
   /* ---------- TEAM RULES: a member of a team (not a shared account) works on the leader's tasks without reshaping them ---------- */
@@ -1112,6 +1120,10 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     state.shop.items.concat(state.shop.log).forEach(function (i) { if (op[i.id] !== sp[i.id]) { i.u = now; real = true; } });
     Object.keys(op).forEach(function (id) { if (!(id in sp)) { state.shop.del[id] = now; real = true; } });
     snap._p = sp;
+    var mp = moneySnap(), om = snap._m || mp;
+    state.money.items.forEach(function (i) { if (om[i.id] !== mp[i.id]) { i.u = now; real = true; } });
+    Object.keys(om).forEach(function (id) { if (!(id in mp)) { state.money.del[id] = now; real = true; } });
+    snap._m = mp;
     if (snap._s !== s) { if (snap._s) logEvent("عدّل الإعدادات", "التقسيمات أو المهام الدائمة أو الصلاة أو القرآن أو القوالب أو الأهداف", "", "settings"); snap._s = s; state.settings.updatedAt = now; real = true; }
     persist();
     if (real) markDirty();
@@ -1398,6 +1410,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     document.querySelectorAll(".tab").forEach(function (b) { b.setAttribute("aria-current", b.dataset.tab === ui.tab ? "true" : "false"); });
     var ftab = document.querySelector('.tab[data-tab="flows"]'); if (ftab) ftab.hidden = !flowsTab();
     var stab = document.querySelector('.tab[data-tab="shop"]'); if (stab) stab.hidden = !shopOn();
+    var mtab = document.querySelector('.tab[data-tab="money"]'); if (mtab) mtab.hidden = !moneyOn();
     $("alarmBtn").hidden = !shown("alarm") || !natKey(); // a page alarm rings only while the page is open: kept for the Android app
     $("adBtn").hidden = !shown("adhkar");
     $("pzBtn").hidden = !shown("puzzle") || isTeamOnly();
@@ -1436,13 +1449,13 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       labelFields(); drawQr();
       return;
     }
-    if (offsetOf(dk()) > SPAN && ui.tab !== "settings" && ui.tab !== "shop") {
+    if (offsetOf(dk()) > SPAN && ui.tab !== "settings" && ui.tab !== "shop" && ui.tab !== "money") {
       html += '<div class="banner"><span>📌 يوم قادم: ما تكتبه هنا محفوظ على هذا الجهاز فقط، ويُزامَن مع أجهزتك تلقائيًا قبل موعده بـ٣ أيام.</span><button class="linkbtn" data-act="goToday">ارجع إلى اليوم</button></div>';
     }
-    if (offsetOf(dk()) < -SPAN && ui.tab !== "settings" && ui.tab !== "shop") {
+    if (offsetOf(dk()) < -SPAN && ui.tab !== "settings" && ui.tab !== "shop" && ui.tab !== "money") {
       html += '<div class="banner"><span>هذا يوم من الأرشيف، محفوظ على هذا الجهاز فقط ولا يُرفع إلى السحابة.</span><button class="linkbtn" data-act="goToday">ارجع إلى اليوم</button></div>';
     }
-    if (state.sample === dk() && ui.tab !== "settings" && ui.tab !== "shop") {
+    if (state.sample === dk() && ui.tab !== "settings" && ui.tab !== "shop" && ui.tab !== "money") {
       html += '<div class="banner"><span>هذا يوم مثال يوضّح طريقة الاستخدام.</span><button class="linkbtn" data-act="clearSample">احذف المثال وابدأ</button></div>';
     }
     html += linkHereHtml();
@@ -1450,7 +1463,9 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     if (ui.tab === "day" && flowsOn() && myFlows().length) html += '<div class="banner"><span>📨 عندك ' + myFlows().length + ' معاملة تنتظرك</span><button class="linkbtn" data-act="tab" data-tab="flows">افتحها</button></div>';
     if (ui.tab === "flows" && !flowsTab()) ui.tab = "day";
     if (ui.tab === "shop" && !shopOn()) ui.tab = "day";
-    html += ui.tab === "shop" ? shopView() : ui.tab === "flows" ? flowsView() : ui.tab === "settings" ? settingsView() : ui.tab === "plan" ? planView() : ui.tab === "day" ? dayView() : reviewView();
+    if (ui.tab === "money" && !moneyOn()) ui.tab = "day";
+    if (ui.tab === "money" && !demo && moneyGen()) save();
+    html += ui.tab === "shop" ? shopView() : ui.tab === "money" ? moneyView() : ui.tab === "flows" ? flowsView() : ui.tab === "settings" ? settingsView() : ui.tab === "plan" ? planView() : ui.tab === "day" ? dayView() : reviewView();
     var wasOpen = view.dataset.tab === ui.tab ? [].map.call(view.querySelectorAll("details[open] > summary"), function (x) { return x.textContent; }) : [];
     view.innerHTML = '<div class="stack" style="gap:20px;padding-top:16px">' + html + '</div>';
     view.dataset.tab = ui.tab; // a redraw (a sync, a refresh) keeps the sections the person opened, like «📤 شارك يومي»
@@ -4225,6 +4240,12 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       case "spStop": state.settings.splan.on = false; spClear(); commit(); toast("أُوقفت خطة النوم"); break;
       case "shopClear": state.shop.items = shopLeft(); ui.shopGot = false; commit(); toast("مُسحت المشتريات السابقة"); break;
       case "shopShare": shopShare(); break;
+      case "mForm": ui.mForm = b.dataset.f; ui.mDel = null; render(); if ($("mT")) $("mT").focus(); else if ($("mA")) $("mA").focus(); break;
+      case "mFormNo": ui.mForm = null; render(); break;
+      case "mDel": ui.mDel = b.dataset.lid; render(); break;
+      case "mDelNo": ui.mDel = null; render(); break;
+      case "mDelYes": state.money.items = state.money.items.filter(function (x) { return x.id !== b.dataset.lid; }); ui.mDel = null; commit(); toast("حُذف"); break;
+      case "mReset": moneyReset(); break;
       case "del": d.items = d.items.filter(function (x) { return x.id !== id; }); if (ui.open === id) ui.open = null; commit(); break;
       case "set": it[b.dataset.f] = b.dataset.v === "1"; if (quad(it) === "drop" || quad(it) === "short") it.top = false; commit(); break;
       case "top":
@@ -4485,7 +4506,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     }
   });
 
-  view.addEventListener("toggle", function (e) { if (e.target.id === "shopGot") ui.shopGot = e.target.open; if (e.target.id === "shopStat") ui.shopStat = e.target.open; if (e.target.classList && e.target.classList.contains("shday")) { ui.shopDays = ui.shopDays || {}; ui.shopDays[e.target.dataset.k] = e.target.open; } }, true);
+  view.addEventListener("toggle", function (e) { if (e.target.id === "shopGot") ui.shopGot = e.target.open; if (e.target.id === "shopStat") ui.shopStat = e.target.open; if (e.target.id === "mStat") ui.mStat = e.target.open; if (e.target.id === "mFix") ui.mFix = e.target.open; if (e.target.classList && e.target.classList.contains("shday")) { ui.shopDays = ui.shopDays || {}; ui.shopDays[e.target.dataset.k] = e.target.open; } }, true);
   view.addEventListener("change", function (e) {
     var t = e.target, act = t.dataset.act, it = t.dataset.id ? find(t.dataset.id) : null;
     if (act === "shopDone") {
@@ -4498,6 +4519,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       return;
     }
     if (act === "showF") { featSet(t.dataset.k, t.checked); render(); return; }
+    if (act === "mMon") { ui.mMon = t.value; ui.mDel = null; render(); return; }
     if (act === "shopMon") { ui.shopMon = t.value; ui.shopEd = ui.shopLogDel = null; render(); return; }
     if (act === "done") {
       it.done = t.checked; it.spent = it.done ? (it.focus || it.dur) : null;
@@ -4630,6 +4652,8 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       if (!edD || edD > keyOf(today()) || edD < keyOf(addDays(today(), -365))) { toast("اختر تاريخًا خلال السنة الماضية"); return; }
       shopSaveEdit(edK, e.target.dataset.sid, edT, $("shopEdS").value, edA, edD, edQ);
       ui.shopEd = null; commit();
+    } else if (f === "money") {
+      moneySubmit(e.target);
     } else if (f === "shop") {
       v = $("shopInput").value.trim(); if (!v) return;
       ui.shopSec = $("shopSec").value;
@@ -4696,7 +4720,7 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
   });
 
   document.querySelectorAll(".tab").forEach(function (b) {
-    b.addEventListener("click", function () { ui.tab = b.dataset.tab; ui.open = null; ui.cycSel = null; ui.shopAsk = ui.shopEd = ui.shopLogDel = ui.shopQ = null; render(); window.scrollTo(0, 0); });
+    b.addEventListener("click", function () { ui.tab = b.dataset.tab; ui.open = null; ui.cycSel = null; ui.shopAsk = ui.shopEd = ui.shopLogDel = ui.shopQ = null; ui.mForm = ui.mDel = null; render(); window.scrollTo(0, 0); });
   });
   function currentProfile() { return profiles.list.filter(function (x) { return x.id === PROFILE; })[0]; }
   // A PIN keeps casual hands out of an account. It is a lock on this screen, not encryption of the stored data.
@@ -5892,6 +5916,197 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
     catch (e) { toast("تعذّر النسخ"); }
   }
 
+  /* ---------- MY MONEY 💰: two boxes (Syrian pound, the default, and dollar), income, expenses, fixed monthly lines ---------- */
+  // state.money = { items: [...], del: { <id>: time } }; it travels in the cloud as settings.money and merges item by item like the shopping list.
+  // Items (k): "bal" what I have now { a, c, d, ts } · "in" income · "out" expense { sec } · "x" exchange { a in box c, b received in the other box }
+  // · "fx" a fixed monthly line { t, a, c, io, sec, day, from }. Each month its line is added with the id "fx-<fx id>-<YYYY-MM>", so two devices
+  // add the same line, and a deleted one stays deleted (its 90-day tombstone outlives the 62 days lines are added back for).
+  // A box's balance = its latest "bal" + everything after it (and the shopping amounts, in pounds). Lines older than a year are dropped.
+  var MONEY_CUR = { s: "ل.س", d: "$" };
+  var MONEY_BOX = { s: "🇸🇾 السوري", d: "💵 الدولار" };
+  var MONEY_SECS = [["meal", "🍽 وجبات وطعام"], ["home", "🏠 سكن وفواتير"], ["net", "📱 اتصالات ونت"], ["car", "🚗 مواصلات"], ["supply", "🧰 مستلزمات"], ["health", "💊 صحة"], ["other", "📦 أخرى"]];
+  function mergeMoney(L, R) {
+    var del = {}, by = {}, cut = Date.now() - 90 * 864e5, year = keyOf(addDays(today(), -366));
+    [L, R].forEach(function (x) {
+      if (!x) return;
+      var o = x.del && typeof x.del === "object" ? x.del : {};
+      Object.keys(o).forEach(function (id) { if (+o[id] > cut) del[id] = Math.max(del[id] || 0, +o[id]); });
+      arr(x.items).forEach(function (i) {
+        if (!i || !i.id || !i.k || !(+i.a >= 0)) return;
+        var c = by[i.id], iu = i.u || 0, cu = c ? c.u || 0 : -1;
+        if (!c || iu > cu || (iu === cu && itemJson(i) > itemJson(c))) by[i.id] = i;
+      });
+    });
+    var all = Object.keys(by).sort().map(function (id) { return by[id]; }).filter(function (i) { return !(del[i.id] >= (i.u || 0)); });
+    var keep = all.filter(function (i) { return i.k === "fx" || i.k === "bal"; });
+    var lines = all.filter(function (i) { return i.k !== "fx" && i.k !== "bal" && i.d >= year; }).slice(-1000);
+    return { items: keep.concat(lines), del: del };
+  }
+  function moneyOn() { return !isTeamOnly() && shown("money") && featOn("money"); }
+  function mOther(c) { return c === "d" ? "s" : "d"; }
+  function mAmt(a, c) { return amtText(a) + " " + MONEY_CUR[c === "d" ? "d" : "s"]; }
+  function mSecName(k) { var x = MONEY_SECS.filter(function (s) { return s[0] === k; })[0]; return x ? x[1] : MONEY_SECS[MONEY_SECS.length - 1][1]; }
+  function mItem(id) { return state.money.items.filter(function (x) { return x.id === id; })[0]; }
+  function mLastBal(c) {
+    return state.money.items.filter(function (i) { return i.k === "bal" && i.c === c; }).sort(function (a, b) { return (a.ts || 0) - (b.ts || 0); }).pop() || null;
+  }
+  function mShopLines() { return shopOn() ? state.shop.log : []; }
+  // What one line does to box c (0 when it doesn't touch it)
+  function mEffect(i, c) {
+    if (i.k === "in") return i.c === c ? i.a : 0;
+    if (i.k === "out") return i.c === c ? -i.a : 0;
+    if (i.k === "x") return i.c === c ? -i.a : mOther(i.c) === c ? +i.b || 0 : 0;
+    return 0;
+  }
+  function mBalance(c) {
+    var b = mLastBal(c), bd = b ? b.d : "", bt = b ? b.ts || 0 : 0;
+    var after = function (i) { return !b || i.d > bd || (i.d === bd && (i.ts || i.u || 0) >= bt); };
+    var t = b ? b.a : 0;
+    state.money.items.forEach(function (i) { if (i.k !== "bal" && i.k !== "fx" && after(i)) t += mEffect(i, c); });
+    if (c === "s") mShopLines().forEach(function (e) { if (after(e)) t -= e.a; });
+    return Math.round(t * 100) / 100;
+  }
+  // Adds this month's (and last month's, if missed) fixed lines whose day has come. Returns true when it added any.
+  function moneyGen() {
+    var t0 = today(), tk = keyOf(t0), low = keyOf(addDays(t0, -62)), added = false;
+    state.money.items.filter(function (i) { return i.k === "fx"; }).forEach(function (f) {
+      [-1, 0].forEach(function (n) {
+        var m0 = new Date(t0.getFullYear(), t0.getMonth() + n, 1), last = new Date(m0.getFullYear(), m0.getMonth() + 1, 0).getDate();
+        var dk0 = keyOf(new Date(m0.getFullYear(), m0.getMonth(), Math.min(+f.day || 1, last))), id = "fx-" + f.id + "-" + dk0.slice(0, 7);
+        if (dk0 > tk || dk0 < low || dk0 < (f.from || "") || state.money.del[id] || mItem(id)) return;
+        var e = { id: id, k: f.io === "in" ? "in" : "out", d: dk0, a: f.a, c: f.c, t: f.t, fx: f.id, ts: dk0 === tk ? Date.now() : parseKey(dk0).getTime() };
+        if (e.k === "out") e.sec = f.sec || "home";
+        state.money.items.push(e); added = true;
+      });
+    });
+    return added;
+  }
+  function mCurSel(id, c) {
+    return '<select class="field" id="' + id + '" aria-label="الصندوق">' + ["s", "d"].map(function (k) { return '<option value="' + k + '"' + (k === c ? " selected" : "") + '>' + MONEY_BOX[k] + '</option>'; }).join("") + '</select>';
+  }
+  function mSecSel(id, sec) {
+    return '<select class="field" id="' + id + '" aria-label="القسم">' + MONEY_SECS.map(function (s) { return '<option value="' + s[0] + '"' + (s[0] === sec ? " selected" : "") + '>' + s[1] + '</option>'; }).join("") + '</select>';
+  }
+  function mAmtIn(id, ph, v) { return '<input class="field grow" id="' + id + '" type="text" inputmode="decimal" maxlength="14" placeholder="' + ph + '" autocomplete="off" value="' + (v || "") + '">'; }
+  function mDateIn(id) { return '<label class="small">التاريخ <input class="field cydate" id="' + id + '" type="date" min="' + keyOf(addDays(today(), -365)) + '" max="' + keyOf(today()) + '" value="' + keyOf(today()) + '"></label>'; }
+  function mButtons() { return '<div class="row-wrap"><button class="btn" type="submit">احفظ</button><button class="ghost" type="button" data-act="mFormNo">إلغاء</button></div>'; }
+  function moneyForm() {
+    var f = ui.mForm, c = ui.mCur || "s";
+    if (!f) return "";
+    var h = '<div class="qcard"><form class="stack" style="gap:8px" data-form="money" data-f="' + f + '">';
+    if (f === "out") h += '<h3>➖ مصروف</h3><input class="field" id="mT" type="text" maxlength="60" placeholder="مثال: وجبة غداء" autocomplete="off">' +
+      '<div class="row-wrap">' + mAmtIn("mA", "المبلغ") + mCurSel("mC", c) + '</div>' + mSecSel("mS", ui.mSec || "meal") + mDateIn("mD");
+    else if (f === "in") h += '<h3>➕ دخل</h3><input class="field" id="mT" type="text" maxlength="60" placeholder="مثال: راتب، مكافأة، عمل إضافي" autocomplete="off">' +
+      '<div class="row-wrap">' + mAmtIn("mA", "المبلغ") + mCurSel("mC", c) + '</div>' + mDateIn("mD");
+    else if (f === "x") h += '<h3>💱 صرّفت</h3><p class="small muted">ينتقل المال من صندوق إلى الآخر، ولا يُحسب مصروفًا.</p>' +
+      '<label class="small">من صندوق ' + mCurSel("mC", "d") + '</label><div class="row-wrap">' + mAmtIn("mA", "المبلغ الذي صرّفته") + mAmtIn("mB", "المبلغ الذي أخذته") + '</div>' + mDateIn("mD");
+    else if (f === "fx") h += '<h3>🔁 مصروف أو دخل ثابت كل شهر</h3><input class="field" id="mT" type="text" maxlength="60" placeholder="مثال: إيجار البيت، باقة النت، الراتب" autocomplete="off">' +
+      '<div class="row-wrap">' + mAmtIn("mA", "المبلغ") + mCurSel("mC", c) + '</div>' +
+      '<div class="row-wrap"><select class="field" id="mIo" aria-label="النوع"><option value="out">➖ مصروف</option><option value="in">➕ دخل</option></select>' + mSecSel("mS", "home") + '</div>' +
+      '<label class="small">في يوم <input class="field" id="mDay" type="number" min="1" max="31" value="1" style="width:80px"> من كل شهر</label>' +
+      '<p class="small muted">يُسجَّل وحده في يومه من كل شهر، بدءًا من أول موعد قادم.</p>';
+    else if (f === "bal-s" || f === "bal-d") { var bc = f.slice(4); h += '<h3>✏️ معي الآن في ' + MONEY_BOX[bc] + '</h3><p class="small muted">اكتب ما معك الآن فعلًا. يبدأ الحساب من هذه اللحظة، وما قبلها يبقى في حساب الأشهر فقط.</p>' + mAmtIn("mA", "المبلغ", mBalance(bc) || ""); }
+    return h + mButtons() + '</form></div>';
+  }
+  function mLineRow(i) {
+    if (ui.mDel === i.id) return '<li class="shask row-wrap"><span class="small grow">احذف «' + esc(i.t || "") + '»؟</span><button class="btn" data-act="mDelYes" data-lid="' + esc(i.id) + '">احذف</button><button class="ghost" data-act="mDelNo">لا</button></li>';
+    var amt = i.k === "x" ? mAmt(i.a, i.c) + " ← " + mAmt(i.b, mOther(i.c)) : (i.k === "in" ? "＋ " : "− ") + mAmt(i.a, i.c);
+    return '<li class="shst"><span>' + esc(i.t || "") + (i.fx ? ' <small>🔁</small>' : "") + ' <small>' + cycFull(i.d) + '</small></span><b>' + amt + '</b>' +
+      '<button class="del" data-act="mDel" data-lid="' + esc(i.id) + '" aria-label="حذف">×</button></li>';
+  }
+  function moneyMonth() {
+    var lines = state.money.items.filter(function (i) { return i.k === "in" || i.k === "out" || i.k === "x"; }), shop = mShopLines();
+    if (!lines.length && !shop.length) return "";
+    var cm = keyOf(today()).slice(0, 7), months = [cm];
+    lines.concat(shop).forEach(function (e) { var m = e.d.slice(0, 7); if (months.indexOf(m) < 0) months.push(m); });
+    months.sort().reverse();
+    var mon = months.indexOf(ui.mMon) >= 0 ? ui.mMon : cm;
+    var rows = lines.filter(function (i) { return i.d.slice(0, 7) === mon; }), srows = shop.filter(function (e) { return e.d.slice(0, 7) === mon; });
+    var label = function (m) { try { return monthFmt.format(parseKey(m + "-01")); } catch (e) { return m; } };
+    var h = '<details class="box"' + (ui.mStat ? " open" : "") + ' id="mStat"><summary>📊 حساب الشهر</summary><div class="inner">' +
+      '<select class="field" data-act="mMon" aria-label="الشهر">' + months.map(function (m) { return '<option value="' + m + '"' + (m === mon ? " selected" : "") + '>' + label(m) + '</option>'; }).join("") + '</select>';
+    ["s", "d"].forEach(function (c) {
+      var inn = 0, out = 0, bySec = {};
+      rows.forEach(function (i) {
+        if (i.c !== c) return;
+        if (i.k === "in") inn += i.a;
+        if (i.k === "out") { out += i.a; bySec[i.sec] = (bySec[i.sec] || 0) + i.a; }
+      });
+      if (c === "s" && srows.length) { var sv = srows.reduce(function (t, e) { return t + e.a; }, 0); out += sv; bySec._shop = sv; }
+      if (!inn && !out) return;
+      h += '<b>' + MONEY_BOX[c] + ': دخل ' + mAmt(inn, c) + ' · مصروف ' + mAmt(out, c) + '</b><ul class="list">' +
+        Object.keys(bySec).sort(function (a, b) { return bySec[b] - bySec[a]; }).map(function (k) {
+          return '<li class="shst"><span>' + (k === "_shop" ? "🛒 مشتريات البيت" : mSecName(k)) + '</span><b>' + mAmt(bySec[k], c) + '</b></li>';
+        }).join("") + '</ul>';
+    });
+    if (rows.length) h += '<b class="small">العمليات</b><ul class="list">' + rows.slice().sort(function (a, b) { return a.d < b.d ? 1 : a.d > b.d ? -1 : (b.ts || 0) - (a.ts || 0); }).map(mLineRow).join("") + '</ul>';
+    else if (!srows.length) h += '<p class="small">لا عمليات في هذا الشهر.</p>';
+    return h + '</div></details>';
+  }
+  function moneyView() {
+    var pf = currentProfile(), shared = !!(pf && pf.shared);
+    var h = '<section class="stack"><div class="sechead"><h2>💰 حسابي</h2></div>' +
+      '<p class="muted small">صندوقان: السوري والدولار. سجّل ما معك مرة، ثم الدخل والمصروف، ويُحسب الباقي وحده.' + (shared ? ' <b>هذا الحساب مشترك: يرى أفراده هذا القسم.</b>' : (code ? ' يظهر على كل أجهزتك.' : "")) + '</p>';
+    h += '<div class="mboxes">' + ["s", "d"].map(function (c) {
+      var b = mLastBal(c), old = b && b.d < keyOf(addDays(today(), -330));
+      return '<div class="qcard mbox"><h3>' + MONEY_BOX[c] + '</h3><b class="mbal">' + mAmt(mBalance(c), c) + '</b>' +
+        '<button class="linkbtn" data-act="mForm" data-f="bal-' + c + '">✏️ معي الآن</button>' +
+        (old ? '<p class="small muted">مضى على آخر «معي الآن» قرابة سنة، والسجل يحفظ سنة فقط. اكتبه من جديد.</p>' : "") + '</div>';
+    }).join("") + '</div>';
+    h += '<div class="row-wrap"><button class="btn" data-act="mForm" data-f="out">➖ مصروف</button><button class="btn" data-act="mForm" data-f="in">➕ دخل</button>' +
+      '<button class="ghost" data-act="mForm" data-f="x">💱 صرّفت</button></div>';
+    h += moneyForm();
+    var fx = state.money.items.filter(function (i) { return i.k === "fx"; });
+    h += '<details class="box"' + (ui.mFix ? " open" : "") + ' id="mFix"><summary>🔁 الثابتة كل شهر (' + fx.length + ')</summary><div class="inner">' +
+      (fx.length ? '<ul class="list">' + fx.map(function (f) {
+        if (ui.mDel === f.id) return '<li class="shask row-wrap"><span class="small grow">أوقف «' + esc(f.t) + '»؟ ما سُجّل منه يبقى.</span><button class="btn" data-act="mDelYes" data-lid="' + esc(f.id) + '">أوقفه</button><button class="ghost" data-act="mDelNo">لا</button></li>';
+        return '<li class="shst"><span>' + esc(f.t) + ' <small>يوم ' + f.day + '</small></span><b>' + (f.io === "in" ? "＋ " : "− ") + mAmt(f.a, f.c) + '</b><button class="del" data-act="mDel" data-lid="' + esc(f.id) + '" aria-label="حذف">×</button></li>';
+      }).join("") + '</ul>' : '<p class="small muted">مثل إيجار البيت وباقة النت والراتب: تكتبها مرة، فتُسجَّل وحدها كل شهر.</p>') +
+      '<button class="ghost" data-act="mForm" data-f="fx">＋ أضف ثابتًا</button></div></details>';
+    h += moneyMonth();
+    h += '<details class="box" id="mReset"><summary>🗑 ابدأ من الصفر</summary><div class="inner"><p class="small">يحذف «معي الآن» والدخل والمصروفات والصرف من كل أجهزتك. مشتريات البيت لا تتأثر.</p>' +
+      '<label class="small"><input type="checkbox" class="check" id="mResetFx"> احذف الثابتة كل شهر أيضًا</label>' +
+      '<button class="ghost" data-act="mReset">احذف وابدأ من جديد</button></div></details>';
+    return h + '</section>';
+  }
+  function moneySubmit(form) {
+    var f = form.dataset.f, a = shopParse(($("mA") || {}).value || ""), t = (($("mT") || {}).value || "").trim().slice(0, 60);
+    var now = Date.now(), tk = keyOf(today()), d = ($("mD") || {}).value || tk, c = ($("mC") || {}).value === "d" ? "d" : "s";
+    if (d > tk || d < keyOf(addDays(today(), -365))) d = tk;
+    if (f === "bal-s" || f === "bal-d") {
+      if (isNaN(a)) { toast("اكتب المبلغ بالأرقام"); return; }
+      state.money.items.push({ id: uid(), k: "bal", a: a, c: f.slice(4), d: tk, ts: now });
+      ui.mForm = null; commit(); toast("بدأ الحساب من الآن"); return;
+    }
+    if (!(a > 0)) { toast("اكتب المبلغ بالأرقام"); return; }
+    if (f === "x") {
+      var b = shopParse(($("mB") || {}).value || "");
+      if (!(b > 0)) { toast("اكتب المبلغ الذي أخذته"); return; }
+      state.money.items.push({ id: uid(), k: "x", a: a, b: b, c: c, d: d, t: "صرّفت", ts: now });
+      ui.mForm = null; commit(); toast("💱 انتقل المبلغ بين الصندوقين"); return;
+    }
+    if (!t) { toast("اكتب الاسم"); return; }
+    ui.mCur = c;
+    if (f === "fx") {
+      var day0 = Math.max(1, Math.min(31, Math.round(+$("mDay").value) || 1)), io = $("mIo").value === "in" ? "in" : "out";
+      var fxi = { id: uid(), k: "fx", t: t, a: a, c: c, io: io, day: day0, from: tk };
+      if (io === "out") fxi.sec = $("mS").value;
+      // From the next date it falls on: if its day has passed this month, it starts next month
+      if (day0 < today().getDate()) fxi.from = keyOf(new Date(today().getFullYear(), today().getMonth() + 1, 1));
+      state.money.items.push(fxi); moneyGen(); ui.mForm = null; ui.mFix = true; commit(); toast("🔁 يُسجَّل وحده كل شهر"); return;
+    }
+    var e = { id: uid(), k: f === "in" ? "in" : "out", a: a, c: c, d: d, t: t, ts: now };
+    if (e.k === "out") { e.sec = $("mS").value; ui.mSec = e.sec; }
+    state.money.items.push(e); ui.mForm = null; commit(); toast(e.k === "in" ? "أُضيف الدخل" : "سُجّل المصروف");
+  }
+  function moneyReset() {
+    var all = !!($("mResetFx") || {}).checked, now = Date.now();
+    state.money.items = state.money.items.filter(function (i) { return !all && i.k === "fx"; });
+    // the fixed ones' lines of this month and last stay deleted (tombstones), so they are not added back
+    if (!all) { moneyGen(); state.money.items = state.money.items.filter(function (i) { if (i.fx) { state.money.del[i.id] = now; return false; } return true; }); }
+    ui.mForm = ui.mDel = null; commit(); toast("بدأ حسابك من الصفر");
+  }
+
   /* ---------- LIVE DEMO 🎬: a hand uses the real app on a copy of the data, then everything goes back ---------- */
   // Each step: { say, go (selector), act: "click" | "type" | "pick" | "point" | "wait", text / value, wait }. `go` is looked up fresh
   // each time, after the app re-renders. While a demo runs, persist / sync / log do nothing; at the end the real state returns.
@@ -6361,15 +6576,18 @@ details.changes .loglist { margin-top: 6px; max-height: 260px; overflow-y: auto;
       var rshop = row.settings && row.settings.shop, ms = mergeShop(state.shop, rshop), msj = JSON.stringify(ms);
       if (msj !== JSON.stringify(mergeShop(state.shop))) { state.shop = ms; snap._p = shopSnap(); changed = true; }
       if (msj !== JSON.stringify(mergeShop(rshop))) upload = true;
+      var rmon = row.settings && row.settings.money, mm = mergeMoney(state.money, rmon), mmj = JSON.stringify(mm);
+      if (mmj !== JSON.stringify(mergeMoney(state.money))) { state.money = mm; snap._m = moneySnap(); changed = true; }
+      if (mmj !== JSON.stringify(mergeMoney(rmon))) upload = true;
       var rs = row.settings, rst = rs ? (rs.updatedAt || 0) : -1, lst = state.settings.updatedAt || 0;
       if (rs && rst > lst) {
-        state.settings = { categories: arr(rs.categories).length ? rs.categories : defaultCats(), routines: arr(rs.routines), sleep: rs.sleep || state.settings.sleep, prayer: rs.prayer || state.settings.prayer, quran: rs.quran || state.settings.quran, templates: rs.templates || state.settings.templates, goals: rs.goals || state.settings.goals, team: rs.team || state.settings.team, kids: rs.kids || state.settings.kids, tcfg: rs.tcfg || state.settings.tcfg, roles: rs.roles || state.settings.roles, paths: rs.paths || state.settings.paths, rejecters: rs.rejecters || state.settings.rejecters, ramadan: rs.ramadan || state.settings.ramadan, books: rs.books || state.settings.books, cyc: rs.cyc || state.settings.cyc, splan: rs.splan || state.settings.splan, show: rs.show || state.settings.show, updatedAt: rst };
+        state.settings = { categories: arr(rs.categories).length ? rs.categories : defaultCats(), routines: arr(rs.routines), sleep: rs.sleep || state.settings.sleep, prayer: rs.prayer || state.settings.prayer, quran: rs.quran || state.settings.quran, templates: rs.templates || state.settings.templates, goals: rs.goals || state.settings.goals, team: rs.team || state.settings.team, kids: rs.kids || state.settings.kids, tcfg: rs.tcfg || state.settings.tcfg, roles: rs.roles || state.settings.roles, paths: rs.paths || state.settings.paths, rejecters: rs.rejecters || state.settings.rejecters, ramadan: rs.ramadan || state.settings.ramadan, books: rs.books || state.settings.books, cyc: rs.cyc || state.settings.cyc, splan: rs.splan || state.settings.splan, show: rs.show || state.settings.show, mon: rs.mon || state.settings.mon, updatedAt: rst };
         snap._s = setJson(); changed = true;
       } else if (lst > rst) upload = true;
       fixState(); persist();
       if (changed) softRender();
       if (!upload) { cloud.stamp = typeof row.stamp === "string" ? row.stamp : ""; cloud.sbase = base; saveCode(); return; }
-      var data = { base_date: todayKey, settings: { categories: state.settings.categories, routines: state.settings.routines, sleep: state.settings.sleep, prayer: state.settings.prayer || null, quran: state.settings.quran || null, templates: state.settings.templates || null, goals: state.settings.goals || null, team: state.settings.team || null, kids: state.settings.kids || null, tcfg: state.settings.tcfg || null, roles: state.settings.roles || null, paths: state.settings.paths || null, rejecters: state.settings.rejecters || null, ramadan: state.settings.ramadan || null, books: state.settings.books || null, cyc: state.settings.cyc || null, splan: state.settings.splan || null, show: state.settings.show || null, shop: state.shop, updatedAt: state.settings.updatedAt || 0 } };
+      var data = { base_date: todayKey, settings: { categories: state.settings.categories, routines: state.settings.routines, sleep: state.settings.sleep, prayer: state.settings.prayer || null, quran: state.settings.quran || null, templates: state.settings.templates || null, goals: state.settings.goals || null, team: state.settings.team || null, kids: state.settings.kids || null, tcfg: state.settings.tcfg || null, roles: state.settings.roles || null, paths: state.settings.paths || null, rejecters: state.settings.rejecters || null, ramadan: state.settings.ramadan || null, books: state.settings.books || null, cyc: state.settings.cyc || null, splan: state.settings.splan || null, show: state.settings.show || null, mon: state.settings.mon || null, shop: state.shop, money: state.money, updatedAt: state.settings.updatedAt || 0 } };
       windowKeys().forEach(function (k, i) { data[COLS[i]] = merged[k] ? toRemote(k, merged[k]) : null; });
       return rpc("save", { p_code: code, p_data: data }).then(function (r2) {
         if (r2.error) throw r2.error;

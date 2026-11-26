@@ -24,7 +24,7 @@ setTimeout(function () {
   ok("راجع", function () { return tab("review") && all("#view *") > 5; });
   ok("البحث يفتح", function () { q("#searchBtn").click(); var o = !!q("#srRes"); document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })); return o; });
   ok("الإعدادات تفتح", function () { q("#setBtn").click(); return all('[data-act="setTab"]') >= 4; });
-  ok("الأقسام الظاهرة", function () { return all('[data-act="showF"]') === (APP ? 10 : 9); });
+  ok("الأقسام الظاهرة", function () { return all('[data-act="showF"]') === (APP ? 11 : 10); });
   ok("⏰ " + (APP ? "ظاهر في التطبيق" : "مخفي في المتصفح"), function () { return q("#alarmBtn").hidden === !APP; });
   ok("القرآن: المربع يشغّله", function () {
     var b = q('[data-act="showF"][data-k="quran"]'); if (!b.checked) b.click();
@@ -39,6 +39,24 @@ setTimeout(function () {
     var right = APP ? !!sec().querySelector('[data-act="natTest"],[data-act="natSettings"]') && !sec().querySelector('[data-act="alertSound"]')
                     : !!sec().querySelector('[data-act="alertSound"]');
     q('[data-act="alertsOn"]').click(); return on && right && !sec().querySelector('[data-act="alertLead"]');
+  });
+  ok("💰 حسابي: يُشغَّل ويحسب الصندوقين", function () {
+    if (!q('[data-act="showF"]')) q("#setBtn").click();
+    var b = q('[data-act="showF"][data-k="money"]'); if (!b) throw new Error("no money checkbox"); if (!b.checked) b.click();
+    if (!tab("money")) return false;
+    if (q('[data-act="nameLater"]')) q('[data-act="nameLater"]').click();
+    if (!q('[data-act="mForm"]')) throw new Error("view: " + q("#view").textContent.slice(0, 300) + " | checked=" + b.checked);
+    var set = function (id, v) { var e = q("#" + id); e.value = v; };
+    var sub = function () { var s = q('form[data-form="money"] button[type=submit]'); if (!s) throw new Error("no form"); s.click(); };
+    q('[data-act="mForm"][data-f="bal-s"]').click(); set("mA", "1000"); sub();
+    q('[data-act="mForm"][data-f="in"]').click(); set("mT", "مكافأة"); set("mA", "500"); sub();
+    q('[data-act="mForm"][data-f="out"]').click(); set("mT", "وجبة"); set("mA", "200"); sub();
+    q('[data-act="mForm"][data-f="x"]').click(); set("mA", "10"); set("mB", "120"); sub();
+    q('[data-act="mForm"][data-f="fx"]').click(); set("mT", "إيجار"); set("mA", "300"); set("mDay", "1"); sub();
+    q('[data-act="mForm"][data-f="fx"]').click(); set("mT", "باقة النت"); set("mA", "50"); set("mDay", String(new Date().getDate())); sub();
+    var bal = [].map.call(document.querySelectorAll(".mbal"), function (e) { return e.textContent; });
+    if (!(bal[0] === "1,370 ل.س" && bal[1] === "-10 $")) throw new Error(JSON.stringify(bal));
+    return bal[0] === "1,370 ل.س" && bal[1] === "-10 $" && !!q("#mStat");
   });
   ok("لا أخطاء بعد الضغطات", function () { return !document.documentElement.getAttribute("data-err"); });
   document.documentElement.setAttribute("data-test", R.join("\n"));
